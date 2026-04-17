@@ -105,7 +105,7 @@ wright llms-txt .
 
 ## VS Code Extension
 
-1. Install the `wright` extension from the VS Code marketplace (or build from source).
+1. Install the `WrightAI` extension from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai) (or build from source).
 2. Open a Python/JS/TS/Java/Go/Rust file.
 3. Click **"Generate Docs"** above any function via CodeLens.
 4. Use **Wright: Chat with codebase** (`Ctrl+Shift+P`) for interactive chat.
