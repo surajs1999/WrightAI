@@ -56,7 +56,18 @@ async def verify_api_key(
     api_key: str | None = Security(_API_KEY_HEADER),
     bearer: HTTPAuthorizationCredentials | None = Security(_BEARER),
 ) -> None:
-    # Accept WorkOS Bearer token (VS Code / web users)
+    # Accept user API keys issued via WorkOS + Supabase (wai_ prefix)
+    if api_key and api_key.startswith("wai_"):
+        from api.user_store import get_user_by_api_key
+        if get_user_by_api_key(api_key):
+            return
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+    # Accept server-level static key (CLI / GitHub Action / MCP)
+    if api_key and api_key == _WRIGHT_API_KEY:
+        return
+
+    # Accept WorkOS Bearer token directly
     if bearer and bearer.credentials:
         try:
             _verify_workos_token(bearer.credentials)
@@ -65,9 +76,5 @@ async def verify_api_key(
             raise
         except Exception:
             raise HTTPException(status_code=401, detail="Invalid WorkOS token")
-
-    # Accept static API key (CLI / GitHub Action / MCP users)
-    if api_key and api_key == _WRIGHT_API_KEY:
-        return
 
     raise HTTPException(status_code=401, detail="Invalid or missing credentials")

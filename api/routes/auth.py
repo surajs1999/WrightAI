@@ -41,12 +41,17 @@ class CallbackRequest(BaseModel):
 @router.post("/callback")
 async def callback(body: CallbackRequest) -> dict:
     try:
+        from api.user_store import get_or_create_user
         auth = _get_workos().user_management.authenticate_with_code(
             code=body.code,
             session={"seal_session": False},
         )
+        user = get_or_create_user(
+            workos_user_id=auth.user.id,
+            email=auth.user.email,
+        )
         return {
-            "access_token": auth.access_token,
+            "api_key": user.api_key,
             "user": {
                 "id": auth.user.id,
                 "email": auth.user.email,

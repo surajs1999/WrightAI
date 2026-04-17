@@ -22,22 +22,32 @@ pip install -e ".[dev]"
 
 ---
 
-## Quick Start (5 steps)
+## Quick Start
 
+### VS Code (no setup required)
+1. Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai)
+2. Sign in at `https://wrightai-api.fly.dev/auth/login` → get your `wai_` API key
+3. Add key to VS Code settings under **Wright: Api Key**
+4. Click **Generate Docs** above any function — done
+
+### CLI / Self-hosted
 ```bash
-# 1. Copy the environment template and add your API keys
+# 1. Install
+pip install wright
+
+# 2. Copy env template and add your API keys
 cp .env.example .env
 
-# 2. Initialize Wright in your project
+# 3. Initialize WrightAI in your project
 wright init .
 
-# 3. Generate documentation for all undocumented functions
+# 4. Generate documentation
 wright generate src/
 
-# 4. Check documentation coverage
+# 5. Check coverage
 wright coverage .
 
-# 5. Chat with your codebase
+# 6. Chat with your codebase
 wright chat .
 ```
 
@@ -105,19 +115,22 @@ wright llms-txt .
 
 ## VS Code Extension
 
-1. Install the `WrightAI` extension from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai) (or build from source).
-2. Open a Python/JS/TS/Java/Go/Rust file.
-3. Click **"Generate Docs"** above any function via CodeLens.
-4. Use **Wright: Chat with codebase** (`Ctrl+Shift+P`) for interactive chat.
+1. Install the `WrightAI` extension from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai)
+2. Sign in at `https://wrightai-api.fly.dev/auth/login` with GitHub or Google
+3. Copy your personal API key (starts with `wai_`)
+4. Open VS Code Settings → search `WrightAI` → paste your key into **Wright: Api Key**
+5. Open any supported file and click **"Generate Docs"** via CodeLens
 
 **Settings** (`settings.json`):
 ```json
 {
-  "wright.apiUrl": "http://localhost:8765",
-  "wright.apiKey": "",
+  "wright.apiUrl": "https://wrightai-api.fly.dev",
+  "wright.apiKey": "wai_your_key_here",
   "wright.style": "google"
 }
 ```
+
+No Python installation or local server needed — the backend is hosted.
 
 ---
 
@@ -207,7 +220,7 @@ Add to your `.mcp.json`:
 | `output_dir` | string | `"docs"` | Where to write Markdown docs |
 | `coverage_threshold` | float | `0.7` | Fail CI below this fraction |
 | `include_examples` | bool | `true` | Include usage examples in docstrings |
-| `model` | string | `claude-sonnet-4-5` | Claude model to use |
+| `model` | string | `claude-sonnet-4-6` | Claude model to use |
 
 ---
 
@@ -239,9 +252,10 @@ wright/
 │   │   └── drift_detector.py       # AST diff staleness detection
 │   └── config.py            # .wright.json config loader
 │
-├── api/                     # FastAPI REST backend (port 8765)
-│   ├── routes/              # /generate, /coverage, /drift-check, /chat
-│   └── tasks/               # Celery async jobs
+├── api/                     # FastAPI REST backend
+│   ├── routes/              # /auth, /generate, /coverage, /drift-check, /chat
+│   ├── tasks/               # Celery async jobs
+│   └── user_store.py        # Supabase user + API key management
 │
 ├── cli/                     # Typer CLI (wright command)
 ├── mcp_server/              # MCP server (stdio transport)
@@ -250,28 +264,43 @@ wright/
 └── github-action/           # GitHub Action (coverage/generate/drift)
 ```
 
+**Hosted infrastructure:**
+- **Fly.io** — FastAPI backend at `https://wrightai-api.fly.dev`
+- **WorkOS** — OAuth login (GitHub / Google)
+- **Supabase** — Per-user API key storage and usage tracking
+
 **Data flow:**
 1. Files → Tree-sitter AST parser → `ParsedFunction` objects
 2. Functions → AST chunker → `CodeChunk` objects
-3. Chunks → Voyage embeddings → ChromaDB vector store
+3. Chunks → Voyage AI embeddings → ChromaDB vector store
 4. Query/function → Hybrid retriever (vector + PageRank) → `RetrievedContext`
 5. Context + function → LLM gateway (Claude) → `DocstringSchema`
 6. Schema → Injector (byte-offset) → Modified source file
+
+**Auth flow:**
+1. User signs in via WorkOS (GitHub/Google)
+2. Backend generates a unique `wai_` API key → stored in Supabase
+3. Key used on every request via `X-Wright-API-Key` header
 
 ---
 
 ## Environment Variables
 
+For CLI / self-hosted usage only. VS Code users do not need to set these.
+
 ```
 ANTHROPIC_API_KEY   — Anthropic API key (required)
-VOYAGE_API_KEY      — Voyage AI key (recommended for code embeddings)
-OPENAI_API_KEY      — OpenAI key (fallback embeddings)
-GITHUB_TOKEN        — For auto-PR in drift mode
+VOYAGE_API_KEY      — Voyage AI key for code embeddings (required)
+GITHUB_TOKEN        — For auto-PR in drift mode (optional)
 REDIS_URL           — Redis URL for Celery (default: redis://localhost:6379/0)
 CHROMA_PATH         — ChromaDB storage path (default: .wright/chroma)
 SQLITE_CACHE_PATH   — AST cache DB path (default: .wright/ast_cache.db)
 WRIGHT_API_PORT     — API server port (default: 8765)
 WRIGHT_API_KEY      — Override the auto-generated REST API key (optional)
+WORKOS_API_KEY      — WorkOS API key (hosted backend only)
+WORKOS_CLIENT_ID    — WorkOS client ID (hosted backend only)
+SUPABASE_URL        — Supabase project URL (hosted backend only)
+SUPABASE_SERVICE_KEY — Supabase service role key (hosted backend only)
 ```
 
 ---
