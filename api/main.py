@@ -53,8 +53,9 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-from api.routes import chat, coverage, drift, generate
+from api.routes import auth, chat, coverage, drift, generate
 
+app.include_router(auth.router)
 app.include_router(generate.router)
 app.include_router(coverage.router)
 app.include_router(drift.router)
