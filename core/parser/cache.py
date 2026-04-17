@@ -98,7 +98,9 @@ def _deserialize_parsed_file(raw: str) -> ParsedFile:
 
 class ASTCache:
     def __init__(self, db_path: str) -> None:
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        dir_path = os.path.dirname(db_path)
+        os.makedirs(dir_path, exist_ok=True)
+        os.chmod(dir_path, 0o700)
         self._db_path = db_path
         self._init_db()
 

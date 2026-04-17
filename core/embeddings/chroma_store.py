@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass
 from typing import Any
 
@@ -29,6 +30,8 @@ class ChromaStore:
         self._persist_path = persist_path
         repo_hash = hashlib.md5(repo_root.encode()).hexdigest()[:8]
         self._collection_name = f"wright_{repo_hash}"
+        os.makedirs(persist_path, exist_ok=True)
+        os.chmod(persist_path, 0o700)
         self._client = chromadb.PersistentClient(
             path=persist_path,
             settings=Settings(anonymized_telemetry=False),

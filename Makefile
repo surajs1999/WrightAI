@@ -1,7 +1,8 @@
-.PHONY: install test lint build-extension start-api start-mcp start-worker
+.PHONY: install test lint audit build-extension start-api start-mcp start-worker
 
 install:
 	pip install -e ".[dev]"
+	pip install pip-audit
 
 test:
 	pytest tests/ -v
@@ -9,6 +10,9 @@ test:
 lint:
 	ruff check . --fix
 	ruff format .
+
+audit:
+	pip-audit --skip-editable
 
 build-extension:
 	cd vscode-extension && npm install && npm run build
