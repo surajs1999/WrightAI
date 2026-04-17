@@ -1,10 +1,39 @@
 {
   "name": "wright",
   "displayName": "Wright — AI Code Documentation",
-  "description": "Generate, maintain, and chat with your code documentation using AI",
+  "description": "Generate, maintain, and chat with your code documentation using Claude AI. Supports Python, JavaScript, TypeScript, Java, Go, and Rust.",
   "version": "0.1.0",
-  "engines": { "vscode": "^1.95.0" },
-  "categories": ["AI", "Other"],
+  "publisher": "WrightAI",
+  "license": "AGPL-3.0-or-later",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/surajs1999/WrightAI"
+  },
+  "homepage": "https://github.com/surajs1999/WrightAI#readme",
+  "bugs": {
+    "url": "https://github.com/surajs1999/WrightAI/issues"
+  },
+  "keywords": [
+    "ai",
+    "documentation",
+    "docstring",
+    "claude",
+    "anthropic",
+    "python",
+    "typescript",
+    "jsdoc",
+    "autodoc",
+    "copilot"
+  ],
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "AI",
+    "Formatters",
+    "Other"
+  ],
   "activationEvents": [
     "onLanguage:python",
     "onLanguage:javascript",
@@ -16,35 +45,74 @@
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
-      { "command": "wright.generateCurrent", "title": "Wright: Generate docs for this function" },
-      { "command": "wright.generateFile", "title": "Wright: Generate docs for entire file" },
-      { "command": "wright.showCoverage", "title": "Wright: Show coverage" },
-      { "command": "wright.chat", "title": "Wright: Chat with codebase" },
-      { "command": "wright.checkDrift", "title": "Wright: Check for doc drift" }
+      {
+        "command": "wright.generateCurrent",
+        "title": "Wright: Generate docs for this function"
+      },
+      {
+        "command": "wright.generateFile",
+        "title": "Wright: Generate docs for entire file"
+      },
+      {
+        "command": "wright.showCoverage",
+        "title": "Wright: Show coverage"
+      },
+      {
+        "command": "wright.chat",
+        "title": "Wright: Chat with codebase"
+      },
+      {
+        "command": "wright.checkDrift",
+        "title": "Wright: Check for doc drift"
+      }
     ],
     "menus": {
       "editor/context": [
-        { "command": "wright.generateCurrent", "when": "editorHasSelection || editorTextFocus" }
+        {
+          "command": "wright.generateCurrent",
+          "when": "editorHasSelection || editorTextFocus"
+        }
       ]
     },
     "views": {
       "explorer": [
-        { "id": "wrightCoverage", "name": "Wright Coverage" }
+        {
+          "id": "wrightCoverage",
+          "name": "Wright Coverage"
+        }
       ]
     },
     "configuration": {
       "title": "Wright",
       "properties": {
-        "wright.apiUrl": { "type": "string", "default": "http://localhost:8765", "description": "Wright API server URL" },
-        "wright.apiKey": { "type": "string", "default": "", "description": "Wright API key" },
+        "wright.apiUrl": {
+          "type": "string",
+          "default": "http://localhost:8765",
+          "description": "Wright API server URL"
+        },
+        "wright.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Wright API key"
+        },
         "wright.style": {
           "type": "string",
-          "enum": ["google", "jsdoc", "numpy", "epytext", "rust"],
+          "enum": [
+            "google",
+            "jsdoc",
+            "numpy",
+            "epytext",
+            "rust"
+          ],
           "default": "google",
           "description": "Docstring style"
         }
       }
     }
+  },
+  "galleryBanner": {
+    "color": "#1a1a2e",
+    "theme": "dark"
   },
   "scripts": {
     "build": "node esbuild.js",
@@ -52,9 +120,10 @@
     "vscode:prepublish": "node esbuild.js --production"
   },
   "devDependencies": {
-    "@types/vscode": "^1.95.0",
     "@types/node": "^22.0.0",
-    "typescript": "^5.6.0",
-    "esbuild": "^0.24.0"
+    "@types/vscode": "^1.95.0",
+    "esbuild": "^0.24.0",
+    "jimp": "^1.6.1",
+    "typescript": "^5.6.0"
   }
 }
