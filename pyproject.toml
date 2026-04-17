@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wright"
+version = "0.1.0"
+description = "AI-powered code documentation tool"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "Wright"}]
+
+dependencies = [
+    "anthropic>=0.40.0",
+    "tree-sitter>=0.23.0",
+    "tree-sitter-python>=0.23.0",
+    "tree-sitter-javascript>=0.23.0",
+    "tree-sitter-typescript>=0.23.0",
+    "tree-sitter-java>=0.23.0",
+    "tree-sitter-go>=0.23.0",
+    "tree-sitter-rust>=0.23.0",
+    "chromadb>=0.5.0",
+    "voyageai>=0.3.0",
+    "networkx>=3.3",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+    "celery>=5.4.0",
+    "redis>=5.0.0",
+    "typer>=0.12.0",
+    "rich>=13.8.0",
+    "mcp>=1.0.0",
+    "pydantic>=2.8.0",
+    "python-dotenv>=1.0.0",
+    "gitpython>=3.1.43",
+    "httpx>=0.27.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.7.0",
+]
+
+[project.scripts]
+wright = "cli.main:app"
+wright-api = "api.main:start"
+wright-mcp = "mcp_server.server:run"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*", "api*", "cli*", "mcp_server*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "wright": {
+      "command": "python",
+      "args": ["-m", "mcp_server.server"],
+      "cwd": ".",
+      "env": {
+        "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}",
+        "VOYAGE_API_KEY": "${VOYAGE_API_KEY}",
+        "CHROMA_PATH": ".wright/chroma"
+      }
+    }
+  }
+}

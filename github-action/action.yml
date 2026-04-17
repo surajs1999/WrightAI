@@ -1,0 +1,59 @@
+name: Wright Documentation Check
+description: Automatically generate and check code documentation
+
+inputs:
+  anthropic-api-key:
+    description: Anthropic API key
+    required: true
+  voyage-api-key:
+    description: Voyage AI API key for embeddings
+    required: false
+    default: ""
+  mode:
+    description: "generate | coverage | drift"
+    required: false
+    default: coverage
+  coverage-threshold:
+    description: Fail if coverage below this (0.0-1.0)
+    required: false
+    default: "0.7"
+  auto-pr:
+    description: Open PR with generated docs (drift mode only)
+    required: false
+    default: "false"
+  path:
+    description: Path to check (defaults to repo root)
+    required: false
+    default: "."
+
+outputs:
+  coverage-pct:
+    description: Documentation coverage percentage
+  drifted-functions:
+    description: Number of functions with drifted docs
+  pr-url:
+    description: URL of the opened PR (if auto-pr enabled)
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+    - name: Install Wright
+      run: pip install wright
+      shell: bash
+    - name: Run Wright
+      run: python ${{ github.action_path }}/entrypoint.py
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        VOYAGE_API_KEY: ${{ inputs.voyage-api-key }}
+        WRIGHT_MODE: ${{ inputs.mode }}
+        WRIGHT_THRESHOLD: ${{ inputs.coverage-threshold }}
+        WRIGHT_AUTO_PR: ${{ inputs.auto-pr }}
+        WRIGHT_PATH: ${{ inputs.path }}
+        GITHUB_TOKEN: ${{ github.token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_REF: ${{ github.ref }}
+        GITHUB_STEP_SUMMARY: ${{ github.step_summary }}

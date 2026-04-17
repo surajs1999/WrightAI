@@ -1,0 +1,10 @@
+{
+  "style": "google",
+  "verbosity": "standard",
+  "languages": ["python", "typescript"],
+  "exclude": ["node_modules", "dist", "*.test.ts"],
+  "output_dir": "docs",
+  "coverage_threshold": 0.8,
+  "include_examples": true,
+  "model": "claude-sonnet-4-5"
+}
