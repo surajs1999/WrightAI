@@ -33,7 +33,48 @@ MASTER_SVG = (
 DARK_SVG = MASTER_SVG.replace("#534AB7", "#26215C")
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-def write_file(path: Path, data: bytes | str) -> None:
+def write_file(path: Path, data: bytes | str) -> None:"""
+Writes data to a file at the specified path.
+
+Writes the provided data to a file, automatically handling both bytes and string data types. Creates parent directories if they don't exist.
+
+Args:
+    path (Path): The file path where the data will be written.
+    data (bytes | str): The data to write to the file, either as bytes or a string.
+
+Returns:
+    None: This function does not return a value.
+
+Raises:
+    OSError: When the file cannot be written due to permissions or disk space issues.
+    IOError: When an I/O error occurs during file writing.
+
+Example:
+    ```
+    write_file(Path('output/logo.png'), b'\x89PNG\r\n...')
+    ```
+
+Complexity: O(n) time where n is the size of the data, O(1) space
+"""
+
+"""
+Writes data to a file at the specified path, handling both string and binary data appropriately.
+
+Automatically detects the data type and writes it using the appropriate method: text mode with UTF-8 encoding for strings, or binary mode for bytes.
+
+Args:
+    path (Path): The file path where the data should be written.
+    data (bytes | str): The data to write to the file, either as a string or bytes object.
+
+Returns:
+    None: This function does not return a value.
+
+Example:
+    ```
+    write_file(Path('output.txt'), 'Hello, World!')
+    write_file(Path('image.png'), b'\x89PNG\r\n\x1a\n')
+    ```
+"""
     if isinstance(data, str):
         path.write_text(data, encoding="utf-8")
     else:
