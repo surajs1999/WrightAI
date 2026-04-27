@@ -3,6 +3,7 @@ import * as os from "os";
 import * as path from "path";
 import * as fs from "fs";
 import { generateDocstring } from "./client";
+import { friendlyError, friendlyApiError } from "./errors";
 
 const FIRST_INJECT_KEY = "wright.hasInjectedOnce";
 
@@ -13,7 +14,7 @@ export async function generateAndInject(
 ): Promise<void> {
   const repoRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!repoRoot) {
-    vscode.window.showErrorMessage("Wright: No workspace folder open.");
+    vscode.window.showErrorMessage("Wright: Please open a folder or workspace first.");
     return;
   }
 
@@ -27,7 +28,7 @@ export async function generateAndInject(
         );
 
         if (!preview.success || !preview.preview) {
-          vscode.window.showErrorMessage(`Wright: Failed to generate docs: ${preview.error ?? "Unknown error"}`);
+          vscode.window.showErrorMessage(`Wright: ${friendlyApiError(preview.error)}`);
           return;
         }
 
@@ -41,7 +42,7 @@ export async function generateAndInject(
         );
 
         if (!applied.success) {
-          vscode.window.showErrorMessage(`Wright: Injection failed: ${applied.error ?? "Unknown error"}`);
+          vscode.window.showErrorMessage(`Wright: ${friendlyApiError(applied.error)}`);
           return;
         }
 
@@ -57,8 +58,7 @@ export async function generateAndInject(
           }
         }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        vscode.window.showErrorMessage(`Wright: Error: ${msg}`);
+        vscode.window.showErrorMessage(`Wright: ${friendlyError(err)}`);
       }
     }
   );

@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import { streamChat } from "./client";
+import { friendlyError } from "./errors";
 
 interface HistoryMessage { role: "user" | "assistant"; content: string; }
 
@@ -65,7 +66,7 @@ export class ChatPanel {
         return;
       } catch { /* try next */ }
     }
-    vscode.window.showWarningMessage(`Wright: Could not open file: ${fp}`);
+    vscode.window.showWarningMessage("Wright: Could not open that file. It may have been moved or deleted.");
   }
 
   private async _sendMessage(question: string): Promise<void> {
@@ -89,7 +90,7 @@ export class ChatPanel {
       this._history.push({ role: "assistant", content: fullAnswer });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this._panel.webview.postMessage({ type: "token", content: `\n[Error: ${msg}]` });
+      this._panel.webview.postMessage({ type: "token", content: `\n\n_${friendlyError(err)}_` });
     }
     this._panel.webview.postMessage({ type: "done" });
   }

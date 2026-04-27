@@ -77,13 +77,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
 
   if (serverStatus === "local") {
-    vscode.window.setStatusBarMessage("$(check) Wright: Local API started", 4000);
+    vscode.window.setStatusBarMessage("$(check) Wright: Ready", 4000);
   } else if (serverStatus === "remote") {
-    vscode.window.setStatusBarMessage("$(cloud) Wright: Connected to wrightai-api.fly.dev", 4000);
+    vscode.window.setStatusBarMessage("$(cloud) Wright: Connected", 4000);
   } else {
     vscode.window.showWarningMessage(
-      "Wright: Could not connect to API. Check your wright.apiUrl setting or internet connection."
-    );
+      "Wright: Could not connect. Check your internet connection or API key in Settings.",
+      "Open Settings"
+    ).then(choice => {
+      if (choice === "Open Settings") {
+        vscode.commands.executeCommand("workbench.action.openSettings", "wright.apiKey");
+      }
+    });
   }
 
   // 2. Onboarding — prompt for API key if missing
@@ -208,9 +213,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
       );
 
-      vscode.window.showInformationMessage(
-        `Wright: Done — ${documented} documented, ${failed} failed.`
-      );
+      const msg = failed === 0
+        ? `Wright: Done — ${documented} function${documented !== 1 ? "s" : ""} documented.`
+        : `Wright: Done — ${documented} documented, ${failed} could not be processed.`;
+      vscode.window.showInformationMessage(msg);
       coverageProvider.loadCoverage().catch(console.error);
       updateStatusBar(statusBarItem).catch(console.error);
     }),

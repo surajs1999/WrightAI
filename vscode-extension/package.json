@@ -2,7 +2,7 @@
   "name": "wrightai",
   "displayName": "WrightAI — AI Code Documentation",
   "description": "Generate, maintain, and chat with your code documentation using Claude AI. Supports Python, JavaScript, TypeScript, Java, Go, and Rust.",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "publisher": "WrightAI",
   "license": "AGPL-3.0-or-later",
   "readme": "README.md",
