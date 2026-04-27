@@ -160,7 +160,75 @@ class HybridRetriever:
 
         contexts.sort(key=lambda c: c.combined_score, reverse=True)
         contexts = contexts[:n]
+
+        # If weak results (< 3 chunks or all low-confidence), pad with high-PageRank chunks
+        MIN_SCORE_THRESHOLD = 0.3
+        weak = len(contexts) < 3 or all(c.vector_score < MIN_SCORE_THRESHOLD for c in contexts)
+        if weak:
+            contexts = self._pad_with_top_pagerank(contexts, seen_chunks, n)
+
         return self._trim_to_token_budget(contexts)
+
+    def _pad_with_top_pagerank(
+        self,
+        existing: list[RetrievedContext],
+        seen_chunks: set[str],
+        n: int,
+    ) -> list[RetrievedContext]:
+        pagerank = self._get_pagerank()
+        if not pagerank:
+            return existing
+
+        top_nodes = sorted(pagerank.items(), key=lambda x: x[1], reverse=True)[:n * 3]
+        for node_id, score in top_nodes:
+            if len(existing) >= n:
+                break
+            try:
+                file_path, func_name = node_id.rsplit("::", 1)
+            except ValueError:
+                continue
+            results = self._store.search(
+                self._embedder.embed_query(func_name),
+                n_results=1,
+                filter={"file_path": file_path},
+            )
+            if not results:
+                continue
+            result = results[0]
+            if result.chunk_id in seen_chunks:
+                continue
+            seen_chunks.add(result.chunk_id)
+            chunk = CodeChunk(
+                chunk_id=result.chunk_id,
+                file_path=result.file_path,
+                language=result.language,
+                chunk_type=result.chunk_type,
+                name=result.name,
+                source=result.source,
+                start_line=result.start_line,
+                end_line=result.end_line,
+                token_count=len(result.source) // 4,
+            )
+            func = ParsedFunction(
+                name=result.name,
+                language=result.language,
+                file_path=result.file_path,
+                start_byte=0, end_byte=0,
+                start_line=result.start_line,
+                end_line=result.end_line,
+                source=result.source,
+                existing_docstring=None,
+                parameters=[], return_type=None,
+                is_async=False, decorators=[],
+            )
+            existing.append(RetrievedContext(
+                function=func, chunk=chunk,
+                callers=[], callees=[],
+                vector_score=0.0, graph_score=score,
+                combined_score=self._combine_scores(0.0, score),
+                total_tokens=chunk.token_count,
+            ))
+        return existing
 
     def _combine_scores(self, vector_score: float, graph_score: float) -> float:
         # Normalize graph score to [0, 1] assuming max pagerank ~0.1 for large graphs

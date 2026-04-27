@@ -18,8 +18,11 @@ _DOCSTRING_SYSTEM = (
 )
 
 _CHAT_SYSTEM = (
-    "You are an expert code assistant. Answer questions about the codebase concisely. "
-    "Always cite file:line references when referencing specific code."
+    "You are an expert code assistant helping developers understand their codebase. "
+    "Answer questions using the provided code context. "
+    "If the context contains relevant code, cite file:line references inline. "
+    "If the question is general (e.g. 'what does this project do?'), infer the answer from the code structure and files you can see — do NOT ask the user to provide more files. "
+    "Keep answers concise and direct. Never say you cannot answer due to missing context; always give your best answer from what is available."
 )
 
 
@@ -57,13 +60,83 @@ class LLMGateway:
         prompt = build_module_doc_prompt(parsed_file, parsed_file.functions)
         return await self._call_claude(prompt, "You are a technical writer. Return only the docstring text.")
 
+    async def chat_stream(
+        self,
+        question: str,
+        contexts: list[RetrievedContext],
+        history: list[dict[str, str]] | None = None,
+    ):
+        """Yield raw text chunks from Claude, then yield citations as a final sentinel."""
+        from core.llm.prompts import build_chat_prompt
+        context_prompt = build_chat_prompt(question, contexts)
+
+        messages: list[dict[str, str]] = []
+        for msg in (history or []):
+            messages.append({"role": msg["role"], "content": msg["content"]})
+        messages.append({"role": "user", "content": context_prompt})
+
+        cited_paths = list({ctx.chunk.file_path for ctx in contexts})
+
+        answer_chunks: list[str] = []
+        async with self._anthropic.messages.stream(
+            model=self.PRIMARY_MODEL,
+            max_tokens=2048,
+            system=_CHAT_SYSTEM,
+            messages=messages,
+        ) as stream:
+            async for text in stream.text_stream:
+                answer_chunks.append(text)
+                yield ("token", text)
+
+        yield ("citations", cited_paths)
+
+        followups = await self._generate_followups(question, "".join(answer_chunks))
+        yield ("followups", followups)
+
+    async def _generate_followups(self, question: str, answer: str) -> list[str]:
+        prompt = (
+            f"The user asked: {question}\n\n"
+            f"The assistant answered: {answer[:600]}\n\n"
+            "Generate exactly 3 short follow-up questions the user might ask next. "
+            "Return ONLY a JSON array of 3 strings, no markdown, no extra text."
+        )
+        try:
+            response = await self._anthropic.messages.create(
+                model=self.PRIMARY_MODEL,
+                max_tokens=200,
+                system="You generate concise follow-up question suggestions. Return only a JSON array.",
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = response.content[0].text.strip()
+            start, end = text.find("["), text.rfind("]") + 1
+            if start >= 0 and end > start:
+                import json as _json
+                return _json.loads(text[start:end])[:3]
+        except Exception:
+            pass
+        return []
+
     async def chat(
         self,
         question: str,
         contexts: list[RetrievedContext],
+        history: list[dict[str, str]] | None = None,
     ) -> tuple[str, list[str]]:
-        prompt = build_chat_prompt(question, contexts)
-        answer = await self._call_claude(prompt, _CHAT_SYSTEM)
+        from core.llm.prompts import build_chat_prompt
+        context_prompt = build_chat_prompt(question, contexts)
+
+        messages: list[dict[str, str]] = []
+        for msg in (history or []):
+            messages.append({"role": msg["role"], "content": msg["content"]})
+        messages.append({"role": "user", "content": context_prompt})
+
+        response = await self._anthropic.messages.create(
+            model=self.PRIMARY_MODEL,
+            max_tokens=2048,
+            system=_CHAT_SYSTEM,
+            messages=messages,
+        )
+        answer = response.content[0].text
         cited_paths = list({ctx.chunk.file_path for ctx in contexts})
         return answer, cited_paths
 

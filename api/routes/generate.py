@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import tempfile
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -18,6 +19,7 @@ class GenerateRequest(BaseModel):
     style: str = "google"
     dry_run: bool = False
     batch: bool = False
+    snippet: str | None = None  # raw code; if set, written to a temp file before parsing
 
 
 class GenerateResponse(BaseModel):
@@ -70,9 +72,29 @@ async def generate_docstring(request: GenerateRequest) -> GenerateResponse:
     config = load_config(request.repo_root)
     parser = CodeParser()
 
+    # If raw code was sent, write it to a temp file so the parser can read it
+    _tmp_path: str | None = None
+    file_path = request.file_path
+    if request.snippet:
+        suffix = os.path.splitext(request.file_path)[1] or ".py"
+        _tmp = tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False)
+        _tmp.write(request.snippet)
+        _tmp.close()
+        _tmp_path = _tmp.name
+        file_path = _tmp_path
+
+    import pathlib
+    if pathlib.Path(file_path).is_dir():
+        raise HTTPException(
+            status_code=400,
+            detail=f"'{file_path}' is a directory, not a file. Enter a full file path, e.g. core/embeddings/voyage_embeddings.py",
+        )
+
     try:
-        parsed_file = parser.parse_file(request.file_path)
+        parsed_file = parser.parse_file(file_path)
     except Exception as e:
+        if _tmp_path:
+            os.unlink(_tmp_path)
         raise HTTPException(status_code=400, detail=f"Failed to parse file: {e}")
 
     func = None
@@ -82,10 +104,14 @@ async def generate_docstring(request: GenerateRequest) -> GenerateResponse:
                 func = f
                 break
         if func is None:
+            if _tmp_path:
+                os.unlink(_tmp_path)
             raise HTTPException(status_code=404, detail=f"Function '{request.function_name}' not found")
     elif parsed_file.functions:
         func = parsed_file.functions[0]
     else:
+        if _tmp_path:
+            os.unlink(_tmp_path)
         raise HTTPException(status_code=400, detail="No functions found in file")
 
     gateway = LLMGateway(anthropic_key=os.getenv("ANTHROPIC_API_KEY", ""))
@@ -100,7 +126,10 @@ async def generate_docstring(request: GenerateRequest) -> GenerateResponse:
     doc_style = DocStyle(request.style)
     context = retriever.retrieve_for_function(func)
     doc = await gateway.generate_docstring(func, context, doc_style)
-    result = injector.inject(func.file_path, func, doc, doc_style, dry_run=request.dry_run)
+    result = injector.inject(func.file_path, func, doc, doc_style, dry_run=True)
+
+    if _tmp_path:
+        os.unlink(_tmp_path)
 
     return GenerateResponse(
         success=result.success,

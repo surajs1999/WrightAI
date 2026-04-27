@@ -2,69 +2,65 @@
 
 WrightAI brings AI-powered documentation directly into your editor. Generate docstrings, track coverage, detect drift, and chat with your codebase — all without leaving VS Code.
 
+No local server or Python installation required. The backend is fully hosted.
+
 ---
 
-## Requirements
+## Getting Started
 
-WrightAI works as a frontend to a locally running backend server.
-
-**Before using the extension:**
-
-1. Install the Python package:
-   ```bash
-   pip install wrightai
-   ```
-
-2. Add your API keys to `.env` in your project:
-   ```
-   ANTHROPIC_API_KEY=sk-ant-...
-   VOYAGE_API_KEY=pa-...
-   ```
-
-3. Start the backend server:
-   ```bash
-   wright-api
-   ```
-
-4. Copy your auto-generated API key:
-   ```bash
-   cat ~/.wright/api.key
-   ```
-
-5. Paste it into VS Code settings:
-   - Open Settings (`Cmd+,` / `Ctrl+,`)
-   - Search for `WrightAI`
-   - Set **Wright: Api Key** to the copied value
+1. Install this extension from the VS Code Marketplace
+2. Sign in at [wrightai-web.fly.dev](https://wrightai-web.fly.dev) with GitHub or Google
+3. Copy your personal API key (starts with `wai_`)
+4. Open VS Code Settings (`Cmd+,` / `Ctrl+,`), search for `WrightAI`, and paste the key into **Wright: Api Key**
+5. Open any supported file — a **Generate Docs** button will appear above each function
 
 ---
 
 ## Features
 
 ### Generate Docstrings
-Click the **Generate Docs** CodeLens button that appears above any undocumented function. WrightAI will generate a docstring and inject it directly into your file.
+Click the **Generate Docs** CodeLens button above any function, or press `Cmd+Shift+D` / `Ctrl+Shift+D` with your cursor inside a function.
 
-You can also right-click anywhere in a file and select **Wright: Generate docs for this function** from the context menu.
+A **side-by-side diff preview** shows the generated docstring before anything is written — accept or discard with one click.
+
+You can also right-click and choose **Wright: Generate docs for this function** from the context menu, or hover over any function name to see a **Generate docs** link inline.
 
 ### Generate Docs for Entire File
 Open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`) and run:
 ```
 Wright: Generate docs for entire file
 ```
-WrightAI will scan and document all undocumented functions in the open file.
+WrightAI documents every undocumented function in the file with a live progress bar.
+
+### Gutter Icons
+Every function line shows a status icon in the editor gutter:
+- **✓** (green) — documented
+- **○** (grey) — no documentation yet
+- **⚠** (amber) — documentation is out of date
 
 ### Chat with Your Codebase
-Run **Wright: Chat with codebase** from the Command Palette to open an interactive chat panel. Ask questions like:
+Run **Wright: Chat with codebase** from the Command Palette to open an interactive chat panel. Ask anything about your code:
 - "How does authentication work?"
 - "Where is the payment logic?"
 - "Explain the retry mechanism"
 
-Each answer includes file and line citations so you can jump straight to the code.
+Answers stream in real time, include file citations you can click to jump directly to the source, and suggest follow-up questions. Full conversation history is maintained across turns.
 
 ### Coverage Dashboard
-Run **Wright: Show coverage** to see what percentage of your codebase is documented. The **Wright Coverage** panel in the Explorer sidebar shows a live breakdown by file.
+The **Wright Coverage** panel in the Explorer sidebar shows live documentation coverage. Run **Wright: Show coverage** to refresh it, or watch the status bar percentage update as you document your code.
 
 ### Drift Detection
-Run **Wright: Check for doc drift** to find functions whose code has changed since their docstring was last written. WrightAI highlights stale documentation so you can keep docs in sync with code changes.
+Run **Wright: Check for doc drift** to find functions whose code has changed since their docstring was written. Stale functions are highlighted with an **⚠ docs outdated** inline marker and a CodeLens button to regenerate in one click.
+
+Drift is also checked automatically on save.
+
+---
+
+## Keyboard Shortcut
+
+| Shortcut | Action |
+|---|---|
+| `Cmd+Shift+D` / `Ctrl+Shift+D` | Generate docs for the current function |
 
 ---
 
@@ -72,26 +68,27 @@ Run **Wright: Check for doc drift** to find functions whose code has changed sin
 
 | Setting | Default | Description |
 |---|---|---|
-| `wright.apiUrl` | `http://localhost:8765` | URL of the local WrightAI backend |
-| `wright.apiKey` | _(empty)_ | API key from `~/.wright/api.key` |
-| `wright.style` | `google` | Docstring style: `google`, `numpy`, `jsdoc`, `epytext`, `rust` |
+| `wright.apiUrl` | `https://wrightai-api.fly.dev` | WrightAI backend URL |
+| `wright.apiKey` | _(empty)_ | Your personal `wai_` API key |
+| `wright.style` | `google` | Default docstring style |
+| `wright.style.python` | `google` | Python style: `google`, `numpy`, `epytext` |
+| `wright.style.javascript` | `jsdoc` | JavaScript style: `jsdoc` |
+| `wright.style.typescript` | `jsdoc` | TypeScript style: `jsdoc` |
+| `wright.style.rust` | `rust` | Rust style: `rust` |
 
 ---
 
 ## Supported Languages
 
-Python, JavaScript, TypeScript, Java, Go, Rust
+Python · JavaScript · TypeScript · Java · Go · Rust
 
 ---
 
 ## Coming Soon
 
-- **Inline diff preview** — see the generated docstring before it's written to disk, with accept/reject controls
 - **Batch generation** — document an entire folder or workspace in one click
-- **Doc quality score** — per-function rating based on completeness and accuracy
-- **Auto-fix on save** — optionally generate missing docs when a file is saved
-- **Multi-model support** — choose between Claude models directly from VS Code settings
-- **Local LLM mode** — run fully offline using Ollama with no API keys required
+- **Doc quality score** — per-function completeness and accuracy rating
+- **Multi-model support** — choose Claude model from VS Code settings
 
 ---
 

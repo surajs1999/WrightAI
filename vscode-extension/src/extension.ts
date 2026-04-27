@@ -1,20 +1,23 @@
 import * as vscode from "vscode";
 import * as cp from "child_process";
-import * as path from "path";
 import { ChatPanel } from "./chat";
 import { WrightCodeLensProvider } from "./codelens";
 import { CoverageTreeProvider } from "./coverage";
 import { initDriftDecoration, setupDriftOnSave, runDriftCheck } from "./drift";
 import { generateAndInject } from "./injector";
-import { checkHealth } from "./client";
+import { checkHealth, generateDocstring } from "./client";
+import { WrightHoverProvider } from "./hover";
+import { initGutterDecorations, updateGutterDecorations } from "./gutter";
+import { DRIFTED_FUNCTIONS } from "./codelens";
 
 let apiProcess: cp.ChildProcess | undefined;
 let statusBarItem: vscode.StatusBarItem;
 
-async function startApiServer(context: vscode.ExtensionContext): Promise<void> {
-  const isRunning = await checkHealth();
-  if (isRunning) return;
+async function startApiServer(context: vscode.ExtensionContext): Promise<"local" | "remote" | "none"> {
+  // Try remote first (default apiUrl)
+  if (await checkHealth()) return "remote";
 
+  // Try to spawn local server
   apiProcess = cp.spawn("python", ["-m", "api.main"], {
     cwd: context.extensionPath,
     env: { ...process.env },
@@ -25,10 +28,29 @@ async function startApiServer(context: vscode.ExtensionContext): Promise<void> {
     console.error("[Wright API]", data.toString());
   });
 
-  // Poll until API is ready (max 30 seconds)
   for (let i = 0; i < 30; i++) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
-    if (await checkHealth()) break;
+    if (await checkHealth()) return "local";
+  }
+
+  return "none";
+}
+
+async function checkApiKeyOnboarding(): Promise<void> {
+  const key = vscode.workspace.getConfiguration("wright").get<string>("apiKey", "");
+  if (key) return;
+
+  const choice = await vscode.window.showInformationMessage(
+    "Wright AI: Set your API key to start generating documentation.",
+    "Set API Key",
+    "Get API Key",
+    "Dismiss"
+  );
+
+  if (choice === "Set API Key") {
+    await vscode.commands.executeCommand("workbench.action.openSettings", "wright.apiKey");
+  } else if (choice === "Get API Key") {
+    await vscode.env.openExternal(vscode.Uri.parse("https://wrightai-web.fly.dev/dashboard/keys"));
   }
 }
 
@@ -43,40 +65,83 @@ async function updateStatusBar(statusBar: vscode.StatusBarItem): Promise<void> {
     statusBar.tooltip = `Documentation coverage: ${data.documented}/${data.total} functions`;
   } catch {
     statusBar.text = "$(book) Wright";
-    statusBar.tooltip = "Wright: API not running";
+    statusBar.tooltip = "Wright: API not reachable";
   }
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  // 1. Start the Wright API server
-  await startApiServer(context);
+  // 1. Start/connect to API server and report status
+  const serverStatus = await vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Window, title: "Wright: Connecting…" },
+    () => startApiServer(context)
+  );
 
-  // 2. Register CodeLens provider
+  if (serverStatus === "local") {
+    vscode.window.setStatusBarMessage("$(check) Wright: Local API started", 4000);
+  } else if (serverStatus === "remote") {
+    vscode.window.setStatusBarMessage("$(cloud) Wright: Connected to wrightai-api.fly.dev", 4000);
+  } else {
+    vscode.window.showWarningMessage(
+      "Wright: Could not connect to API. Check your wright.apiUrl setting or internet connection."
+    );
+  }
+
+  // 2. Onboarding — prompt for API key if missing
+  await checkApiKeyOnboarding();
+
+  // 3. Register CodeLens provider
   const codeLensProvider = new WrightCodeLensProvider();
-  const codeLensSupportedLangs = ["python", "javascript", "typescript", "java", "go", "rust"];
-  for (const lang of codeLensSupportedLangs) {
+  const supportedLangs = ["python", "javascript", "typescript", "java", "go", "rust"];
+  for (const lang of supportedLangs) {
     context.subscriptions.push(
       vscode.languages.registerCodeLensProvider({ language: lang }, codeLensProvider)
     );
   }
 
-  // 3. Register drift decorations
+  // 3b. Hover provider
+  const hoverProvider = new WrightHoverProvider();
+  for (const lang of supportedLangs) {
+    context.subscriptions.push(
+      vscode.languages.registerHoverProvider({ language: lang }, hoverProvider)
+    );
+  }
+
+  // 3c. Gutter icons
+  initGutterDecorations();
+  const refreshGutter = (editor: vscode.TextEditor) => {
+    const drifted = DRIFTED_FUNCTIONS.get(editor.document.uri.toString()) ?? new Set<string>();
+    updateGutterDecorations(editor, drifted);
+  };
+  if (vscode.window.activeTextEditor) refreshGutter(vscode.window.activeTextEditor);
+  context.subscriptions.push(
+    vscode.window.onDidChangeActiveTextEditor(e => { if (e) refreshGutter(e); }),
+    vscode.workspace.onDidSaveTextDocument(doc => {
+      const editor = vscode.window.visibleTextEditors.find(e => e.document === doc);
+      if (editor) refreshGutter(editor);
+    }),
+    vscode.workspace.onDidChangeTextDocument(e => {
+      const editor = vscode.window.visibleTextEditors.find(ed => ed.document === e.document);
+      if (editor) refreshGutter(editor);
+    })
+  );
+
+  // 4. Register drift decorations
   initDriftDecoration(context);
   setupDriftOnSave(context, codeLensProvider);
 
-  // 4. Register coverage tree view
+  // 5. Register coverage tree view
   const coverageProvider = new CoverageTreeProvider();
   vscode.window.registerTreeDataProvider("wrightCoverage", coverageProvider);
   coverageProvider.loadCoverage().catch(console.error);
 
-  // 5. Status bar
+  // 6. Status bar
   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBarItem.command = "wright.showCoverage";
   statusBarItem.show();
   context.subscriptions.push(statusBarItem);
   updateStatusBar(statusBarItem).catch(console.error);
 
-  // 6. Register commands
+  // 7. Register commands
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "wright.generateCurrent",
@@ -86,10 +151,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           vscode.window.showErrorMessage("Wright: No active editor.");
           return;
         }
-        const doc = editor.document;
         const name = functionName ?? await vscode.window.showInputBox({ prompt: "Function name to document" });
         if (!name) return;
-        await generateAndInject(doc, name);
+        await generateAndInject(editor.document, name, context);
+        refreshGutter(editor);
       }
     ),
 
@@ -98,11 +163,56 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (!editor) return;
       const repoRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       if (!repoRoot) return;
-      const { generateDocstring } = await import("./client");
-      const result = await generateDocstring(editor.document.uri.fsPath, "", repoRoot, false, true);
-      if (result.job_id) {
-        vscode.window.showInformationMessage(`Wright: Batch job started: ${result.job_id}`);
+
+      const filePath = editor.document.uri.fsPath;
+      const languageId = editor.document.languageId;
+
+      // Collect function names from the file via CodeLens provider
+      const lenses = await vscode.commands.executeCommand<vscode.CodeLens[]>(
+        "vscode.executeCodeLensProvider", editor.document.uri
+      ) ?? [];
+      const functionNames = lenses
+        .map(l => (l.command?.arguments?.[1] as string | undefined))
+        .filter((n): n is string => !!n);
+
+      if (functionNames.length === 0) {
+        vscode.window.showInformationMessage("Wright: No functions found in this file.");
+        return;
       }
+
+      let documented = 0;
+      let failed = 0;
+
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `Wright: Documenting ${functionNames.length} function(s)…`,
+          cancellable: true,
+        },
+        async (progress, token) => {
+          for (let i = 0; i < functionNames.length; i++) {
+            if (token.isCancellationRequested) break;
+            const name = functionNames[i];
+            progress.report({
+              message: `${name} (${i + 1}/${functionNames.length})`,
+              increment: (1 / functionNames.length) * 100,
+            });
+            try {
+              const result = await generateDocstring(filePath, name, repoRoot, false, languageId);
+              if (result.success) documented++;
+              else failed++;
+            } catch {
+              failed++;
+            }
+          }
+        }
+      );
+
+      vscode.window.showInformationMessage(
+        `Wright: Done — ${documented} documented, ${failed} failed.`
+      );
+      coverageProvider.loadCoverage().catch(console.error);
+      updateStatusBar(statusBarItem).catch(console.error);
     }),
 
     vscode.commands.registerCommand("wright.showCoverage", async () => {
@@ -119,14 +229,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const editor = vscode.window.activeTextEditor;
       if (!editor) return;
       await runDriftCheck(editor.document.uri, codeLensProvider);
+      refreshGutter(editor);
       vscode.window.showInformationMessage("Wright: Drift check complete.");
+    }),
+
+    // Separate command for hover links — receives fsPath string instead of Uri
+    vscode.commands.registerCommand("wright.generateCurrentFromHover", async (fsPath: string, functionName: string) => {
+      const uri = vscode.Uri.file(fsPath);
+      const doc = await vscode.workspace.openTextDocument(uri);
+      const editor = await vscode.window.showTextDocument(doc);
+      await generateAndInject(editor.document, functionName, context);
+      refreshGutter(editor);
     })
   );
 
-  // 7. File watcher for drift checking
+  // 8. File watcher — coverage refresh only (drift is handled by setupDriftOnSave to avoid double-run)
   const watcher = vscode.workspace.createFileSystemWatcher("**/*.{py,js,ts,java,go,rs}");
-  watcher.onDidChange(async (uri) => {
-    await runDriftCheck(uri, codeLensProvider);
+  watcher.onDidChange(() => {
     updateStatusBar(statusBarItem).catch(console.error);
   });
   context.subscriptions.push(watcher);
@@ -138,15 +257,4 @@ export function deactivate(): void {
     apiProcess = undefined;
   }
   statusBarItem?.dispose();
-}
-
-// Extend the generateDocstring import to support batch mode
-declare module "./client" {
-  function generateDocstring(
-    filePath: string,
-    functionName: string,
-    repoRoot: string,
-    dryRun?: boolean,
-    batch?: boolean
-  ): Promise<{ success: boolean; preview: string | null; injected_at_line: number | null; error: string | null; job_id?: string }>;
 }

@@ -27,9 +27,18 @@ app = FastAPI(
     description="AI-powered code documentation API",
 )
 
+_ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:3000,https://wrightai.vercel.app,https://wright.ai,https://wrightai-web.fly.dev",
+    ).split(",")
+    if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -53,13 +62,16 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-from api.routes import auth, chat, coverage, drift, generate
+from api.routes import auth, chat, coverage, drift, fix_pr, generate, llms_txt, repos
 
 app.include_router(auth.router)
 app.include_router(generate.router)
 app.include_router(coverage.router)
 app.include_router(drift.router)
 app.include_router(chat.router)
+app.include_router(repos.router)
+app.include_router(fix_pr.router)
+app.include_router(llms_txt.router)
 
 
 @app.get("/health")

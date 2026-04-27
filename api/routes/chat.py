@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 
@@ -39,20 +38,21 @@ async def chat(request: ChatRequest) -> StreamingResponse:
     dep_graph = DependencyGraph()
     retriever = HybridRetriever(chroma, dep_graph, embedder)
 
+    history = [{"role": m.role, "content": m.content} for m in request.conversation_history]
     contexts = retriever.retrieve_for_query(request.question, n=5)
-    answer, citations = await gateway.chat(request.question, contexts)
+
+    # Trim history to last 20 messages to stay within context limits
+    if len(history) > 20:
+        history = history[-20:]
 
     async def event_stream():
-        # Stream answer word by word
-        words = answer.split(" ")
-        for word in words:
-            data = json.dumps({"type": "token", "content": word + " "})
-            yield f"data: {data}\n\n"
-            await asyncio.sleep(0)
-
-        # Send citations at end
-        data = json.dumps({"type": "citations", "files": citations})
-        yield f"data: {data}\n\n"
+        async for kind, payload in gateway.chat_stream(request.question, contexts, history):
+            if kind == "token":
+                yield f"data: {json.dumps({'type': 'token', 'content': payload})}\n\n"
+            elif kind == "citations":
+                yield f"data: {json.dumps({'type': 'citations', 'files': payload})}\n\n"
+            elif kind == "followups":
+                yield f"data: {json.dumps({'type': 'followups', 'questions': payload})}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

@@ -2,7 +2,7 @@
   "name": "wrightai",
   "displayName": "WrightAI — AI Code Documentation",
   "description": "Generate, maintain, and chat with your code documentation using Claude AI. Supports Python, JavaScript, TypeScript, Java, Go, and Rust.",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "publisher": "WrightAI",
   "license": "AGPL-3.0-or-later",
   "readme": "OVERVIEW.md",
@@ -65,6 +65,18 @@
       {
         "command": "wright.checkDrift",
         "title": "Wright: Check for doc drift"
+      },
+      {
+        "command": "wright.generateCurrentFromHover",
+        "title": "Wright: Generate docs (from hover)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "wright.generateCurrent",
+        "key": "ctrl+shift+d",
+        "mac": "cmd+shift+d",
+        "when": "editorTextFocus"
       }
     ],
     "menus": {
@@ -106,7 +118,41 @@
             "rust"
           ],
           "default": "google",
-          "description": "Docstring style"
+          "description": "Default docstring style (used when no language-specific style is set)"
+        },
+        "wright.style.python": {
+          "type": "string",
+          "enum": [
+            "google",
+            "numpy",
+            "epytext"
+          ],
+          "default": "google",
+          "description": "Docstring style for Python files"
+        },
+        "wright.style.javascript": {
+          "type": "string",
+          "enum": [
+            "jsdoc"
+          ],
+          "default": "jsdoc",
+          "description": "Docstring style for JavaScript files"
+        },
+        "wright.style.typescript": {
+          "type": "string",
+          "enum": [
+            "jsdoc"
+          ],
+          "default": "jsdoc",
+          "description": "Docstring style for TypeScript files"
+        },
+        "wright.style.rust": {
+          "type": "string",
+          "enum": [
+            "rust"
+          ],
+          "default": "rust",
+          "description": "Docstring style for Rust files"
         }
       }
     }
@@ -125,6 +171,8 @@
     "@types/vscode": "^1.95.0",
     "esbuild": "^0.24.0",
     "jimp": "^1.6.1",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.6.0"
   }
 }

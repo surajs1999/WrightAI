@@ -37,13 +37,14 @@ class DocstringInjector:
             injection_point = self._find_injection_point(source_bytes, func)
 
             if injection_point < 0:
+                snippet = source_bytes[func.start_byte:func.start_byte + 300].decode("utf-8", errors="replace")
                 return InjectionResult(
                     success=False,
                     file_path=file_path,
                     function_name=func.name,
                     injected_at_line=func.start_line,
                     preview=formatted,
-                    error="Could not find injection point",
+                    error=f"Could not find injection point (lang={func.language}, snippet={snippet!r})",
                 )
 
             if self._has_existing_docstring(func):
@@ -87,39 +88,68 @@ class DocstringInjector:
         lang = func.language
 
         if lang == "python":
-            # Find the colon at end of def signature, then go to next line
             func_bytes = source_bytes[func.start_byte:func.end_byte]
-            # Find the body start — look for the first newline after the colon closing the signature
+            # Walk the signature tracking (), [] and simple strings to find the
+            # closing colon of the def statement (not a colon inside type hints).
             colon_pos = -1
             paren_depth = 0
-            for i, b in enumerate(func_bytes):
-                ch = chr(b)
+            bracket_depth = 0
+            in_string = False
+            string_char = b""
+            i = 0
+            while i < len(func_bytes):
+                b = func_bytes[i:i+1]
+                if in_string:
+                    if b == string_char and (i == 0 or func_bytes[i-1:i] != b"\\"):
+                        in_string = False
+                elif b in (b'"', b"'"):
+                    in_string = True
+                    string_char = b
+                elif b == b"(":
+                    paren_depth += 1
+                elif b == b")":
+                    paren_depth -= 1
+                elif b == b"[":
+                    bracket_depth += 1
+                elif b == b"]":
+                    bracket_depth -= 1
+                elif b == b":" and paren_depth == 0 and bracket_depth == 0:
+                    colon_pos = i
+                    break
+                i += 1
+
+            if colon_pos < 0:
+                return -1
+            newline_pos = func_bytes.find(b"\n", colon_pos)
+            if newline_pos < 0:
+                # Single-line function — inject right after the colon
+                return func.start_byte + colon_pos + 1
+            return func.start_byte + newline_pos + 1
+
+        elif lang in ("javascript", "typescript"):
+            func_bytes = source_bytes[func.start_byte:func.end_byte]
+            # Find the body-opening { at paren depth 0 (skip object types in params/return)
+            paren_depth = 0
+            for i, raw in enumerate(func_bytes):
+                ch = chr(raw)
                 if ch == "(":
                     paren_depth += 1
                 elif ch == ")":
                     paren_depth -= 1
-                elif ch == ":" and paren_depth == 0:
-                    colon_pos = i
-                    break
-            if colon_pos < 0:
-                return -1
-            # Find newline after colon
-            newline_pos = func_bytes.find(b"\n", colon_pos)
-            if newline_pos < 0:
-                return -1
-            return func.start_byte + newline_pos + 1
+                elif ch == "{" and paren_depth == 0:
+                    newline_pos = func_bytes.find(b"\n", i)
+                    if newline_pos < 0:
+                        return func.start_byte + i + 1
+                    return func.start_byte + newline_pos + 1
 
-        elif lang in ("javascript", "typescript"):
-            # Find the opening brace of the function body
-            func_bytes = source_bytes[func.start_byte:func.end_byte]
-            # Skip to the opening {
-            brace_pos = func_bytes.find(b"{")
-            if brace_pos < 0:
-                return -1
-            newline_pos = func_bytes.find(b"\n", brace_pos)
-            if newline_pos < 0:
-                return func.start_byte + brace_pos + 1
-            return func.start_byte + newline_pos + 1
+            # Arrow function without a block body — inject after =>
+            arrow_pos = func_bytes.find(b"=>")
+            if arrow_pos >= 0:
+                after = arrow_pos + 2
+                while after < len(func_bytes) and func_bytes[after:after+1] in (b" ", b"\t"):
+                    after += 1
+                return func.start_byte + after
+            return -1
 
         elif lang == "java":
             func_bytes = source_bytes[func.start_byte:func.end_byte]

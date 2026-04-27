@@ -3,10 +3,21 @@ import * as vscode from "vscode";
 function getConfig() {
   const cfg = vscode.workspace.getConfiguration("wright");
   return {
-    apiUrl: cfg.get<string>("apiUrl", "http://localhost:8765"),
+    apiUrl: cfg.get<string>("apiUrl", "https://wrightai-api.fly.dev"),
     apiKey: cfg.get<string>("apiKey", ""),
     style: cfg.get<string>("style", "google"),
   };
+}
+
+export function getStyleForLanguage(languageId: string): string {
+  const cfg = vscode.workspace.getConfiguration("wright");
+  const langKey = `style.${languageId}` as const;
+  const langStyle = cfg.get<string>(langKey);
+  if (langStyle) return langStyle;
+  // Sensible defaults per language even if not explicitly set
+  if (languageId === "javascript" || languageId === "typescript") return "jsdoc";
+  if (languageId === "rust") return "rust";
+  return cfg.get<string>("style", "google");
 }
 
 function buildHeaders(): HeadersInit {
@@ -32,9 +43,11 @@ export async function generateDocstring(
   filePath: string,
   functionName: string,
   repoRoot: string,
-  dryRun: boolean = true
+  dryRun: boolean = true,
+  languageId: string = "python"
 ): Promise<{ success: boolean; preview: string | null; injected_at_line: number | null; error: string | null }> {
-  const { apiUrl, style } = getConfig();
+  const { apiUrl } = getConfig();
+  const style = getStyleForLanguage(languageId);
   const resp = await fetch(`${apiUrl}/generate`, {
     method: "POST",
     headers: buildHeaders(),
@@ -82,13 +95,14 @@ export async function checkDrift(
 
 export async function* streamChat(
   question: string,
-  repoRoot: string
-): AsyncGenerator<{ type: string; content?: string; files?: string[] }> {
+  repoRoot: string,
+  history: Array<{ role: string; content: string }> = []
+): AsyncGenerator<{ type: string; content?: string; files?: string[]; questions?: string[] }> {
   const { apiUrl } = getConfig();
   const resp = await fetch(`${apiUrl}/chat`, {
     method: "POST",
     headers: buildHeaders(),
-    body: JSON.stringify({ question, repo_root: repoRoot }),
+    body: JSON.stringify({ question, repo_root: repoRoot, conversation_history: history }),
   });
 
   if (!resp.ok || !resp.body) {
@@ -110,7 +124,7 @@ export async function* streamChat(
         const data = line.slice(6).trim();
         if (data === "[DONE]") return;
         try {
-          yield JSON.parse(data) as { type: string; content?: string; files?: string[] };
+          yield JSON.parse(data) as { type: string; content?: string; files?: string[]; questions?: string[] };
         } catch {
           // Skip malformed SSE lines
         }

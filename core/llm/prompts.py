@@ -187,21 +187,20 @@ Return only the llms.txt content.
 
 
 def build_chat_prompt(question: str, retrieved_contexts: list[RetrievedContext]) -> str:
-    context_str = _format_context_snippet(retrieved_contexts)
-    return f"""You are an expert code assistant helping a developer understand a codebase.
-
-Answer the following question based on the code context provided. Be specific and cite exact file:line references.
+    context_str = _format_context_snippet(retrieved_contexts) if retrieved_contexts else "(no code chunks indexed yet)"
+    return f"""Answer the following question about this codebase.
 
 Question: {question}
 
-Relevant code context:
+Code context retrieved from the repo:
 {context_str}
 
 Rules:
-- Answer directly and concisely
-- Cite sources as [filename:line] inline
-- If the context doesn't contain enough information, say so clearly
-- Use code blocks for any code examples
+- Answer directly and concisely using the context above
+- Cite sources as [filename:line] inline when referencing specific code
+- For general questions ("what does this do?", "what features exist?"), infer the answer from the file names, function names, and code structure visible in the context
+- Use code blocks for code examples
+- Never ask the user to provide more files — always give your best answer from what is available
 """
 
 

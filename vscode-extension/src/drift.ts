@@ -51,7 +51,7 @@ export async function runDriftCheck(
       if (r.file_path === uri.fsPath && r.status !== "up_to_date") {
         markFunctionDrifted(uri.toString(), r.function_name);
         if (editor) {
-          const lineNum = Math.max(0, (r as { line?: number }).line ? (r as { line: number }).line - 1 : 0);
+          const lineNum = Math.max(0, (r as unknown as { line?: number }).line ? (r as unknown as { line: number }).line - 1 : 0);
           const line = editor.document.lineAt(Math.min(lineNum, editor.document.lineCount - 1));
           decorations.push({ range: line.range });
         }

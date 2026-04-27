@@ -9,7 +9,7 @@ const FUNCTION_PATTERNS: Record<string, RegExp> = {
   rust: /^(pub\s+)?(async\s+)?fn\s+(\w+)\s*\(/gm,
 };
 
-const DRIFTED_FUNCTIONS = new Map<string, Set<string>>();
+export const DRIFTED_FUNCTIONS = new Map<string, Set<string>>();
 
 export function markFunctionDrifted(documentUri: string, functionName: string): void {
   if (!DRIFTED_FUNCTIONS.has(documentUri)) {
