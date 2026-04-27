@@ -44,22 +44,26 @@ def build_docstring_prompt(
     }
 
     param_list = "\n".join(
-        f"  - {p['name']}: {p.get('type_annotation', 'unknown')}"
-        for p in func.parameters
+        f"  - {p['name']}: {p.get('type_annotation', 'unknown')}" for p in func.parameters
     )
 
     callers = ", ".join(f"{f}()" for _, f in context.callers[:5]) or "none"
     callees = ", ".join(f"{f}()" for _, f in context.callees[:5]) or "none"
 
-    schema_example = json.dumps({
-        "summary": "One-sentence description of what the function does.",
-        "description": "Optional longer explanation, or null.",
-        "parameters": [{"name": "param_name", "type_hint": "str", "description": "What this param does."}],
-        "returns": {"type_hint": "bool", "description": "What is returned."},
-        "raises": [{"exception": "ValueError", "condition": "When the input is invalid."}],
-        "example": "result = my_func(arg1, arg2)",
-        "complexity": "O(n) time, O(1) space",
-    }, indent=2)
+    schema_example = json.dumps(
+        {
+            "summary": "One-sentence description of what the function does.",
+            "description": "Optional longer explanation, or null.",
+            "parameters": [
+                {"name": "param_name", "type_hint": "str", "description": "What this param does."}
+            ],
+            "returns": {"type_hint": "bool", "description": "What is returned."},
+            "raises": [{"exception": "ValueError", "condition": "When the input is invalid."}],
+            "example": "result = my_func(arg1, arg2)",
+            "complexity": "O(n) time, O(1) space",
+        },
+        indent=2,
+    )
 
     return f"""You are an expert technical writer generating documentation for {language} code.
 
@@ -118,7 +122,9 @@ Return only the Markdown content, no extra commentary.
 
 
 def build_module_doc_prompt(parsed_file: ParsedFile, functions: list[ParsedFunction]) -> str:
-    func_names = "\n".join(f"- {f.name}({', '.join(p['name'] for p in f.parameters)})" for f in functions[:20])
+    func_names = "\n".join(
+        f"- {f.name}({', '.join(p['name'] for p in f.parameters)})" for f in functions[:20]
+    )
     return f"""Write a module-level documentation comment for this {parsed_file.language} file: {parsed_file.path}
 
 Functions defined in this module:
@@ -155,7 +161,9 @@ def build_llms_txt_prompt(
     top_functions: list[tuple[str, float]],
 ) -> str:
     file_list = "\n".join(f"- {pf.path} ({pf.language})" for pf in parsed_files[:20])
-    top_funcs = "\n".join(f"- {node_id} (score: {score:.4f})" for node_id, score in top_functions[:10])
+    top_funcs = "\n".join(
+        f"- {node_id} (score: {score:.4f})" for node_id, score in top_functions[:10]
+    )
     return f"""Generate an llms.txt file for the repository "{repo_name}".
 
 Files in repo:
@@ -187,7 +195,11 @@ Return only the llms.txt content.
 
 
 def build_chat_prompt(question: str, retrieved_contexts: list[RetrievedContext]) -> str:
-    context_str = _format_context_snippet(retrieved_contexts) if retrieved_contexts else "(no code chunks indexed yet)"
+    context_str = (
+        _format_context_snippet(retrieved_contexts)
+        if retrieved_contexts
+        else "(no code chunks indexed yet)"
+    )
     return f"""Answer the following question about this codebase.
 
 Question: {question}

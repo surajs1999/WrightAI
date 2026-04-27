@@ -4,7 +4,6 @@ import json
 import os
 import sqlite3
 import time
-from dataclasses import asdict
 
 from core.parser.tree_sitter_parser import ParsedFile, ParsedFunction, ParsedClass
 
@@ -145,7 +144,11 @@ class ASTCache:
             return None
 
     def set(self, parsed_file: ParsedFile) -> None:
-        mtime = os.path.getmtime(parsed_file.path) if os.path.exists(parsed_file.path) else parsed_file.last_modified
+        mtime = (
+            os.path.getmtime(parsed_file.path)
+            if os.path.exists(parsed_file.path)
+            else parsed_file.last_modified
+        )
         parsed_json = _serialize_parsed_file(parsed_file)
         with self._connect() as conn:
             conn.execute(

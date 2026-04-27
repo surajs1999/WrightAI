@@ -39,7 +39,9 @@ async def check_drift(request: DriftCheckRequest) -> DriftCheckResponse:
     from core.drift.drift_detector import DriftDetector
     from core.parser.cache import ASTCache
 
-    cache_path = os.getenv("SQLITE_CACHE_PATH", os.path.join(request.repo_root, ".wright", "ast_cache.db"))
+    cache_path = os.getenv(
+        "SQLITE_CACHE_PATH", os.path.join(request.repo_root, ".wright", "ast_cache.db")
+    )
     cache = ASTCache(cache_path)
     detector = DriftDetector()
 
@@ -55,15 +57,17 @@ async def check_drift(request: DriftCheckRequest) -> DriftCheckResponse:
         if request.auto_fix and r.status in ("drifted", "undocumented"):
             fixed_docstring = None  # Would call LLM here in full implementation
 
-        items.append(DriftResultItem(
-            function_name=r.function_name,
-            file_path=r.file_path,
-            status=r.status,
-            reason=r.reason,
-            old_signature=r.old_signature,
-            new_signature=r.new_signature,
-            fixed_docstring=fixed_docstring,
-        ))
+        items.append(
+            DriftResultItem(
+                function_name=r.function_name,
+                file_path=r.file_path,
+                status=r.status,
+                reason=r.reason,
+                old_signature=r.old_signature,
+                new_signature=r.new_signature,
+                fixed_docstring=fixed_docstring,
+            )
+        )
 
     drifted_count = sum(1 for r in raw_results if r.status == "drifted")
     undoc_count = sum(1 for r in raw_results if r.status == "undocumented")

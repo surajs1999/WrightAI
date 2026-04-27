@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from core.embeddings.chroma_store import ChromaStore
 from core.embeddings.voyage_embeddings import VoyageEmbedder
@@ -179,7 +179,7 @@ class HybridRetriever:
         if not pagerank:
             return existing
 
-        top_nodes = sorted(pagerank.items(), key=lambda x: x[1], reverse=True)[:n * 3]
+        top_nodes = sorted(pagerank.items(), key=lambda x: x[1], reverse=True)[: n * 3]
         for node_id, score in top_nodes:
             if len(existing) >= n:
                 break
@@ -213,21 +213,29 @@ class HybridRetriever:
                 name=result.name,
                 language=result.language,
                 file_path=result.file_path,
-                start_byte=0, end_byte=0,
+                start_byte=0,
+                end_byte=0,
                 start_line=result.start_line,
                 end_line=result.end_line,
                 source=result.source,
                 existing_docstring=None,
-                parameters=[], return_type=None,
-                is_async=False, decorators=[],
+                parameters=[],
+                return_type=None,
+                is_async=False,
+                decorators=[],
             )
-            existing.append(RetrievedContext(
-                function=func, chunk=chunk,
-                callers=[], callees=[],
-                vector_score=0.0, graph_score=score,
-                combined_score=self._combine_scores(0.0, score),
-                total_tokens=chunk.token_count,
-            ))
+            existing.append(
+                RetrievedContext(
+                    function=func,
+                    chunk=chunk,
+                    callers=[],
+                    callees=[],
+                    vector_score=0.0,
+                    graph_score=score,
+                    combined_score=self._combine_scores(0.0, score),
+                    total_tokens=chunk.token_count,
+                )
+            )
         return existing
 
     def _combine_scores(self, vector_score: float, graph_score: float) -> float:

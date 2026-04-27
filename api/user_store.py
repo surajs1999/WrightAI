@@ -39,11 +39,17 @@ def get_or_create_user(workos_user_id: str, email: str) -> User:
         return User(**{k: row[k] for k in User.__dataclass_fields__})
 
     api_key = f"wai_{secrets.token_urlsafe(32)}"
-    insert = db.table("users").insert({
-        "workos_user_id": workos_user_id,
-        "email": email,
-        "api_key": api_key,
-    }).execute()
+    insert = (
+        db.table("users")
+        .insert(
+            {
+                "workos_user_id": workos_user_id,
+                "email": email,
+                "api_key": api_key,
+            }
+        )
+        .execute()
+    )
 
     row = insert.data[0]
     return User(**{k: row[k] for k in User.__dataclass_fields__})
@@ -55,7 +61,7 @@ def get_user_by_api_key(api_key: str) -> User | None:
     if not result.data:
         return None
     row = result.data[0]
-    db.table("users").update({
-        "last_used_at": datetime.now(timezone.utc).isoformat()
-    }).eq("api_key", api_key).execute()
+    db.table("users").update({"last_used_at": datetime.now(timezone.utc).isoformat()}).eq(
+        "api_key", api_key
+    ).execute()
     return User(**{k: row[k] for k in User.__dataclass_fields__})

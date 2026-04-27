@@ -32,7 +32,7 @@ def _extract_token_from_url(remote_url: str) -> str | None:
     """Extract embedded token from https://TOKEN@github.com/... URLs."""
     url = remote_url.strip()
     if url.startswith("https://") and "@github.com" in url:
-        after_scheme = url[len("https://"):]
+        after_scheme = url[len("https://") :]
         token = after_scheme.split("@")[0]
         if token and token != "github.com":
             return token
@@ -58,7 +58,10 @@ def _parse_github_owner_repo(remote_url: str) -> tuple[str, str]:
 def _get_default_branch(repo_path: Path, git_env: dict) -> str:
     result = subprocess.run(
         ["git", "-C", str(repo_path), "symbolic-ref", "refs/remotes/origin/HEAD"],
-        capture_output=True, text=True, timeout=10, env=git_env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        env=git_env,
     )
     if result.returncode == 0:
         return result.stdout.strip().split("/")[-1]
@@ -86,7 +89,10 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
     # Get remote URL and parse owner/repo; auto-extract token if not provided
     remote_result = subprocess.run(
         ["git", "-C", str(repo_path), "remote", "get-url", "origin"],
-        capture_output=True, text=True, timeout=10, env=git_env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        env=git_env,
     )
     remote_url = remote_result.stdout.strip()
     try:
@@ -95,6 +101,7 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
         raise HTTPException(status_code=400, detail=str(e))
 
     from api.routes.repos import load_token
+
     repo_slug = repo_path.name
     user_dir = repo_path.parent
     github_token = (
@@ -114,13 +121,16 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
     try:
         subprocess.run(
             ["git", "-C", str(repo_path), "checkout", "-b", branch],
-            check=True, capture_output=True, timeout=15, env=git_env,
+            check=True,
+            capture_output=True,
+            timeout=15,
+            env=git_env,
         )
     except subprocess.CalledProcessError as e:
         raise HTTPException(status_code=500, detail=f"Failed to create branch: {e.stderr.decode()}")
 
     # Set up AI pipeline
-    config = load_config(str(repo_path))
+    load_config(str(repo_path))
     parser = CodeParser()
     gateway = LLMGateway(anthropic_key=os.getenv("ANTHROPIC_API_KEY", ""))
     embedder = VoyageEmbedder(api_key=os.getenv("VOYAGE_API_KEY", ""))
@@ -164,24 +174,45 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
 
     # If nothing was fixed, clean up branch and abort
     if not fixed:
-        subprocess.run(["git", "-C", str(repo_path), "checkout", "-"], capture_output=True, env=git_env)
-        subprocess.run(["git", "-C", str(repo_path), "branch", "-D", branch], capture_output=True, env=git_env)
-        raise HTTPException(status_code=400, detail=f"No functions were fixed. Errors: {'; '.join(errors)}")
+        subprocess.run(
+            ["git", "-C", str(repo_path), "checkout", "-"], capture_output=True, env=git_env
+        )
+        subprocess.run(
+            ["git", "-C", str(repo_path), "branch", "-D", branch], capture_output=True, env=git_env
+        )
+        raise HTTPException(
+            status_code=400, detail=f"No functions were fixed. Errors: {'; '.join(errors)}"
+        )
 
     # Commit changes
     pr_title = body.pr_title.strip() or f"docs: add docstrings for {len(fixed)} function(s)"
     try:
         subprocess.run(
             ["git", "-C", str(repo_path), "add", "-A"],
-            check=True, capture_output=True, timeout=10, env=git_env,
+            check=True,
+            capture_output=True,
+            timeout=10,
+            env=git_env,
         )
         subprocess.run(
-            ["git", "-C", str(repo_path),
-             "-c", "user.email=wright@wrightai.dev",
-             "-c", "user.name=Wright AI",
-             "commit", "-m", pr_title,
-             "--author", "Wright AI <wright@wrightai.dev>"],
-            check=True, capture_output=True, timeout=15, env=git_env,
+            [
+                "git",
+                "-C",
+                str(repo_path),
+                "-c",
+                "user.email=wright@wrightai.dev",
+                "-c",
+                "user.name=Wright AI",
+                "commit",
+                "-m",
+                pr_title,
+                "--author",
+                "Wright AI <wright@wrightai.dev>",
+            ],
+            check=True,
+            capture_output=True,
+            timeout=15,
+            env=git_env,
         )
     except subprocess.CalledProcessError as e:
         raise HTTPException(status_code=500, detail=f"git commit failed: {e.stderr.decode()}")
@@ -191,7 +222,10 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
     try:
         subprocess.run(
             ["git", "-C", str(repo_path), "push", push_url, branch],
-            check=True, capture_output=True, timeout=60, env=git_env,
+            check=True,
+            capture_output=True,
+            timeout=60,
+            env=git_env,
         )
     except subprocess.CalledProcessError as e:
         raise HTTPException(status_code=500, detail=f"git push failed: {e.stderr.decode()}")
@@ -202,7 +236,11 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
         f"Generated by [Wright AI](https://wrightai-web.fly.dev)\n\n"
         f"**{len(fixed)} function(s) documented:**\n"
         + "\n".join(f"- `{f}`" for f in fixed)
-        + (f"\n\n**Skipped ({len(errors)}):**\n" + "\n".join(f"- {e}" for e in errors) if errors else "")
+        + (
+            f"\n\n**Skipped ({len(errors)}):**\n" + "\n".join(f"- {e}" for e in errors)
+            if errors
+            else ""
+        )
     )
 
     async with httpx.AsyncClient() as client:

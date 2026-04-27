@@ -1,8 +1,7 @@
 """Tests for drift detector."""
+
 from __future__ import annotations
 
-import os
-import tempfile
 
 import pytest
 
@@ -26,7 +25,9 @@ def temp_cache(tmp_path) -> ASTCache:
     return ASTCache(str(tmp_path / "test_cache.db"))
 
 
-def test_detects_undocumented(detector: DriftDetector, temp_cache: ASTCache, temp_py_file: str) -> None:
+def test_detects_undocumented(
+    detector: DriftDetector, temp_cache: ASTCache, temp_py_file: str
+) -> None:
     results = detector.check_file(temp_py_file, temp_cache)
     assert any(r.status == "undocumented" for r in results)
 
@@ -53,7 +54,10 @@ def test_detects_signature_change(detector: DriftDetector) -> None:
 
     old_func = _make_func(parameters=[{"name": "x", "type_annotation": "int"}])
     new_func = _make_func(
-        parameters=[{"name": "x", "type_annotation": "int"}, {"name": "y", "type_annotation": "str"}]
+        parameters=[
+            {"name": "x", "type_annotation": "int"},
+            {"name": "y", "type_annotation": "str"},
+        ]
     )
     assert detector._signature_changed(old_func, new_func) is True
 
@@ -105,7 +109,9 @@ def test_detects_undocumented_param(detector: DriftDetector) -> None:
     assert detector._docstring_covers_params(func) is False
 
 
-def test_check_directory(detector: DriftDetector, temp_cache: ASTCache, temp_dir_with_py: str) -> None:
+def test_check_directory(
+    detector: DriftDetector, temp_cache: ASTCache, temp_dir_with_py: str
+) -> None:
     results = detector.check_directory(temp_dir_with_py, temp_cache)
     assert isinstance(results, list)
     assert all(isinstance(r, DriftResult) for r in results)

@@ -1,10 +1,10 @@
 """Tests for CLI commands."""
+
 from __future__ import annotations
 
 import json
 import os
 
-import pytest
 from typer.testing import CliRunner
 
 from cli.main import app
@@ -40,4 +40,5 @@ def test_generate_dry_run_prints_preview(sample_py_path: str, monkeypatch) -> No
     # We can't call the real LLM in tests, so just verify the command structure
     # by checking it starts without crashing on import
     from cli.main import app
+
     assert app is not None

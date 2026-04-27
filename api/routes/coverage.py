@@ -26,7 +26,9 @@ class CoverageResponse(BaseModel):
 
 
 @router.get("", response_model=CoverageResponse)
-async def get_coverage(repo_root: str = Query(..., description="Repository root path")) -> CoverageResponse:
+async def get_coverage(
+    repo_root: str = Query(..., description="Repository root path"),
+) -> CoverageResponse:
     from core.config import load_config
     from core.parser.tree_sitter_parser import CodeParser
 
@@ -55,17 +57,16 @@ async def get_coverage(repo_root: str = Query(..., description="Repository root 
 
         for func in pf.functions:
             if not func.existing_docstring:
-                undoc_list.append(UndocumentedFunction(
-                    function_name=func.name,
-                    file_path=pf.path,
-                    line=func.start_line + 1,
-                ))
+                undoc_list.append(
+                    UndocumentedFunction(
+                        function_name=func.name,
+                        file_path=pf.path,
+                        line=func.start_line + 1,
+                    )
+                )
 
     overall_pct = (documented / total * 100) if total else 100.0
-    folder_pct = {
-        folder: (d / t * 100 if t > 0 else 100.0)
-        for folder, (t, d) in by_folder.items()
-    }
+    folder_pct = {folder: (d / t * 100 if t > 0 else 100.0) for folder, (t, d) in by_folder.items()}
 
     return CoverageResponse(
         overall_pct=overall_pct,

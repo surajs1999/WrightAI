@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import os
 import tempfile
 
@@ -44,6 +43,7 @@ class JobStatusResponse(BaseModel):
 async def generate_docstring(request: GenerateRequest) -> GenerateResponse:
     if request.batch:
         from api.tasks.generation_tasks import generate_file_docs
+
         task = generate_file_docs.delay(
             file_path=request.file_path,
             repo_root=request.repo_root,
@@ -69,7 +69,7 @@ async def generate_docstring(request: GenerateRequest) -> GenerateResponse:
     from core.parser.tree_sitter_parser import CodeParser
     from core.retrieval.hybrid_retriever import HybridRetriever
 
-    config = load_config(request.repo_root)
+    load_config(request.repo_root)
     parser = CodeParser()
 
     # If raw code was sent, write it to a temp file so the parser can read it
@@ -84,6 +84,7 @@ async def generate_docstring(request: GenerateRequest) -> GenerateResponse:
         file_path = _tmp_path
 
     import pathlib
+
     if pathlib.Path(file_path).is_dir():
         raise HTTPException(
             status_code=400,
@@ -106,7 +107,9 @@ async def generate_docstring(request: GenerateRequest) -> GenerateResponse:
         if func is None:
             if _tmp_path:
                 os.unlink(_tmp_path)
-            raise HTTPException(status_code=404, detail=f"Function '{request.function_name}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Function '{request.function_name}' not found"
+            )
     elif parsed_file.functions:
         func = parsed_file.functions[0]
     else:

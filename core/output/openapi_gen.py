@@ -22,13 +22,15 @@ class OpenAPIGenerator:
 
         parameters = []
         for param in func.parameters:
-            parameters.append({
-                "name": param["name"],
-                "in": "query",
-                "required": False,
-                "schema": {"type": self._map_type(param.get("type_annotation"))},
-                "description": "",
-            })
+            parameters.append(
+                {
+                    "name": param["name"],
+                    "in": "query",
+                    "required": False,
+                    "schema": {"type": self._map_type(param.get("type_annotation"))},
+                    "description": "",
+                }
+            )
 
         operation: dict[str, Any] = {
             "summary": summary,
@@ -69,6 +71,7 @@ class OpenAPIGenerator:
     def to_yaml(self) -> str:
         try:
             import yaml
+
             return yaml.dump(self._spec, default_flow_style=False)
         except ImportError:
             return self.to_json()

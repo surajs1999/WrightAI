@@ -21,6 +21,7 @@ class VoyageEmbedder:
         if self._use_voyage:
             try:
                 import voyageai
+
                 self._client = voyageai.Client(api_key=self._api_key)
                 return
             except ImportError:
@@ -31,6 +32,7 @@ class VoyageEmbedder:
         if openai_key:
             try:
                 import openai
+
                 self._fallback = openai.OpenAI(api_key=openai_key)
                 self._use_voyage = False
                 return

@@ -1,7 +1,7 @@
 """Tests for MCP server tools."""
+
 from __future__ import annotations
 
-import asyncio
 import os
 
 import pytest
@@ -33,11 +33,13 @@ async def test_list_undocumented_finds_functions(sample_py_path: str) -> None:
 async def test_get_function_doc_returns_doc(sample_py_path: str) -> None:
     from mcp_server.server import _get_function_doc
 
-    result = await _get_function_doc({
-        "function_name": "add_numbers",
-        "file_path": sample_py_path,
-        "repo_root": os.path.dirname(sample_py_path),
-    })
+    result = await _get_function_doc(
+        {
+            "function_name": "add_numbers",
+            "file_path": sample_py_path,
+            "repo_root": os.path.dirname(sample_py_path),
+        }
+    )
     assert result.get("function_name") == "add_numbers"
     assert result.get("file_path") == sample_py_path
     assert result.get("docstring") is not None
@@ -47,9 +49,11 @@ async def test_get_function_doc_returns_doc(sample_py_path: str) -> None:
 async def test_get_function_doc_not_found(sample_py_path: str) -> None:
     from mcp_server.server import _get_function_doc
 
-    result = await _get_function_doc({
-        "function_name": "nonexistent_function_xyz",
-        "file_path": sample_py_path,
-        "repo_root": os.path.dirname(sample_py_path),
-    })
+    result = await _get_function_doc(
+        {
+            "function_name": "nonexistent_function_xyz",
+            "file_path": sample_py_path,
+            "repo_root": os.path.dirname(sample_py_path),
+        }
+    )
     assert "error" in result

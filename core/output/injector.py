@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-import re
 from dataclasses import dataclass
 
 from core.llm.prompts import DocStyle
@@ -37,7 +35,9 @@ class DocstringInjector:
             injection_point = self._find_injection_point(source_bytes, func)
 
             if injection_point < 0:
-                snippet = source_bytes[func.start_byte:func.start_byte + 300].decode("utf-8", errors="replace")
+                snippet = source_bytes[func.start_byte : func.start_byte + 300].decode(
+                    "utf-8", errors="replace"
+                )
                 return InjectionResult(
                     success=False,
                     file_path=file_path,
@@ -48,10 +48,14 @@ class DocstringInjector:
                 )
 
             if self._has_existing_docstring(func):
-                new_source_bytes = self._replace_existing_docstring_bytes(source_bytes, func, formatted)
+                new_source_bytes = self._replace_existing_docstring_bytes(
+                    source_bytes, func, formatted
+                )
             else:
                 inject_bytes = formatted.encode("utf-8")
-                new_source_bytes = source_bytes[:injection_point] + inject_bytes + source_bytes[injection_point:]
+                new_source_bytes = (
+                    source_bytes[:injection_point] + inject_bytes + source_bytes[injection_point:]
+                )
 
             injected_line = source_bytes[:injection_point].count(b"\n")
 
@@ -88,7 +92,7 @@ class DocstringInjector:
         lang = func.language
 
         if lang == "python":
-            func_bytes = source_bytes[func.start_byte:func.end_byte]
+            func_bytes = source_bytes[func.start_byte : func.end_byte]
             # Walk the signature tracking (), [] and simple strings to find the
             # closing colon of the def statement (not a colon inside type hints).
             colon_pos = -1
@@ -98,9 +102,9 @@ class DocstringInjector:
             string_char = b""
             i = 0
             while i < len(func_bytes):
-                b = func_bytes[i:i+1]
+                b = func_bytes[i : i + 1]
                 if in_string:
-                    if b == string_char and (i == 0 or func_bytes[i-1:i] != b"\\"):
+                    if b == string_char and (i == 0 or func_bytes[i - 1 : i] != b"\\"):
                         in_string = False
                 elif b in (b'"', b"'"):
                     in_string = True
@@ -127,7 +131,7 @@ class DocstringInjector:
             return func.start_byte + newline_pos + 1
 
         elif lang in ("javascript", "typescript"):
-            func_bytes = source_bytes[func.start_byte:func.end_byte]
+            func_bytes = source_bytes[func.start_byte : func.end_byte]
             # Find the body-opening { at paren depth 0 (skip object types in params/return)
             paren_depth = 0
             for i, raw in enumerate(func_bytes):
@@ -146,13 +150,13 @@ class DocstringInjector:
             arrow_pos = func_bytes.find(b"=>")
             if arrow_pos >= 0:
                 after = arrow_pos + 2
-                while after < len(func_bytes) and func_bytes[after:after+1] in (b" ", b"\t"):
+                while after < len(func_bytes) and func_bytes[after : after + 1] in (b" ", b"\t"):
                     after += 1
                 return func.start_byte + after
             return -1
 
         elif lang == "java":
-            func_bytes = source_bytes[func.start_byte:func.end_byte]
+            func_bytes = source_bytes[func.start_byte : func.end_byte]
             brace_pos = func_bytes.find(b"{")
             if brace_pos < 0:
                 return -1
@@ -162,7 +166,7 @@ class DocstringInjector:
             return func.start_byte + newline_pos + 1
 
         elif lang == "go":
-            func_bytes = source_bytes[func.start_byte:func.end_byte]
+            func_bytes = source_bytes[func.start_byte : func.end_byte]
             brace_pos = func_bytes.find(b"{")
             if brace_pos < 0:
                 return -1
@@ -189,8 +193,8 @@ class DocstringInjector:
         source_str = source_bytes.decode("utf-8", errors="replace")
         old_doc = func.existing_docstring
         # Find and replace the old docstring in the function source region
-        func_region_start = len(source_bytes[:func.start_byte].decode("utf-8", errors="replace"))
-        func_region_end = len(source_bytes[:func.end_byte].decode("utf-8", errors="replace"))
+        func_region_start = len(source_bytes[: func.start_byte].decode("utf-8", errors="replace"))
+        func_region_end = len(source_bytes[: func.end_byte].decode("utf-8", errors="replace"))
         func_region = source_str[func_region_start:func_region_end]
 
         # Replace first occurrence of old docstring in function region
@@ -208,7 +212,9 @@ class DocstringInjector:
         pad = " " * indent
         inner_pad = " " * (indent + 4)
 
-        if style == DocStyle.GOOGLE or (language == "python" and style not in (DocStyle.NUMPY, DocStyle.EPYTEXT, DocStyle.JSDOC)):
+        if style == DocStyle.GOOGLE or (
+            language == "python" and style not in (DocStyle.NUMPY, DocStyle.EPYTEXT, DocStyle.JSDOC)
+        ):
             return self._format_google(doc, pad, inner_pad)
         elif style == DocStyle.NUMPY:
             return self._format_numpy(doc, pad, inner_pad)

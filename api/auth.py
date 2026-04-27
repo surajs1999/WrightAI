@@ -59,6 +59,7 @@ async def verify_api_key(
     # Accept user API keys issued via WorkOS + Supabase (wai_ prefix)
     if api_key and api_key.startswith("wai_"):
         from api.user_store import get_user_by_api_key
+
         if get_user_by_api_key(api_key):
             return
         raise HTTPException(status_code=401, detail="Invalid API key")

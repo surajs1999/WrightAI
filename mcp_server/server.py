@@ -31,7 +31,11 @@ _TOOLS: list[Tool] = [
             "properties": {
                 "query": {"type": "string", "description": "Search query"},
                 "repo_root": {"type": "string", "description": "Path to repository root"},
-                "n": {"type": "integer", "description": "Number of results to return", "default": 5},
+                "n": {
+                    "type": "integer",
+                    "description": "Number of results to return",
+                    "default": 5,
+                },
             },
             "required": ["query", "repo_root"],
         },
@@ -43,7 +47,10 @@ _TOOLS: list[Tool] = [
             "type": "object",
             "properties": {
                 "function_name": {"type": "string", "description": "Name of the function"},
-                "file_path": {"type": "string", "description": "Path to the file containing the function"},
+                "file_path": {
+                    "type": "string",
+                    "description": "Path to the file containing the function",
+                },
                 "repo_root": {"type": "string", "description": "Path to repository root"},
             },
             "required": ["function_name", "file_path", "repo_root"],
@@ -86,9 +93,7 @@ async def call_tool(request: CallToolRequest) -> CallToolResult:
     except Exception as e:
         result = {"error": str(e)}
 
-    return CallToolResult(
-        content=[TextContent(type="text", text=json.dumps(result, indent=2))]
-    )
+    return CallToolResult(content=[TextContent(type="text", text=json.dumps(result, indent=2))])
 
 
 async def _search_docs(args: dict[str, Any]) -> list[dict]:
@@ -115,7 +120,9 @@ async def _search_docs(args: dict[str, Any]) -> list[dict]:
             "file_path": ctx.chunk.file_path,
             "line": ctx.chunk.start_line + 1,
             "docstring": ctx.function.existing_docstring,
-            "summary": (ctx.function.existing_docstring or "")[:100] if ctx.function.existing_docstring else None,
+            "summary": (ctx.function.existing_docstring or "")[:100]
+            if ctx.function.existing_docstring
+            else None,
             "score": ctx.combined_score,
         }
         for ctx in contexts
@@ -128,7 +135,7 @@ async def _get_function_doc(args: dict[str, Any]) -> dict:
 
     function_name = args["function_name"]
     file_path = args["file_path"]
-    repo_root = args["repo_root"]
+    args["repo_root"]
 
     parser = CodeParser()
     try:
@@ -190,11 +197,13 @@ async def _list_undocumented(args: dict[str, Any]) -> dict:
             if func.existing_docstring:
                 documented += 1
             else:
-                undoc.append({
-                    "function_name": func.name,
-                    "file_path": func.file_path,
-                    "line": func.start_line + 1,
-                })
+                undoc.append(
+                    {
+                        "function_name": func.name,
+                        "file_path": func.file_path,
+                        "line": func.start_line + 1,
+                    }
+                )
 
     return {
         "total": total,

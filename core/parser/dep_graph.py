@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-from typing import Any
 
 import networkx as nx
 
@@ -26,7 +25,9 @@ class DependencyGraph:
             for cls in pf.classes:
                 for method in cls.methods:
                     node_id = f"{pf.path}::{cls.name}.{method.name}"
-                    self._graph.add_node(node_id, file_path=pf.path, function_name=method.name, class_name=cls.name)
+                    self._graph.add_node(
+                        node_id, file_path=pf.path, function_name=method.name, class_name=cls.name
+                    )
                     self._function_index[method.name] = node_id
 
         # Second pass: build edges from source analysis
@@ -43,7 +44,7 @@ class DependencyGraph:
 
     def _find_and_add_call_edges(self, caller_id: str, source: str, file_path: str) -> None:
         # Simple heuristic: find identifiers followed by ( that match known function names
-        call_pattern = re.compile(r'\b(\w+)\s*\(')
+        call_pattern = re.compile(r"\b(\w+)\s*\(")
         for match in call_pattern.finditer(source):
             callee_name = match.group(1)
             if callee_name in self._function_index:

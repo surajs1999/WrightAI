@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 
 from core.parser.tree_sitter_parser import ParsedFile, ParsedFunction
 
@@ -75,8 +74,9 @@ class MarkdownWriter:
         for lang, files in sorted(by_language.items()):
             lines.append(f"## {lang.capitalize()}\n")
             for pf in sorted(files, key=lambda x: x.path):
-                rel = pf.path
-                lines.append(f"- [{os.path.basename(pf.path)}]({os.path.basename(pf.path).replace('.', '_')}.md)")
+                lines.append(
+                    f"- [{os.path.basename(pf.path)}]({os.path.basename(pf.path).replace('.', '_')}.md)"
+                )
                 lines.append(f"  - Functions: {len(pf.functions)}, Classes: {len(pf.classes)}")
             lines.append("")
 

@@ -26,6 +26,7 @@ def _get_workos() -> WorkOSClient:
         _workos_client = WorkOSClient(api_key=api_key, client_id=client_id)
     return _workos_client
 
+
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 
@@ -47,6 +48,7 @@ class CallbackRequest(BaseModel):
 async def callback(body: CallbackRequest, redirect_uri: str | None = None) -> dict:
     try:
         from api.user_store import get_or_create_user
+
         auth = _get_workos().user_management.authenticate_with_code(
             code=body.code,
         )
@@ -135,7 +137,9 @@ async def github_callback(code: str, state: str = "") -> RedirectResponse:
     data = resp.json()
     token = data.get("access_token", "")
     if not token:
-        raise HTTPException(status_code=400, detail=f"GitHub OAuth failed: {data.get('error_description', data)}")
+        raise HTTPException(
+            status_code=400, detail=f"GitHub OAuth failed: {data.get('error_description', data)}"
+        )
 
     try:
         api_key = base64.urlsafe_b64decode(state.encode()).decode()
@@ -169,8 +173,16 @@ async def github_repos(request: Request) -> dict:
         while True:
             resp = await client.get(
                 "https://api.github.com/user/repos",
-                headers={"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"},
-                params={"per_page": 100, "page": page, "sort": "updated", "affiliation": "owner,collaborator"},
+                headers={
+                    "Authorization": f"token {token}",
+                    "Accept": "application/vnd.github.v3+json",
+                },
+                params={
+                    "per_page": 100,
+                    "page": page,
+                    "sort": "updated",
+                    "affiliation": "owner,collaborator",
+                },
                 timeout=15,
             )
             if resp.status_code != 200:
@@ -178,7 +190,10 @@ async def github_repos(request: Request) -> dict:
             batch = resp.json()
             if not batch:
                 break
-            all_repos.extend({"full_name": r["full_name"], "private": r["private"], "clone_url": r["clone_url"]} for r in batch)
+            all_repos.extend(
+                {"full_name": r["full_name"], "private": r["private"], "clone_url": r["clone_url"]}
+                for r in batch
+            )
             if len(batch) < 100:
                 break
             page += 1

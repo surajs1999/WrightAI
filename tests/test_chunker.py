@@ -1,4 +1,5 @@
 """Tests for AST chunker."""
+
 from __future__ import annotations
 
 import pytest
@@ -17,7 +18,9 @@ def parser() -> CodeParser:
     return CodeParser()
 
 
-def test_chunks_respect_function_boundaries(chunker: ASTChunker, parser: CodeParser, sample_py_path: str) -> None:
+def test_chunks_respect_function_boundaries(
+    chunker: ASTChunker, parser: CodeParser, sample_py_path: str
+) -> None:
     pf = parser.parse_file(sample_py_path)
     chunks = chunker.chunk_file(pf)
     assert len(chunks) > 0
@@ -25,7 +28,9 @@ def test_chunks_respect_function_boundaries(chunker: ASTChunker, parser: CodePar
     assert "add_numbers" in chunk_names or any("add_numbers" in c.name for c in chunks)
 
 
-def test_never_exceeds_max_tokens(chunker: ASTChunker, parser: CodeParser, sample_py_path: str) -> None:
+def test_never_exceeds_max_tokens(
+    chunker: ASTChunker, parser: CodeParser, sample_py_path: str
+) -> None:
     pf = parser.parse_file(sample_py_path)
     chunks = chunker.chunk_file(pf)
     for chunk in chunks:

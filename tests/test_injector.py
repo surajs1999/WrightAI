@@ -1,8 +1,8 @@
 """Tests for docstring injector."""
+
 from __future__ import annotations
 
 import os
-import shutil
 import tempfile
 
 import pytest
@@ -66,11 +66,7 @@ def test_replaces_existing_docstring(
     injector: DocstringInjector, parser: CodeParser, sample_doc: DocstringSchema
 ) -> None:
     with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as f:
-        f.write(
-            'def documented(x: int) -> int:\n'
-            '    """Old docstring."""\n'
-            '    return x + 1\n'
-        )
+        f.write('def documented(x: int) -> int:\n    """Old docstring."""\n    return x + 1\n')
         path = f.name
 
     try:
@@ -93,7 +89,9 @@ def test_replaces_existing_docstring(
         os.unlink(path)
 
 
-def test_formats_google_style_correctly(injector: DocstringInjector, sample_doc: DocstringSchema) -> None:
+def test_formats_google_style_correctly(
+    injector: DocstringInjector, sample_doc: DocstringSchema
+) -> None:
     formatted = injector.format_docstring(sample_doc, DocStyle.GOOGLE, "python", 4)
     assert '"""' in formatted
     assert "Args:" in formatted
@@ -110,7 +108,9 @@ def test_formats_jsdoc_correctly(injector: DocstringInjector, sample_doc: Docstr
     assert "name" in formatted
 
 
-def test_formats_numpy_style_correctly(injector: DocstringInjector, sample_doc: DocstringSchema) -> None:
+def test_formats_numpy_style_correctly(
+    injector: DocstringInjector, sample_doc: DocstringSchema
+) -> None:
     formatted = injector.format_docstring(sample_doc, DocStyle.NUMPY, "python", 4)
     assert "Parameters" in formatted
     assert "----------" in formatted

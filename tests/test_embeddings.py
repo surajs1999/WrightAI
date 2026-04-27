@@ -1,11 +1,12 @@
 """Tests for embeddings (mocked to avoid API calls)."""
+
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from core.embeddings.chroma_store import ChromaStore, SearchResult
+from core.embeddings.chroma_store import ChromaStore
 from core.parser.ast_chunker import CodeChunk
 
 
@@ -57,7 +58,8 @@ def test_chroma_store_delete_file(tmp_path) -> None:
 
 def test_voyage_embedder_requires_key() -> None:
     from core.embeddings.voyage_embeddings import VoyageEmbedder
+
     with pytest.raises(RuntimeError, match="No embedding provider"):
         # No key and no openai fallback available
         with patch.dict("os.environ", {}, clear=True):
-            embedder = VoyageEmbedder(api_key="")
+            VoyageEmbedder(api_key="")

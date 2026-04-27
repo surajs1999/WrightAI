@@ -1,7 +1,7 @@
 """Generate the Wright AI logo system — Circle W design."""
+
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -13,7 +13,13 @@ OUTPUT_DIR = Path("./wright-logo")
 
 # ── Pre-flight: confirm overwrite if directory already has files ──────────────
 if OUTPUT_DIR.exists() and any(OUTPUT_DIR.iterdir()):
-    answer = input("Directory already exists — proceeding will overwrite existing files. Continue? [y/N] ").strip().lower()
+    answer = (
+        input(
+            "Directory already exists — proceeding will overwrite existing files. Continue? [y/N] "
+        )
+        .strip()
+        .lower()
+    )
     if answer != "y":
         print("Aborted.")
         sys.exit(0)
@@ -27,58 +33,19 @@ MASTER_SVG = (
     '<path d="M 86 154 L 163 358 L 256 194 L 349 358 L 426 154"'
     ' stroke="#FFFFFF" stroke-width="46" stroke-linecap="round"'
     ' stroke-linejoin="round" fill="none"/>'
-    '</svg>'
+    "</svg>"
 )
 
 DARK_SVG = MASTER_SVG.replace("#534AB7", "#26215C")
 
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
-def write_file(path: Path, data: bytes | str) -> None:"""
-Writes data to a file at the specified path.
-
-Writes the provided data to a file, automatically handling both bytes and string data types. Creates parent directories if they don't exist.
-
-Args:
-    path (Path): The file path where the data will be written.
-    data (bytes | str): The data to write to the file, either as bytes or a string.
-
-Returns:
-    None: This function does not return a value.
-
-Raises:
-    OSError: When the file cannot be written due to permissions or disk space issues.
-    IOError: When an I/O error occurs during file writing.
-
-Example:
-    ```
-    write_file(Path('output/logo.png'), b'\x89PNG\r\n...')
-    ```
-
-Complexity: O(n) time where n is the size of the data, O(1) space
-"""
-
-"""
-Writes data to a file at the specified path, handling both string and binary data appropriately.
-
-Automatically detects the data type and writes it using the appropriate method: text mode with UTF-8 encoding for strings, or binary mode for bytes.
-
-Args:
-    path (Path): The file path where the data should be written.
-    data (bytes | str): The data to write to the file, either as a string or bytes object.
-
-Returns:
-    None: This function does not return a value.
-
-Example:
-    ```
-    write_file(Path('output.txt'), 'Hello, World!')
-    write_file(Path('image.png'), b'\x89PNG\r\n\x1a\n')
-    ```
-"""
+def write_file(path: Path, data: bytes | str) -> None:
     if isinstance(data, str):
         path.write_text(data, encoding="utf-8")
     else:
         path.write_bytes(data)
+
 
 def assert_png(path: Path, expected_size: tuple[int, int]) -> None:
     assert path.exists() and path.stat().st_size > 0, f"FAIL: {path} missing or empty"
@@ -88,14 +55,17 @@ def assert_png(path: Path, expected_size: tuple[int, int]) -> None:
     with Image.open(path) as v:
         v.verify()
 
+
 def assert_svg(path: Path, bg_color: str = "#534AB7") -> None:
     content = path.read_text()
     assert content.count("<circle") == 1, f"FAIL: {path} should have exactly 1 <circle>"
     assert content.count("<path") == 1, f"FAIL: {path} should have exactly 1 <path>"
     assert bg_color in content, f"FAIL: {path} missing background color {bg_color}"
 
+
 def render_png(svg: str, size: int) -> bytes:
     return cairosvg.svg2png(bytestring=svg.encode(), output_width=size, output_height=size)
+
 
 # ── 1. wright-logo.svg ────────────────────────────────────────────────────────
 svg_path = OUTPUT_DIR / "wright-logo.svg"

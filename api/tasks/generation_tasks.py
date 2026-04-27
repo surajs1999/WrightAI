@@ -36,9 +36,7 @@ def generate_file_docs(self, file_path: str, repo_root: str, style: str, dry_run
     dep_graph.build(parsed_files)
     retriever = HybridRetriever(chroma, dep_graph, embedder)
 
-    undoc_funcs = [
-        (pf, f) for pf in parsed_files for f in pf.functions if not f.existing_docstring
-    ]
+    undoc_funcs = [(pf, f) for pf in parsed_files for f in pf.functions if not f.existing_docstring]
 
     results = []
     total = len(undoc_funcs)
@@ -52,13 +50,15 @@ def generate_file_docs(self, file_path: str, repo_root: str, style: str, dry_run
             context = retriever.retrieve_for_function(func)
             doc = await gateway.generate_docstring(func, context, doc_style)
             result = injector.inject(func.file_path, func, doc, doc_style, dry_run=dry_run)
-            results.append({
-                "function": func.name,
-                "file": func.file_path,
-                "success": result.success,
-                "preview": result.preview,
-                "error": result.error,
-            })
+            results.append(
+                {
+                    "function": func.name,
+                    "file": func.file_path,
+                    "success": result.success,
+                    "preview": result.preview,
+                    "error": result.error,
+                }
+            )
 
     asyncio.get_event_loop().run_until_complete(_process())
     return {"results": results, "total": total}

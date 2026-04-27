@@ -12,7 +12,17 @@ from api.auth import verify_api_key
 
 router = APIRouter(prefix="/llms-txt", tags=["llms-txt"], dependencies=[Depends(verify_api_key)])
 
-SKIP_DIRS = {"node_modules", ".git", "__pycache__", "dist", "build", ".next", ".wright", "venv", ".venv"}
+SKIP_DIRS = {
+    "node_modules",
+    ".git",
+    "__pycache__",
+    "dist",
+    "build",
+    ".next",
+    ".wright",
+    "venv",
+    ".venv",
+}
 
 # Dunder methods worth keeping — constructors, context managers, callables
 _KEEP_DUNDERS = {"__init__", "__call__", "__enter__", "__exit__", "__new__", "__post_init__"}
@@ -22,8 +32,15 @@ _VOID_RETURNS = {"None", "void", "undefined", "never", "()", "null", "Promise<vo
 
 # Decorators that add real signal for an LLM reader
 _SIGNAL_DECORATOR_PREFIXES = (
-    "@property", "@staticmethod", "@classmethod", "@abstractmethod",
-    "@app.", "@router.", "@blueprint.", "@cached_property", "@override",
+    "@property",
+    "@staticmethod",
+    "@classmethod",
+    "@abstractmethod",
+    "@app.",
+    "@router.",
+    "@blueprint.",
+    "@cached_property",
+    "@override",
 )
 
 
@@ -33,12 +50,13 @@ class LlmsTxtRequest(BaseModel):
 
 # ── Docstring cleaners ────────────────────────────────────────────────────────
 
+
 def _clean_python_doc(raw: str) -> str:
     """Strip quote delimiters and normalise indentation."""
     s = raw.strip()
     for delim in ('"""', "'''", '"', "'"):
         if s.startswith(delim):
-            s = s[len(delim):]
+            s = s[len(delim) :]
             break
     for delim in ('"""', "'''", '"', "'"):
         if s.endswith(delim):
@@ -82,7 +100,7 @@ def _clean_jsdoc(raw: str) -> str:
             if rest.startswith("{"):
                 end = rest.find("}")
                 if end != -1:
-                    rest = rest[end + 1:].strip()
+                    rest = rest[end + 1 :].strip()
             rest = rest.lstrip("- ").strip()
             if rest:
                 result.append(f"  @param {rest}")
@@ -92,7 +110,7 @@ def _clean_jsdoc(raw: str) -> str:
             if rest.startswith("{"):
                 end = rest.find("}")
                 if end != -1:
-                    rest = rest[end + 1:].strip()
+                    rest = rest[end + 1 :].strip()
             if rest:
                 result.append(f"  @returns {rest}")
         elif tag.startswith(("@throws", "@exception")):
@@ -141,6 +159,7 @@ def _get_doc(func) -> str:
 
 # ── Signature builder ─────────────────────────────────────────────────────────
 
+
 def _build_sig(func) -> str:
     """Typed, compact function signature."""
     parts: list[str] = []
@@ -174,6 +193,7 @@ def _should_skip(func) -> bool:
 
 # ── Line emitter ──────────────────────────────────────────────────────────────
 
+
 def _emit_func(lines: list[str], func, indent: str = "") -> None:
     if _should_skip(func):
         return
@@ -193,6 +213,7 @@ def _emit_func(lines: list[str], func, indent: str = "") -> None:
 
 
 # ── Route ─────────────────────────────────────────────────────────────────────
+
 
 @router.post("")
 async def generate_llms_txt(body: LlmsTxtRequest) -> dict:
@@ -223,16 +244,19 @@ async def generate_llms_txt(body: LlmsTxtRequest) -> dict:
     parsed_files.sort(key=lambda pf: pf.path)
 
     total_fns = sum(
-        len(pf.functions) + sum(len(c.methods) for c in pf.classes)
-        for pf in parsed_files
+        len(pf.functions) + sum(len(c.methods) for c in pf.classes) for pf in parsed_files
     )
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     lines: list[str] = []
     lines.append(f"# {repo_name}")
     lines.append("")
-    lines.append(f"> Auto-generated llms.txt for {repo_name}. Provides codebase context for AI tools.")
-    lines.append(f"> Generated: {generated_at}  |  {len(parsed_files)} files  |  {total_fns} functions")
+    lines.append(
+        f"> Auto-generated llms.txt for {repo_name}. Provides codebase context for AI tools."
+    )
+    lines.append(
+        f"> Generated: {generated_at}  |  {len(parsed_files)} files  |  {total_fns} functions"
+    )
     lines.append("")
 
     for pf in parsed_files:

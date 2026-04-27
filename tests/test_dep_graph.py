@@ -1,4 +1,5 @@
 """Tests for dependency graph."""
+
 from __future__ import annotations
 
 import pytest
@@ -17,13 +18,17 @@ def dep_graph() -> DependencyGraph:
     return DependencyGraph()
 
 
-def test_builds_graph_from_imports(dep_graph: DependencyGraph, parser: CodeParser, temp_dir_with_py: str) -> None:
+def test_builds_graph_from_imports(
+    dep_graph: DependencyGraph, parser: CodeParser, temp_dir_with_py: str
+) -> None:
     parsed = parser.parse_directory(temp_dir_with_py)
     graph = dep_graph.build(parsed)
     assert graph.number_of_nodes() > 0
 
 
-def test_pagerank_scores_are_normalized(dep_graph: DependencyGraph, parser: CodeParser, sample_py_path: str) -> None:
+def test_pagerank_scores_are_normalized(
+    dep_graph: DependencyGraph, parser: CodeParser, sample_py_path: str
+) -> None:
     parsed = [parser.parse_file(sample_py_path)]
     dep_graph.build(parsed)
     scores = dep_graph.get_pagerank_scores()
@@ -32,7 +37,9 @@ def test_pagerank_scores_are_normalized(dep_graph: DependencyGraph, parser: Code
     assert abs(total - 1.0) < 0.01  # PageRank sums to 1
 
 
-def test_get_callers_returns_correct_functions(dep_graph: DependencyGraph, parser: CodeParser, sample_py_path: str) -> None:
+def test_get_callers_returns_correct_functions(
+    dep_graph: DependencyGraph, parser: CodeParser, sample_py_path: str
+) -> None:
     parsed = [parser.parse_file(sample_py_path)]
     dep_graph.build(parsed)
     # Just verify it doesn't throw and returns a list
@@ -40,14 +47,18 @@ def test_get_callers_returns_correct_functions(dep_graph: DependencyGraph, parse
     assert isinstance(callers, list)
 
 
-def test_get_callees_returns_correct_functions(dep_graph: DependencyGraph, parser: CodeParser, sample_py_path: str) -> None:
+def test_get_callees_returns_correct_functions(
+    dep_graph: DependencyGraph, parser: CodeParser, sample_py_path: str
+) -> None:
     parsed = [parser.parse_file(sample_py_path)]
     dep_graph.build(parsed)
     callees = dep_graph.get_callees("add_numbers", sample_py_path)
     assert isinstance(callees, list)
 
 
-def test_get_top_functions(dep_graph: DependencyGraph, parser: CodeParser, sample_py_path: str) -> None:
+def test_get_top_functions(
+    dep_graph: DependencyGraph, parser: CodeParser, sample_py_path: str
+) -> None:
     parsed = [parser.parse_file(sample_py_path)]
     dep_graph.build(parsed)
     top = dep_graph.get_top_functions(5)

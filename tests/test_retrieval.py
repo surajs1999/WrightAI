@@ -1,9 +1,9 @@
 """Tests for hybrid retriever."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
 
 from core.embeddings.chroma_store import SearchResult
 from core.retrieval.hybrid_retriever import HybridRetriever
@@ -70,26 +70,45 @@ def test_combine_scores_weights() -> None:
 
 
 def test_trim_to_token_budget() -> None:
-    from core.embeddings.chroma_store import SearchResult
     from core.retrieval.hybrid_retriever import RetrievedContext
     from core.parser.ast_chunker import CodeChunk
     from core.parser.tree_sitter_parser import ParsedFunction
 
     def _make_ctx(tokens: int, name: str) -> RetrievedContext:
         func = ParsedFunction(
-            name=name, language="python", file_path="f.py",
-            start_byte=0, end_byte=0, start_line=0, end_line=0,
-            source="", existing_docstring=None, parameters=[],
-            return_type=None, is_async=False, decorators=[],
+            name=name,
+            language="python",
+            file_path="f.py",
+            start_byte=0,
+            end_byte=0,
+            start_line=0,
+            end_line=0,
+            source="",
+            existing_docstring=None,
+            parameters=[],
+            return_type=None,
+            is_async=False,
+            decorators=[],
         )
         chunk = CodeChunk(
-            chunk_id=name, file_path="f.py", language="python",
-            chunk_type="function", name=name, source="x" * (tokens * 4),
-            start_line=0, end_line=0, token_count=tokens,
+            chunk_id=name,
+            file_path="f.py",
+            language="python",
+            chunk_type="function",
+            name=name,
+            source="x" * (tokens * 4),
+            start_line=0,
+            end_line=0,
+            token_count=tokens,
         )
         return RetrievedContext(
-            function=func, chunk=chunk, callers=[], callees=[],
-            vector_score=1.0, graph_score=0.0, combined_score=1.0,
+            function=func,
+            chunk=chunk,
+            callers=[],
+            callees=[],
+            vector_score=1.0,
+            graph_score=0.0,
+            combined_score=1.0,
             total_tokens=tokens,
         )
 

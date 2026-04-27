@@ -7,9 +7,13 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import sys
-from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from core.embeddings.chroma_store import ChromaStore
+    from core.embeddings.voyage_embeddings import VoyageEmbedder
+    from core.llm.gateway import LLMGateway
+    from core.parser.cache import ASTCache
 
 import typer
 from dotenv import load_dotenv
@@ -33,6 +37,7 @@ def _require_env(key: str) -> str:
 
 def _build_gateway() -> "LLMGateway":
     from core.llm.gateway import LLMGateway
+
     return LLMGateway(
         anthropic_key=_require_env("ANTHROPIC_API_KEY"),
         openai_key=os.getenv("OPENAI_API_KEY"),
@@ -41,12 +46,14 @@ def _build_gateway() -> "LLMGateway":
 
 def _build_embedder() -> "VoyageEmbedder":
     from core.embeddings.voyage_embeddings import VoyageEmbedder
+
     voyage_key = os.getenv("VOYAGE_API_KEY", "")
     return VoyageEmbedder(api_key=voyage_key)
 
 
 def _get_cache(repo_root: str) -> "ASTCache":
     from core.parser.cache import ASTCache
+
     cache_path = os.getenv("SQLITE_CACHE_PATH", os.path.join(repo_root, ".wright", "ast_cache.db"))
     os.makedirs(os.path.dirname(cache_path), exist_ok=True)
     return ASTCache(cache_path)
@@ -54,6 +61,7 @@ def _get_cache(repo_root: str) -> "ASTCache":
 
 def _get_chroma(repo_root: str) -> "ChromaStore":
     from core.embeddings.chroma_store import ChromaStore
+
     chroma_path = os.getenv("CHROMA_PATH", os.path.join(repo_root, ".wright", "chroma"))
     return ChromaStore(persist_path=chroma_path, repo_root=repo_root)
 
@@ -81,10 +89,8 @@ def init(repo: str = typer.Argument(".", help="Repository root")) -> None:
         progress.update(scan_task, completed=True, description=f"Found {len(parsed_files)} files")
 
     total_funcs = sum(len(pf.functions) for pf in parsed_files)
-    documented = sum(
-        1 for pf in parsed_files for f in pf.functions if f.existing_docstring
-    )
-    console.print(f"\n[bold]Scan results:[/bold]")
+    documented = sum(1 for pf in parsed_files for f in pf.functions if f.existing_docstring)
+    console.print("\n[bold]Scan results:[/bold]")
     console.print(f"  Files:     {len(parsed_files)}")
     console.print(f"  Functions: {total_funcs}")
     console.print(f"  Documented: {documented} ({100 * documented // max(total_funcs, 1)}%)")
@@ -112,7 +118,9 @@ def init(repo: str = typer.Argument(".", help="Repository root")) -> None:
 @app.command()
 def generate(
     path: str = typer.Argument(".", help="File or directory to document"),
-    style: Optional[str] = typer.Option(None, help="Override doc style (google/numpy/jsdoc/epytext/rust)"),
+    style: Optional[str] = typer.Option(
+        None, help="Override doc style (google/numpy/jsdoc/epytext/rust)"
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview without writing"),
     watch: bool = typer.Option(False, "--watch", help="Watch for changes"),
 ) -> None:
@@ -131,7 +139,7 @@ def generate(
 
     gateway = _build_gateway()
     embedder = _build_embedder()
-    cache = _get_cache(repo_root)
+    _get_cache(repo_root)
     chroma = _get_chroma(repo_root)
     parser = CodeParser()
     injector = DocstringInjector()
@@ -145,18 +153,15 @@ def generate(
     dep_graph.build(parsed_files)
     retriever = HybridRetriever(chroma, dep_graph, embedder)
 
-    undoc_funcs = [
-        (pf, f)
-        for pf in parsed_files
-        for f in pf.functions
-        if not f.existing_docstring
-    ]
+    undoc_funcs = [(pf, f) for pf in parsed_files for f in pf.functions if not f.existing_docstring]
 
     if not undoc_funcs:
         console.print("[green]All functions are already documented![/green]")
         return
 
-    console.print(f"\nGenerating docs for [bold]{len(undoc_funcs)}[/bold] undocumented functions...")
+    console.print(
+        f"\nGenerating docs for [bold]{len(undoc_funcs)}[/bold] undocumented functions..."
+    )
     if dry_run:
         console.print("[yellow](Dry run — no files will be modified)[/yellow]")
 
@@ -181,10 +186,16 @@ def generate(
                     context = retriever.retrieve_for_function(func)
                     doc = await gateway.generate_docstring(func, context, doc_style)
                     result = injector.inject(func.file_path, func, doc, doc_style, dry_run=dry_run)
-                    status = "✓ preview" if dry_run else ("✓ injected" if result.success else f"✗ {result.error}")
+                    status = (
+                        "✓ preview"
+                        if dry_run
+                        else ("✓ injected" if result.success else f"✗ {result.error}")
+                    )
                     results_table.add_row(func.name, os.path.basename(func.file_path), status)
                 except Exception as e:
-                    results_table.add_row(func.name, os.path.basename(func.file_path), f"[red]Error: {e}[/red]")
+                    results_table.add_row(
+                        func.name, os.path.basename(func.file_path), f"[red]Error: {e}[/red]"
+                    )
                 progress.advance(task)
 
     asyncio.run(_run())
@@ -258,7 +269,9 @@ def coverage(
         console.print(f"Report written to {output}")
 
     if overall_pct < config.coverage_threshold * 100:
-        console.print(f"\n[red]Coverage {overall_pct:.1f}% is below threshold {config.coverage_threshold * 100:.0f}%[/red]")
+        console.print(
+            f"\n[red]Coverage {overall_pct:.1f}% is below threshold {config.coverage_threshold * 100:.0f}%[/red]"
+        )
         raise typer.Exit(1)
 
 
@@ -296,7 +309,9 @@ def drift(
     table.add_column("Reason")
 
     for r in drifted:
-        status_str = "[red]drifted[/red]" if r.status == "drifted" else "[yellow]undocumented[/yellow]"
+        status_str = (
+            "[red]drifted[/red]" if r.status == "drifted" else "[yellow]undocumented[/yellow]"
+        )
         table.add_row(r.function_name, os.path.basename(r.file_path), status_str, r.reason or "")
 
     console.print(table)
@@ -306,7 +321,6 @@ def drift(
 
 
 def _open_drift_pr(repo_root: str, drifted: list) -> None:
-    import httpx
     token = os.getenv("GITHUB_TOKEN")
     if not token:
         console.print("[red]GITHUB_TOKEN not set — cannot open PR[/red]")
@@ -318,9 +332,7 @@ def _open_drift_pr(repo_root: str, drifted: list) -> None:
 @app.command()
 def chat(path: str = typer.Argument(".", help="Repository root")) -> None:
     """Start an interactive codebase chat session."""
-    from core.embeddings.chroma_store import ChromaStore
     from core.parser.dep_graph import DependencyGraph
-    from core.parser.tree_sitter_parser import CodeParser
     from core.retrieval.hybrid_retriever import HybridRetriever
 
     path_abs = os.path.abspath(path)

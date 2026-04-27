@@ -116,7 +116,9 @@ class CodeParser:
         classes: list[ParsedClass] = []
         imports: list[str] = []
 
-        self._walk_node(tree.root_node, source_bytes, language, file_path, functions, classes, imports)
+        self._walk_node(
+            tree.root_node, source_bytes, language, file_path, functions, classes, imports
+        )
 
         return ParsedFile(
             path=file_path,
@@ -141,7 +143,9 @@ class CodeParser:
         if language == "python":
             self._walk_python(node, source, file_path, functions, classes, imports, parent_class)
         elif language in ("javascript", "typescript"):
-            self._walk_js_ts(node, source, language, file_path, functions, classes, imports, parent_class)
+            self._walk_js_ts(
+                node, source, language, file_path, functions, classes, imports, parent_class
+            )
         elif language == "java":
             self._walk_java(node, source, file_path, functions, classes, imports, parent_class)
         elif language == "go":
@@ -161,7 +165,9 @@ class CodeParser:
     ) -> None:
         for child in node.children:
             if child.type == "import_statement" or child.type == "import_from_statement":
-                imports.append(source[child.start_byte:child.end_byte].decode("utf-8", errors="replace"))
+                imports.append(
+                    source[child.start_byte : child.end_byte].decode("utf-8", errors="replace")
+                )
             elif child.type in ("function_definition", "decorated_definition"):
                 func = self._parse_python_function(child, source, file_path)
                 if func:
@@ -173,16 +179,22 @@ class CodeParser:
                 cls = self._parse_python_class(child, source, file_path, functions, imports)
                 classes.append(cls)
             else:
-                self._walk_python(child, source, file_path, functions, classes, imports, parent_class)
+                self._walk_python(
+                    child, source, file_path, functions, classes, imports, parent_class
+                )
 
-    def _parse_python_function(self, node: Node, source: bytes, file_path: str) -> ParsedFunction | None:
+    def _parse_python_function(
+        self, node: Node, source: bytes, file_path: str
+    ) -> ParsedFunction | None:
         decorators: list[str] = []
         actual_node = node
 
         if node.type == "decorated_definition":
             for child in node.children:
                 if child.type == "decorator":
-                    decorators.append(source[child.start_byte:child.end_byte].decode("utf-8", errors="replace"))
+                    decorators.append(
+                        source[child.start_byte : child.end_byte].decode("utf-8", errors="replace")
+                    )
                 elif child.type == "function_definition":
                     actual_node = child
                     break
@@ -193,13 +205,13 @@ class CodeParser:
         name_node = actual_node.child_by_field_name("name")
         if not name_node:
             return None
-        name = source[name_node.start_byte:name_node.end_byte].decode("utf-8", errors="replace")
+        name = source[name_node.start_byte : name_node.end_byte].decode("utf-8", errors="replace")
 
         is_async = any(c.type == "async" for c in actual_node.children)
         params = self._extract_python_params(actual_node, source)
         return_type = self._extract_python_return_type(actual_node, source)
         docstring = self._extract_python_docstring(actual_node, source)
-        func_source = source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+        func_source = source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
         return ParsedFunction(
             name=name,
@@ -224,24 +236,42 @@ class CodeParser:
             return params
 
         for child in params_node.children:
-            if child.type in ("identifier", "typed_parameter", "default_parameter",
-                              "typed_default_parameter", "list_splat_pattern", "dictionary_splat_pattern"):
+            if child.type in (
+                "identifier",
+                "typed_parameter",
+                "default_parameter",
+                "typed_default_parameter",
+                "list_splat_pattern",
+                "dictionary_splat_pattern",
+            ):
                 param: dict[str, Any] = {"name": "", "type_annotation": None}
                 if child.type == "identifier":
-                    param["name"] = source[child.start_byte:child.end_byte].decode("utf-8", errors="replace")
+                    param["name"] = source[child.start_byte : child.end_byte].decode(
+                        "utf-8", errors="replace"
+                    )
                 elif child.type in ("typed_parameter", "typed_default_parameter"):
-                    name_n = child.child_by_field_name("name") or (child.children[0] if child.children else None)
+                    name_n = child.child_by_field_name("name") or (
+                        child.children[0] if child.children else None
+                    )
                     type_n = child.child_by_field_name("type")
                     if name_n:
-                        param["name"] = source[name_n.start_byte:name_n.end_byte].decode("utf-8", errors="replace")
+                        param["name"] = source[name_n.start_byte : name_n.end_byte].decode(
+                            "utf-8", errors="replace"
+                        )
                     if type_n:
-                        param["type_annotation"] = source[type_n.start_byte:type_n.end_byte].decode("utf-8", errors="replace")
+                        param["type_annotation"] = source[
+                            type_n.start_byte : type_n.end_byte
+                        ].decode("utf-8", errors="replace")
                 elif child.type == "default_parameter":
                     name_n = child.child_by_field_name("name")
                     if name_n:
-                        param["name"] = source[name_n.start_byte:name_n.end_byte].decode("utf-8", errors="replace")
+                        param["name"] = source[name_n.start_byte : name_n.end_byte].decode(
+                            "utf-8", errors="replace"
+                        )
                 elif child.type in ("list_splat_pattern", "dictionary_splat_pattern"):
-                    param["name"] = source[child.start_byte:child.end_byte].decode("utf-8", errors="replace")
+                    param["name"] = source[child.start_byte : child.end_byte].decode(
+                        "utf-8", errors="replace"
+                    )
                 if param["name"] and param["name"] not in ("self", "cls"):
                     params.append(param)
         return params
@@ -249,7 +279,12 @@ class CodeParser:
     def _extract_python_return_type(self, func_node: Node, source: bytes) -> str | None:
         ret_node = func_node.child_by_field_name("return_type")
         if ret_node:
-            return source[ret_node.start_byte:ret_node.end_byte].decode("utf-8", errors="replace").lstrip("->").strip()
+            return (
+                source[ret_node.start_byte : ret_node.end_byte]
+                .decode("utf-8", errors="replace")
+                .lstrip("->")
+                .strip()
+            )
         return None
 
     def _extract_python_docstring(self, func_node: Node, source: bytes) -> str | None:
@@ -260,7 +295,9 @@ class CodeParser:
             if child.type == "expression_statement":
                 for sub in child.children:
                     if sub.type in ("string", "concatenated_string"):
-                        raw = source[sub.start_byte:sub.end_byte].decode("utf-8", errors="replace")
+                        raw = source[sub.start_byte : sub.end_byte].decode(
+                            "utf-8", errors="replace"
+                        )
                         return raw.strip('"""').strip("'''").strip('"').strip("'").strip()
         return None
 
@@ -273,7 +310,11 @@ class CodeParser:
         imports: list[str],
     ) -> ParsedClass:
         name_node = node.child_by_field_name("name")
-        name = source[name_node.start_byte:name_node.end_byte].decode("utf-8", errors="replace") if name_node else "Unknown"
+        name = (
+            source[name_node.start_byte : name_node.end_byte].decode("utf-8", errors="replace")
+            if name_node
+            else "Unknown"
+        )
         docstring = None
         methods: list[ParsedFunction] = []
 
@@ -283,14 +324,16 @@ class CodeParser:
                 if child.type == "expression_statement":
                     for sub in child.children:
                         if sub.type == "string" and docstring is None:
-                            raw = source[sub.start_byte:sub.end_byte].decode("utf-8", errors="replace")
+                            raw = source[sub.start_byte : sub.end_byte].decode(
+                                "utf-8", errors="replace"
+                            )
                             docstring = raw.strip('"""').strip("'''").strip('"').strip("'").strip()
                 elif child.type in ("function_definition", "decorated_definition"):
                     func = self._parse_python_function(child, source, file_path)
                     if func:
                         methods.append(func)
 
-        cls_source = source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+        cls_source = source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
         return ParsedClass(
             name=name,
             language="python",
@@ -317,9 +360,16 @@ class CodeParser:
     ) -> None:
         for child in node.children:
             if child.type in ("import_statement", "import_declaration"):
-                imports.append(source[child.start_byte:child.end_byte].decode("utf-8", errors="replace"))
-            elif child.type in ("function_declaration", "function_expression", "arrow_function",
-                                "method_definition", "generator_function_declaration"):
+                imports.append(
+                    source[child.start_byte : child.end_byte].decode("utf-8", errors="replace")
+                )
+            elif child.type in (
+                "function_declaration",
+                "function_expression",
+                "arrow_function",
+                "method_definition",
+                "generator_function_declaration",
+            ):
                 func = self._parse_js_function(child, source, language, file_path)
                 if func:
                     if parent_class:
@@ -342,9 +392,13 @@ class CodeParser:
                 cls = self._parse_js_class(child, source, language, file_path, functions, imports)
                 classes.append(cls)
             elif child.type == "export_statement":
-                self._walk_js_ts(child, source, language, file_path, functions, classes, imports, parent_class)
+                self._walk_js_ts(
+                    child, source, language, file_path, functions, classes, imports, parent_class
+                )
             else:
-                self._walk_js_ts(child, source, language, file_path, functions, classes, imports, parent_class)
+                self._walk_js_ts(
+                    child, source, language, file_path, functions, classes, imports, parent_class
+                )
 
     def _parse_js_function(
         self,
@@ -360,19 +414,37 @@ class CodeParser:
 
         if node.type == "variable_declarator":
             name_n = node.child_by_field_name("name")
-            name = source[name_n.start_byte:name_n.end_byte].decode("utf-8", errors="replace") if name_n else ""
-            is_async = actual.type == "arrow_function" and any(c.type == "async" for c in node.parent.children if node.parent)
+            name = (
+                source[name_n.start_byte : name_n.end_byte].decode("utf-8", errors="replace")
+                if name_n
+                else ""
+            )
+            is_async = actual.type == "arrow_function" and any(
+                c.type == "async" for c in node.parent.children if node.parent
+            )
         elif node.type in ("function_declaration", "generator_function_declaration"):
             name_n = node.child_by_field_name("name")
-            name = source[name_n.start_byte:name_n.end_byte].decode("utf-8", errors="replace") if name_n else ""
+            name = (
+                source[name_n.start_byte : name_n.end_byte].decode("utf-8", errors="replace")
+                if name_n
+                else ""
+            )
             is_async = any(c.type == "async" for c in node.children)
         elif node.type == "method_definition":
             name_n = node.child_by_field_name("name")
-            name = source[name_n.start_byte:name_n.end_byte].decode("utf-8", errors="replace") if name_n else ""
+            name = (
+                source[name_n.start_byte : name_n.end_byte].decode("utf-8", errors="replace")
+                if name_n
+                else ""
+            )
             is_async = any(c.type == "async" for c in node.children)
         elif node.type in ("function_expression", "arrow_function"):
             name_n = node.child_by_field_name("name")
-            name = source[name_n.start_byte:name_n.end_byte].decode("utf-8", errors="replace") if name_n else "<anonymous>"
+            name = (
+                source[name_n.start_byte : name_n.end_byte].decode("utf-8", errors="replace")
+                if name_n
+                else "<anonymous>"
+            )
             is_async = any(c.type == "async" for c in node.children)
 
         if not name:
@@ -381,7 +453,7 @@ class CodeParser:
         params = self._extract_js_params(actual if actual != node else node, source)
         docstring = self._extract_js_docstring(node, source)
         return_type = self._extract_js_return_type(actual if actual != node else node, source)
-        func_source = source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+        func_source = source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
         return ParsedFunction(
             name=name,
@@ -401,28 +473,45 @@ class CodeParser:
 
     def _extract_js_params(self, node: Node, source: bytes) -> list[dict[str, Any]]:
         params: list[dict[str, Any]] = []
-        params_node = node.child_by_field_name("parameters") or node.child_by_field_name("parameter")
+        params_node = node.child_by_field_name("parameters") or node.child_by_field_name(
+            "parameter"
+        )
         if not params_node:
             return params
         for child in params_node.children:
-            if child.type in ("identifier", "required_parameter", "optional_parameter",
-                              "assignment_pattern", "rest_pattern"):
+            if child.type in (
+                "identifier",
+                "required_parameter",
+                "optional_parameter",
+                "assignment_pattern",
+                "rest_pattern",
+            ):
                 param: dict[str, Any] = {"name": "", "type_annotation": None}
                 if child.type == "identifier":
-                    param["name"] = source[child.start_byte:child.end_byte].decode("utf-8", errors="replace")
+                    param["name"] = source[child.start_byte : child.end_byte].decode(
+                        "utf-8", errors="replace"
+                    )
                 elif child.type in ("required_parameter", "optional_parameter"):
                     pat = child.child_by_field_name("pattern")
                     type_ann = child.child_by_field_name("type")
                     if pat:
-                        param["name"] = source[pat.start_byte:pat.end_byte].decode("utf-8", errors="replace")
+                        param["name"] = source[pat.start_byte : pat.end_byte].decode(
+                            "utf-8", errors="replace"
+                        )
                     if type_ann:
-                        param["type_annotation"] = source[type_ann.start_byte:type_ann.end_byte].decode("utf-8", errors="replace")
+                        param["type_annotation"] = source[
+                            type_ann.start_byte : type_ann.end_byte
+                        ].decode("utf-8", errors="replace")
                 elif child.type == "assignment_pattern":
                     left = child.child_by_field_name("left")
                     if left:
-                        param["name"] = source[left.start_byte:left.end_byte].decode("utf-8", errors="replace")
+                        param["name"] = source[left.start_byte : left.end_byte].decode(
+                            "utf-8", errors="replace"
+                        )
                 elif child.type == "rest_pattern":
-                    param["name"] = source[child.start_byte:child.end_byte].decode("utf-8", errors="replace")
+                    param["name"] = source[child.start_byte : child.end_byte].decode(
+                        "utf-8", errors="replace"
+                    )
                 if param["name"]:
                     params.append(param)
         return params
@@ -430,7 +519,7 @@ class CodeParser:
     def _extract_js_docstring(self, node: Node, source: bytes) -> str | None:
         prev = node.prev_named_sibling
         if prev and prev.type == "comment":
-            comment = source[prev.start_byte:prev.end_byte].decode("utf-8", errors="replace")
+            comment = source[prev.start_byte : prev.end_byte].decode("utf-8", errors="replace")
             if comment.startswith("/**"):
                 return comment
         return None
@@ -438,7 +527,12 @@ class CodeParser:
     def _extract_js_return_type(self, node: Node, source: bytes) -> str | None:
         ret = node.child_by_field_name("return_type")
         if ret:
-            return source[ret.start_byte:ret.end_byte].decode("utf-8", errors="replace").lstrip(":").strip()
+            return (
+                source[ret.start_byte : ret.end_byte]
+                .decode("utf-8", errors="replace")
+                .lstrip(":")
+                .strip()
+            )
         return None
 
     def _parse_js_class(
@@ -451,7 +545,11 @@ class CodeParser:
         imports: list[str],
     ) -> ParsedClass:
         name_n = node.child_by_field_name("name")
-        name = source[name_n.start_byte:name_n.end_byte].decode("utf-8", errors="replace") if name_n else "Unknown"
+        name = (
+            source[name_n.start_byte : name_n.end_byte].decode("utf-8", errors="replace")
+            if name_n
+            else "Unknown"
+        )
         methods: list[ParsedFunction] = []
 
         body = node.child_by_field_name("body")
@@ -462,7 +560,7 @@ class CodeParser:
                     if func:
                         methods.append(func)
 
-        cls_source = source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+        cls_source = source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
         return ParsedClass(
             name=name,
             language=language,
@@ -487,7 +585,9 @@ class CodeParser:
     ) -> None:
         for child in node.children:
             if child.type == "import_declaration":
-                imports.append(source[child.start_byte:child.end_byte].decode("utf-8", errors="replace"))
+                imports.append(
+                    source[child.start_byte : child.end_byte].decode("utf-8", errors="replace")
+                )
             elif child.type in ("class_declaration", "interface_declaration", "enum_declaration"):
                 cls = self._parse_java_class(child, source, file_path, functions, imports)
                 classes.append(cls)
@@ -501,16 +601,24 @@ class CodeParser:
             else:
                 self._walk_java(child, source, file_path, functions, classes, imports, parent_class)
 
-    def _parse_java_method(self, node: Node, source: bytes, file_path: str) -> ParsedFunction | None:
+    def _parse_java_method(
+        self, node: Node, source: bytes, file_path: str
+    ) -> ParsedFunction | None:
         name_n = node.child_by_field_name("name")
         if not name_n:
             return None
-        name = source[name_n.start_byte:name_n.end_byte].decode("utf-8", errors="replace")
+        name = source[name_n.start_byte : name_n.end_byte].decode("utf-8", errors="replace")
         params = self._extract_java_params(node, source)
         return_type_n = node.child_by_field_name("type")
-        return_type = source[return_type_n.start_byte:return_type_n.end_byte].decode("utf-8", errors="replace") if return_type_n else None
+        return_type = (
+            source[return_type_n.start_byte : return_type_n.end_byte].decode(
+                "utf-8", errors="replace"
+            )
+            if return_type_n
+            else None
+        )
         docstring = self._extract_java_javadoc(node, source)
-        func_source = source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+        func_source = source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
         return ParsedFunction(
             name=name,
@@ -539,9 +647,13 @@ class CodeParser:
                 name_n = child.child_by_field_name("name")
                 type_n = child.child_by_field_name("type")
                 if name_n:
-                    param["name"] = source[name_n.start_byte:name_n.end_byte].decode("utf-8", errors="replace")
+                    param["name"] = source[name_n.start_byte : name_n.end_byte].decode(
+                        "utf-8", errors="replace"
+                    )
                 if type_n:
-                    param["type_annotation"] = source[type_n.start_byte:type_n.end_byte].decode("utf-8", errors="replace")
+                    param["type_annotation"] = source[type_n.start_byte : type_n.end_byte].decode(
+                        "utf-8", errors="replace"
+                    )
                 if param["name"]:
                     params.append(param)
         return params
@@ -549,7 +661,7 @@ class CodeParser:
     def _extract_java_javadoc(self, node: Node, source: bytes) -> str | None:
         prev = node.prev_named_sibling
         if prev and prev.type in ("block_comment", "line_comment"):
-            comment = source[prev.start_byte:prev.end_byte].decode("utf-8", errors="replace")
+            comment = source[prev.start_byte : prev.end_byte].decode("utf-8", errors="replace")
             if comment.startswith("/**"):
                 return comment
         return None
@@ -563,7 +675,11 @@ class CodeParser:
         imports: list[str],
     ) -> ParsedClass:
         name_n = node.child_by_field_name("name")
-        name = source[name_n.start_byte:name_n.end_byte].decode("utf-8", errors="replace") if name_n else "Unknown"
+        name = (
+            source[name_n.start_byte : name_n.end_byte].decode("utf-8", errors="replace")
+            if name_n
+            else "Unknown"
+        )
         methods: list[ParsedFunction] = []
 
         body = node.child_by_field_name("body")
@@ -574,7 +690,7 @@ class CodeParser:
                     if func:
                         methods.append(func)
 
-        cls_source = source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+        cls_source = source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
         return ParsedClass(
             name=name,
             language="java",
@@ -598,7 +714,9 @@ class CodeParser:
     ) -> None:
         for child in node.children:
             if child.type == "import_declaration":
-                imports.append(source[child.start_byte:child.end_byte].decode("utf-8", errors="replace"))
+                imports.append(
+                    source[child.start_byte : child.end_byte].decode("utf-8", errors="replace")
+                )
             elif child.type == "function_declaration":
                 func = self._parse_go_function(child, source, file_path)
                 if func:
@@ -610,16 +728,22 @@ class CodeParser:
             else:
                 self._walk_go(child, source, file_path, functions, classes, imports)
 
-    def _parse_go_function(self, node: Node, source: bytes, file_path: str) -> ParsedFunction | None:
+    def _parse_go_function(
+        self, node: Node, source: bytes, file_path: str
+    ) -> ParsedFunction | None:
         name_n = node.child_by_field_name("name")
         if not name_n:
             return None
-        name = source[name_n.start_byte:name_n.end_byte].decode("utf-8", errors="replace")
+        name = source[name_n.start_byte : name_n.end_byte].decode("utf-8", errors="replace")
         params = self._extract_go_params(node, source)
         result_n = node.child_by_field_name("result")
-        return_type = source[result_n.start_byte:result_n.end_byte].decode("utf-8", errors="replace") if result_n else None
+        return_type = (
+            source[result_n.start_byte : result_n.end_byte].decode("utf-8", errors="replace")
+            if result_n
+            else None
+        )
         docstring = self._extract_go_doc(node, source)
-        func_source = source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+        func_source = source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
         return ParsedFunction(
             name=name,
@@ -647,16 +771,24 @@ class CodeParser:
                 type_n = child.child_by_field_name("type")
                 names = [c for c in child.children if c.type == "identifier"]
                 for name_n in names:
-                    params.append({
-                        "name": source[name_n.start_byte:name_n.end_byte].decode("utf-8", errors="replace"),
-                        "type_annotation": source[type_n.start_byte:type_n.end_byte].decode("utf-8", errors="replace") if type_n else None,
-                    })
+                    params.append(
+                        {
+                            "name": source[name_n.start_byte : name_n.end_byte].decode(
+                                "utf-8", errors="replace"
+                            ),
+                            "type_annotation": source[type_n.start_byte : type_n.end_byte].decode(
+                                "utf-8", errors="replace"
+                            )
+                            if type_n
+                            else None,
+                        }
+                    )
         return params
 
     def _extract_go_doc(self, node: Node, source: bytes) -> str | None:
         prev = node.prev_named_sibling
         if prev and prev.type == "comment":
-            return source[prev.start_byte:prev.end_byte].decode("utf-8", errors="replace")
+            return source[prev.start_byte : prev.end_byte].decode("utf-8", errors="replace")
         return None
 
     def _walk_rust(
@@ -670,7 +802,9 @@ class CodeParser:
     ) -> None:
         for child in node.children:
             if child.type == "use_declaration":
-                imports.append(source[child.start_byte:child.end_byte].decode("utf-8", errors="replace"))
+                imports.append(
+                    source[child.start_byte : child.end_byte].decode("utf-8", errors="replace")
+                )
             elif child.type == "function_item":
                 func = self._parse_rust_function(child, source, file_path)
                 if func:
@@ -684,17 +818,26 @@ class CodeParser:
             else:
                 self._walk_rust(child, source, file_path, functions, classes, imports)
 
-    def _parse_rust_function(self, node: Node, source: bytes, file_path: str) -> ParsedFunction | None:
+    def _parse_rust_function(
+        self, node: Node, source: bytes, file_path: str
+    ) -> ParsedFunction | None:
         name_n = node.child_by_field_name("name")
         if not name_n:
             return None
-        name = source[name_n.start_byte:name_n.end_byte].decode("utf-8", errors="replace")
+        name = source[name_n.start_byte : name_n.end_byte].decode("utf-8", errors="replace")
         is_async = any(c.type == "async" for c in node.children)
         params = self._extract_rust_params(node, source)
         ret_type_n = node.child_by_field_name("return_type")
-        return_type = source[ret_type_n.start_byte:ret_type_n.end_byte].decode("utf-8", errors="replace").lstrip("->").strip() if ret_type_n else None
+        return_type = (
+            source[ret_type_n.start_byte : ret_type_n.end_byte]
+            .decode("utf-8", errors="replace")
+            .lstrip("->")
+            .strip()
+            if ret_type_n
+            else None
+        )
         docstring = self._extract_rust_doc(node, source)
-        func_source = source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+        func_source = source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
         return ParsedFunction(
             name=name,
@@ -722,16 +865,24 @@ class CodeParser:
                 pat = child.child_by_field_name("pattern")
                 type_n = child.child_by_field_name("type")
                 if pat:
-                    params.append({
-                        "name": source[pat.start_byte:pat.end_byte].decode("utf-8", errors="replace"),
-                        "type_annotation": source[type_n.start_byte:type_n.end_byte].decode("utf-8", errors="replace") if type_n else None,
-                    })
+                    params.append(
+                        {
+                            "name": source[pat.start_byte : pat.end_byte].decode(
+                                "utf-8", errors="replace"
+                            ),
+                            "type_annotation": source[type_n.start_byte : type_n.end_byte].decode(
+                                "utf-8", errors="replace"
+                            )
+                            if type_n
+                            else None,
+                        }
+                    )
         return params
 
     def _extract_rust_doc(self, node: Node, source: bytes) -> str | None:
         prev = node.prev_named_sibling
         if prev and prev.type in ("line_comment", "block_comment"):
-            comment = source[prev.start_byte:prev.end_byte].decode("utf-8", errors="replace")
+            comment = source[prev.start_byte : prev.end_byte].decode("utf-8", errors="replace")
             if comment.startswith("///"):
                 return comment
         return None

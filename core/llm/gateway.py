@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import json
-import os
 from typing import Any
 
 import anthropic
 
-from core.llm.prompts import DocStyle, build_chat_prompt, build_docstring_prompt, build_drift_check_prompt, build_readme_prompt, build_module_doc_prompt
+from core.llm.prompts import (
+    DocStyle,
+    build_chat_prompt,
+    build_docstring_prompt,
+    build_drift_check_prompt,
+    build_readme_prompt,
+    build_module_doc_prompt,
+)
 from core.llm.schema import DocstringSchema
 from core.parser.tree_sitter_parser import ParsedFile, ParsedFunction
 from core.retrieval.hybrid_retriever import RetrievedContext
@@ -37,6 +43,7 @@ class LLMGateway:
         if openai_key:
             try:
                 import openai
+
                 self._openai = openai.AsyncOpenAI(api_key=openai_key)
             except ImportError:
                 pass
@@ -52,13 +59,16 @@ class LLMGateway:
         return self._parse_structured_output(response_text)
 
     async def generate_readme(self, parsed_files: list[ParsedFile], repo_name: str) -> str:
-        from core.llm.prompts import build_readme_prompt
         prompt = build_readme_prompt(parsed_files, repo_name)
-        return await self._call_claude(prompt, "You are a technical writer. Return only Markdown content.")
+        return await self._call_claude(
+            prompt, "You are a technical writer. Return only Markdown content."
+        )
 
     async def generate_module_doc(self, parsed_file: ParsedFile) -> str:
         prompt = build_module_doc_prompt(parsed_file, parsed_file.functions)
-        return await self._call_claude(prompt, "You are a technical writer. Return only the docstring text.")
+        return await self._call_claude(
+            prompt, "You are a technical writer. Return only the docstring text."
+        )
 
     async def chat_stream(
         self,
@@ -67,11 +77,10 @@ class LLMGateway:
         history: list[dict[str, str]] | None = None,
     ):
         """Yield raw text chunks from Claude, then yield citations as a final sentinel."""
-        from core.llm.prompts import build_chat_prompt
         context_prompt = build_chat_prompt(question, contexts)
 
         messages: list[dict[str, str]] = []
-        for msg in (history or []):
+        for msg in history or []:
             messages.append({"role": msg["role"], "content": msg["content"]})
         messages.append({"role": "user", "content": context_prompt})
 
@@ -111,6 +120,7 @@ class LLMGateway:
             start, end = text.find("["), text.rfind("]") + 1
             if start >= 0 and end > start:
                 import json as _json
+
                 return _json.loads(text[start:end])[:3]
         except Exception:
             pass
@@ -122,11 +132,10 @@ class LLMGateway:
         contexts: list[RetrievedContext],
         history: list[dict[str, str]] | None = None,
     ) -> tuple[str, list[str]]:
-        from core.llm.prompts import build_chat_prompt
         context_prompt = build_chat_prompt(question, contexts)
 
         messages: list[dict[str, str]] = []
-        for msg in (history or []):
+        for msg in history or []:
             messages.append({"role": msg["role"], "content": msg["content"]})
         messages.append({"role": "user", "content": context_prompt})
 
@@ -155,7 +164,12 @@ class LLMGateway:
         messages: list[dict[str, str]] = [{"role": "user", "content": prompt}]
         if retry_context:
             messages.append({"role": "assistant", "content": retry_context})
-            messages.append({"role": "user", "content": "The previous response was not valid JSON. Return ONLY the JSON object."})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": "The previous response was not valid JSON. Return ONLY the JSON object.",
+                }
+            )
 
         try:
             response = await self._anthropic.messages.create(
@@ -192,7 +206,7 @@ class LLMGateway:
 
         try:
             return DocstringSchema.model_validate_json(text)
-        except Exception as first_error:
+        except Exception:
             # Try to find JSON in the response
             start = text.find("{")
             end = text.rfind("}") + 1

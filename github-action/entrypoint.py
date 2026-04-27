@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """GitHub Action entrypoint for Wright documentation checks."""
+
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import subprocess
 import sys
@@ -91,7 +91,7 @@ def run_coverage() -> None:
         print(f"\n❌ Coverage {pct:.1f}% is below threshold {WRIGHT_THRESHOLD * 100:.0f}%")
         sys.exit(1)
     else:
-        print(f"\n✅ Coverage meets threshold!")
+        print("\n✅ Coverage meets threshold!")
 
 
 def run_generate() -> None:
@@ -147,7 +147,12 @@ def run_generate() -> None:
         result = subprocess.run(["git", "diff", "--cached", "--quiet"])
         if result.returncode != 0:
             subprocess.run(
-                ["git", "commit", "-m", f"docs: auto-generate documentation for {count} functions [wright-bot]"],
+                [
+                    "git",
+                    "commit",
+                    "-m",
+                    f"docs: auto-generate documentation for {count} functions [wright-bot]",
+                ],
                 check=True,
             )
             print("✅ Changes committed")
@@ -172,7 +177,7 @@ def run_drift() -> None:
 
     drifted = [r for r in results if r.status in ("drifted", "undocumented")]
 
-    print(f"\n📊 Drift Check Results")
+    print("\n📊 Drift Check Results")
     print(f"   Total checked: {len(results)}")
     print(f"   Drifted/undocumented: {len(drifted)}")
 
@@ -186,9 +191,9 @@ def run_drift() -> None:
 | Metric | Value |
 |--------|-------|
 | Total checked | {len(results)} |
-| Drifted | {sum(1 for r in results if r.status == 'drifted')} |
-| Undocumented | {sum(1 for r in results if r.status == 'undocumented')} |
-| Up to date | {sum(1 for r in results if r.status == 'up_to_date')} |
+| Drifted | {sum(1 for r in results if r.status == "drifted")} |
+| Undocumented | {sum(1 for r in results if r.status == "undocumented")} |
+| Up to date | {sum(1 for r in results if r.status == "up_to_date")} |
 """
     write_summary(summary)
     set_output("drifted-functions", str(len(drifted)))
@@ -199,6 +204,7 @@ def run_drift() -> None:
 
 def _open_pr(drifted: list) -> None:
     import httpx
+
     branch_name = "wright/fix-doc-drift"
     try:
         subprocess.run(["git", "checkout", "-b", branch_name], check=True)

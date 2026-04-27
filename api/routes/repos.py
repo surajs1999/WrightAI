@@ -34,6 +34,7 @@ def load_token(user_dir: Path, repo_slug: str) -> str | None:
     except Exception:
         return None
 
+
 router = APIRouter(prefix="/repos", tags=["repos"], dependencies=[Depends(verify_api_key)])
 
 _REPOS_BASE = Path(os.getenv("REPOS_PATH", "/data/repos"))
@@ -87,12 +88,17 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
         # Reset remote URL first so any previously-embedded bad token is cleared
         subprocess.run(
             ["git", "-C", str(repo_path), "remote", "set-url", "origin", clone_url],
-            capture_output=True, timeout=10, env=git_env,
+            capture_output=True,
+            timeout=10,
+            env=git_env,
         )
         try:
             subprocess.run(
                 ["git", "-C", str(repo_path), "pull", "--ff-only"],
-                check=True, capture_output=True, timeout=120, env=git_env,
+                check=True,
+                capture_output=True,
+                timeout=120,
+                env=git_env,
             )
         except subprocess.CalledProcessError as e:
             raise HTTPException(status_code=500, detail=f"git pull failed: {e.stderr.decode()}")
@@ -101,11 +107,18 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
         try:
             subprocess.run(
                 ["git", "clone", "--depth=1", clone_url, str(repo_path)],
-                check=True, capture_output=True, timeout=180, env=git_env,
+                check=True,
+                capture_output=True,
+                timeout=180,
+                env=git_env,
             )
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode()
-            if "Authentication failed" in stderr or "could not read Username" in stderr or "Repository not found" in stderr:
+            if (
+                "Authentication failed" in stderr
+                or "could not read Username" in stderr
+                or "Repository not found" in stderr
+            ):
                 raise HTTPException(
                     status_code=400,
                     detail="Repository not found or is private. Connect GitHub first.",
@@ -115,7 +128,10 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
     # Detect the actual branch that was checked out
     branch_result = subprocess.run(
         ["git", "-C", str(repo_path), "branch", "--show-current"],
-        capture_output=True, text=True, timeout=5, env=git_env,
+        capture_output=True,
+        text=True,
+        timeout=5,
+        env=git_env,
     )
     actual_branch = branch_result.stdout.strip() or body.branch
 
@@ -152,13 +168,15 @@ async def list_repos(request: Request) -> list[RepoInfo]:
                 git_url = result.stdout.strip()
             except Exception:
                 git_url = ""
-            repos.append(RepoInfo(
-                id=f"{user_id}/{repo_path.name}",
-                name=repo_path.name,
-                git_url=git_url,
-                local_path=str(repo_path),
-                branch="main",
-            ))
+            repos.append(
+                RepoInfo(
+                    id=f"{user_id}/{repo_path.name}",
+                    name=repo_path.name,
+                    git_url=git_url,
+                    local_path=str(repo_path),
+                    branch="main",
+                )
+            )
     return repos
 
 

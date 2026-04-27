@@ -1,12 +1,11 @@
 """Tests for LLM gateway and schema (uses mocked Anthropic client)."""
+
 from __future__ import annotations
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 
-from core.llm.schema import DocstringSchema, ParameterDoc, ReturnDoc
+from core.llm.schema import DocstringSchema
 
 
 def test_docstring_schema_validates_correctly() -> None:
@@ -30,11 +29,13 @@ def test_docstring_schema_validates_correctly() -> None:
 
 
 def test_docstring_schema_from_json() -> None:
-    json_str = json.dumps({
-        "summary": "Tests the schema.",
-        "parameters": [],
-        "raises": [],
-    })
+    json_str = json.dumps(
+        {
+            "summary": "Tests the schema.",
+            "parameters": [],
+            "raises": [],
+        }
+    )
     schema = DocstringSchema.model_validate_json(json_str)
     assert schema.summary == "Tests the schema."
     assert schema.parameters == []
@@ -43,19 +44,23 @@ def test_docstring_schema_from_json() -> None:
 
 def test_gateway_parse_structured_output_valid_json() -> None:
     from core.llm.gateway import LLMGateway
+
     gateway = LLMGateway.__new__(LLMGateway)
 
-    valid = json.dumps({
-        "summary": "Does something.",
-        "parameters": [],
-        "raises": [],
-    })
+    valid = json.dumps(
+        {
+            "summary": "Does something.",
+            "parameters": [],
+            "raises": [],
+        }
+    )
     schema = gateway._parse_structured_output(valid)
     assert schema.summary == "Does something."
 
 
 def test_gateway_parse_structured_output_with_fences() -> None:
     from core.llm.gateway import LLMGateway
+
     gateway = LLMGateway.__new__(LLMGateway)
 
     fenced = '```json\n{"summary": "Works fine.", "parameters": [], "raises": []}\n```'
@@ -65,6 +70,7 @@ def test_gateway_parse_structured_output_with_fences() -> None:
 
 def test_gateway_parse_structured_output_fallback_on_bad_json() -> None:
     from core.llm.gateway import LLMGateway
+
     gateway = LLMGateway.__new__(LLMGateway)
 
     # Should fall back to a minimal schema rather than raising

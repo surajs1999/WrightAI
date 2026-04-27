@@ -1,12 +1,11 @@
 """Tests for tree-sitter parser."""
+
 from __future__ import annotations
 
-import os
-import tempfile
 
 import pytest
 
-from core.parser.tree_sitter_parser import CodeParser, ParsedFile, ParsedFunction
+from core.parser.tree_sitter_parser import CodeParser
 
 
 @pytest.fixture

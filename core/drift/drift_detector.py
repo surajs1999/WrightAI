@@ -20,9 +20,7 @@ class DriftResult:
 
 
 def _signature_str(func: ParsedFunction) -> str:
-    params = ", ".join(
-        f"{p['name']}: {p.get('type_annotation', '')}" for p in func.parameters
-    )
+    params = ", ".join(f"{p['name']}: {p.get('type_annotation', '')}" for p in func.parameters)
     async_prefix = "async " if func.is_async else ""
     ret = f" -> {func.return_type}" if func.return_type else ""
     return f"{async_prefix}{func.name}({params}){ret}"
@@ -43,33 +41,39 @@ class DriftDetector:
         if cached is None:
             for func in current_parsed.functions:
                 if func.existing_docstring is None:
-                    results.append(DriftResult(
-                        function_name=func.name,
-                        file_path=file_path,
-                        status="undocumented",
-                        reason=None,
-                        old_signature=None,
-                        new_signature=_signature_str(func),
-                    ))
-                else:
-                    if not self._docstring_covers_params(func):
-                        results.append(DriftResult(
+                    results.append(
+                        DriftResult(
                             function_name=func.name,
                             file_path=file_path,
-                            status="drifted",
-                            reason="Docstring does not mention all parameters",
-                            old_signature=None,
-                            new_signature=_signature_str(func),
-                        ))
-                    else:
-                        results.append(DriftResult(
-                            function_name=func.name,
-                            file_path=file_path,
-                            status="up_to_date",
+                            status="undocumented",
                             reason=None,
                             old_signature=None,
                             new_signature=_signature_str(func),
-                        ))
+                        )
+                    )
+                else:
+                    if not self._docstring_covers_params(func):
+                        results.append(
+                            DriftResult(
+                                function_name=func.name,
+                                file_path=file_path,
+                                status="drifted",
+                                reason="Docstring does not mention all parameters",
+                                old_signature=None,
+                                new_signature=_signature_str(func),
+                            )
+                        )
+                    else:
+                        results.append(
+                            DriftResult(
+                                function_name=func.name,
+                                file_path=file_path,
+                                status="up_to_date",
+                                reason=None,
+                                old_signature=None,
+                                new_signature=_signature_str(func),
+                            )
+                        )
             return results
 
         cached_funcs = {f.name: f for f in cached.functions}
@@ -77,63 +81,75 @@ class DriftDetector:
         for func_name, current_func in current_funcs.items():
             if func_name not in cached_funcs:
                 if current_func.existing_docstring is None:
-                    results.append(DriftResult(
-                        function_name=func_name,
-                        file_path=file_path,
-                        status="undocumented",
-                        reason="New function with no documentation",
-                        old_signature=None,
-                        new_signature=_signature_str(current_func),
-                    ))
+                    results.append(
+                        DriftResult(
+                            function_name=func_name,
+                            file_path=file_path,
+                            status="undocumented",
+                            reason="New function with no documentation",
+                            old_signature=None,
+                            new_signature=_signature_str(current_func),
+                        )
+                    )
                 else:
-                    results.append(DriftResult(
-                        function_name=func_name,
-                        file_path=file_path,
-                        status="up_to_date",
-                        reason=None,
-                        old_signature=None,
-                        new_signature=_signature_str(current_func),
-                    ))
+                    results.append(
+                        DriftResult(
+                            function_name=func_name,
+                            file_path=file_path,
+                            status="up_to_date",
+                            reason=None,
+                            old_signature=None,
+                            new_signature=_signature_str(current_func),
+                        )
+                    )
                 continue
 
             old_func = cached_funcs[func_name]
 
             if current_func.existing_docstring is None:
-                results.append(DriftResult(
-                    function_name=func_name,
-                    file_path=file_path,
-                    status="undocumented",
-                    reason=None,
-                    old_signature=_signature_str(old_func),
-                    new_signature=_signature_str(current_func),
-                ))
+                results.append(
+                    DriftResult(
+                        function_name=func_name,
+                        file_path=file_path,
+                        status="undocumented",
+                        reason=None,
+                        old_signature=_signature_str(old_func),
+                        new_signature=_signature_str(current_func),
+                    )
+                )
             elif self._signature_changed(old_func, current_func):
-                results.append(DriftResult(
-                    function_name=func_name,
-                    file_path=file_path,
-                    status="drifted",
-                    reason="Function signature changed since documentation was written",
-                    old_signature=_signature_str(old_func),
-                    new_signature=_signature_str(current_func),
-                ))
+                results.append(
+                    DriftResult(
+                        function_name=func_name,
+                        file_path=file_path,
+                        status="drifted",
+                        reason="Function signature changed since documentation was written",
+                        old_signature=_signature_str(old_func),
+                        new_signature=_signature_str(current_func),
+                    )
+                )
             elif not self._docstring_covers_params(current_func):
-                results.append(DriftResult(
-                    function_name=func_name,
-                    file_path=file_path,
-                    status="drifted",
-                    reason="Docstring does not mention all parameters",
-                    old_signature=_signature_str(old_func),
-                    new_signature=_signature_str(current_func),
-                ))
+                results.append(
+                    DriftResult(
+                        function_name=func_name,
+                        file_path=file_path,
+                        status="drifted",
+                        reason="Docstring does not mention all parameters",
+                        old_signature=_signature_str(old_func),
+                        new_signature=_signature_str(current_func),
+                    )
+                )
             else:
-                results.append(DriftResult(
-                    function_name=func_name,
-                    file_path=file_path,
-                    status="up_to_date",
-                    reason=None,
-                    old_signature=_signature_str(old_func),
-                    new_signature=_signature_str(current_func),
-                ))
+                results.append(
+                    DriftResult(
+                        function_name=func_name,
+                        file_path=file_path,
+                        status="up_to_date",
+                        reason=None,
+                        old_signature=_signature_str(old_func),
+                        new_signature=_signature_str(current_func),
+                    )
+                )
 
         return results
 
@@ -154,6 +170,7 @@ class DriftDetector:
     def check_git_diff(self, repo_path: str, base_ref: str = "HEAD~1") -> list[DriftResult]:
         try:
             import git
+
             repo = git.Repo(repo_path)
             diff = repo.head.commit.diff(base_ref)
             results: list[DriftResult] = []
@@ -166,14 +183,16 @@ class DriftDetector:
                             current = self._parser.parse_file(file_path)
                             for func in current.functions:
                                 if func.existing_docstring is None:
-                                    results.append(DriftResult(
-                                        function_name=func.name,
-                                        file_path=file_path,
-                                        status="undocumented",
-                                        reason="Modified file has undocumented function",
-                                        old_signature=None,
-                                        new_signature=_signature_str(func),
-                                    ))
+                                    results.append(
+                                        DriftResult(
+                                            function_name=func.name,
+                                            file_path=file_path,
+                                            status="undocumented",
+                                            reason="Modified file has undocumented function",
+                                            old_signature=None,
+                                            new_signature=_signature_str(func),
+                                        )
+                                    )
                         except Exception:
                             pass
             return results
@@ -196,6 +215,6 @@ class DriftDetector:
         for param in func.parameters:
             name = param["name"]
             # Use word-boundary check so "y" doesn't match "only"
-            if not re.search(r'\b' + re.escape(name) + r'\b', doc):
+            if not re.search(r"\b" + re.escape(name) + r"\b", doc):
                 return False
         return True
