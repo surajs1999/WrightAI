@@ -2,18 +2,18 @@
   "name": "wrightai",
   "displayName": "WrightAI — AI Code Documentation",
   "description": "Generate, maintain, and chat with your code documentation using Claude AI. Supports Python, JavaScript, TypeScript, Java, Go, and Rust.",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "WrightAI",
   "license": "AGPL-3.0-or-later",
-  "readme": "OVERVIEW.md",
+  "readme": "README.md",
   "icon": "icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/surajs1999/WrightAI"
   },
-  "homepage": "https://github.com/surajs1999/WrightAI#readme",
+  "homepage": "https://wrightai-web.fly.dev/",
   "bugs": {
-    "url": "https://github.com/surajs1999/WrightAI/issues"
+    "url": "https://wrightai-web.fly.dev/"
   },
   "keywords": [
     "ai",
