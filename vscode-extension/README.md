@@ -97,5 +97,5 @@ Python · JavaScript · TypeScript · Java · Go · Rust
 
 ## Support
 
-- Bug reports and feature requests: [GitHub Issues](https://github.com/surajs1999/WrightAI/issues)
+- Bug reports and feature requests: [GitHub Issues](https://wrightai-web.fly.dev/)
 - Questions and feedback: [GitHub Discussions](https://github.com/surajs1999/WrightAI/discussions)
