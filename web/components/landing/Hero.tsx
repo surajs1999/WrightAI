@@ -291,7 +291,7 @@ export default function Hero() {
           { num: "Free", label: "No Credit card required" },
         ].map((s, i) => (
           <div key={s.label} style={{ display: "flex", alignItems: "center" }}>
-            {i > 0 && <div style={{ width: 1, height: 32, background: "rgba(175,169,236,0.12)", margin: "0 40px" }} />}
+            {i > 0 && <div className="hero-stat-sep" style={{ width: 1, height: 32, background: "rgba(175,169,236,0.12)", margin: "0 40px" }} />}
             <div style={{ textAlign: "center" }}>
               <div style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 36, color: "var(--text)", letterSpacing: "-0.03em", lineHeight: 1, marginBottom: 4 }}>
                 {s.num}

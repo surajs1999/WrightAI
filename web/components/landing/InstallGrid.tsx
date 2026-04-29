@@ -165,7 +165,7 @@ const CARDS = [
 
 export default function InstallGrid() {
   return (
-    <section id="install" style={{ padding: "96px 80px", background: "var(--bg)", position: "relative", overflow: "hidden" }}>
+    <section id="install" className="install-section" style={{ background: "var(--bg)", position: "relative", overflow: "hidden" }}>
       {/* Background layer */}
       {/* Dot grid */}
       <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(circle, rgba(175,169,236,0.1) 1px, transparent 1px)", backgroundSize: "40px 40px", pointerEvents: "none", zIndex: 0 }} />
@@ -198,7 +198,7 @@ export default function InstallGrid() {
         </motion.div>
 
         {/* Cards grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 22 }}>
+        <div className="install-cards">
           {CARDS.map((card, i) => (
             <motion.div
               key={i}

@@ -14,7 +14,7 @@ const AVATAR_COLORS = ["#534AB7", "#22D3EE", "#F59E0B", "#534AB7", "#22D3EE", "#
 
 export default function FinalCTA() {
   return (
-    <section style={{ padding: "120px 48px 140px", background: "var(--bg)", textAlign: "center", position: "relative", overflow: "hidden" }}>
+    <section className="finalcta-section" style={{ background: "var(--bg)", textAlign: "center", position: "relative", overflow: "hidden", boxSizing: "border-box" }}>
 
       {/* Grid overlay */}
       <div style={{

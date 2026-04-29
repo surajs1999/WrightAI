@@ -100,15 +100,7 @@ const CARDS = [
 
 export default function ProblemStrip() {
   return (
-    <section style={{
-      height: "85vh",
-      display: "flex",
-      flexDirection: "column",
-      padding: "60px 80px",
-      background: "var(--bg)",
-      overflow: "hidden",
-      position: "relative",
-    }}>
+    <section className="problem-section" style={{ display: "flex", flexDirection: "column" }}>
       {/* Background layer */}
       {/* Dot grid */}
       <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(circle, rgba(175,169,236,0.12) 1px, transparent 1px)", backgroundSize: "36px 36px", pointerEvents: "none", zIndex: 0 }} />
@@ -136,8 +128,8 @@ export default function ProblemStrip() {
           </h2>
         </motion.div>
 
-        {/* Cards — flex: 1 to fill remaining height */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 28, flex: 1, minHeight: 0 }}>
+        {/* Cards */}
+        <div className="problem-grid">
           {CARDS.map((card, i) => (
             <motion.div
               key={i}
@@ -181,8 +173,8 @@ export default function ProblemStrip() {
                 </h3>
               </div>
 
-              {/* With / Without split — fills remaining space */}
-              <div style={{ display: "flex", gap: 12, flex: 1, minHeight: 0 }}>
+              {/* With / Without split */}
+              <div style={{ display: "flex", gap: 12 }}>
 
                 {/* Without */}
                 <div style={{

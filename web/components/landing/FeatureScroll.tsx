@@ -419,7 +419,7 @@ export default function FeatureScroll() {
   const [active, setActive] = useState(0);
 
   return (
-    <section id="features" style={{ background: "var(--bg)", padding: "96px 80px 112px", position: "relative", overflow: "hidden" }}>
+    <section id="features" className="feature-section" style={{ background: "var(--bg)" }}>
       {/* Background layer */}
       {/* Grid lines */}
       <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(175,169,236,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(175,169,236,0.05) 1px, transparent 1px)", backgroundSize: "64px 64px", pointerEvents: "none", zIndex: 0 }} />
@@ -485,10 +485,10 @@ export default function FeatureScroll() {
         </motion.div>
 
         {/* Two-column: mockup left, heading + description right */}
-        <div style={{ display: "flex", gap: 72, alignItems: "center" }}>
+        <div className="feature-cols">
 
           {/* Left: mockup */}
-          <div style={{ flex: "0 0 58%", minWidth: 0 }}>
+          <div className="feature-mockup">
             <AnimatePresence mode="wait">
               <motion.div
                 key={active}
@@ -503,7 +503,7 @@ export default function FeatureScroll() {
           </div>
 
           {/* Right: active feature description */}
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="feature-desc">
             <AnimatePresence mode="wait">
               <motion.div
                 key={`desc-${active}`}

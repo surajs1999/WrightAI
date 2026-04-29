@@ -47,8 +47,8 @@ export default function Footer() {
       <div style={{ height: 1, background: "linear-gradient(90deg, transparent, rgba(175,169,236,0.2) 30%, rgba(34,211,238,0.15) 60%, transparent)" }} />
 
       {/* Main footer grid */}
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "64px 48px 48px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 48 }}>
+      <div className="footer-section section-inner">
+        <div className="footer-grid">
 
           {/* Brand column */}
           <div>

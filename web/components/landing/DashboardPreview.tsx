@@ -56,7 +56,7 @@ const CONTENT: Record<Tab, React.ReactNode> = {
   Overview: (
     <div>
       {/* Stat row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
+      <div className="preview-stat-grid" style={{ marginBottom: 24 }}>
         <StatCard label="Total Functions" value="847" color="var(--text)" sub="across 12 files" />
         <StatCard label="Coverage" value="73%" color="#EF9F27" sub="target: 80%" />
         <StatCard label="Drifted" value="12" color="#E24B4A" sub="needs fixing" />
@@ -362,7 +362,7 @@ export default function DashboardPreview() {
   const [active, setActive] = useState<Tab>("Overview");
 
   return (
-    <section style={{ padding: "96px 80px", background: "var(--bg)", position: "relative", overflow: "hidden" }}>
+    <section className="preview-section" style={{ background: "var(--bg)", position: "relative", overflow: "hidden" }}>
       {/* Background layer */}
       {/* Grid lines */}
       <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(175,169,236,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(175,169,236,0.05) 1px, transparent 1px)", backgroundSize: "56px 56px", pointerEvents: "none", zIndex: 0 }} />
@@ -392,11 +392,13 @@ export default function DashboardPreview() {
         </motion.div>
 
         {/* Dashboard shell */}
+        <div className="preview-shell">
         <motion.div
           initial={{ opacity: 0, y: 36 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.55, delay: 0.1 }}
+          className="preview-shell-min"
           style={{
             border: "1px solid rgba(175,169,236,0.14)",
             borderRadius: 20,
@@ -497,6 +499,7 @@ export default function DashboardPreview() {
 
           </div>
         </motion.div>
+        </div>{/* /preview-shell */}
 
         {/* CTA */}
         <div style={{ textAlign: "center", marginTop: 44 }}>

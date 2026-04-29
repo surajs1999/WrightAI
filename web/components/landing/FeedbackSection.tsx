@@ -164,7 +164,7 @@ export default function FeedbackSection() {
   };
 
   return (
-    <section style={{ padding: "112px 48px", background: "var(--bg)", position: "relative", overflow: "hidden" }}>
+    <section className="feedback-section" style={{ background: "var(--bg)", position: "relative", overflow: "hidden" }}>
       {/* Background layer */}
       {/* Dot grid */}
       <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(circle, rgba(175,169,236,0.1) 1px, transparent 1px)", backgroundSize: "44px 44px", pointerEvents: "none", zIndex: 0 }} />
@@ -222,12 +222,7 @@ export default function FeedbackSection() {
         </motion.div>
 
         {/* Testimonials grid */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 20,
-          marginBottom: 72,
-        }}>
+        <div className="feedback-cards" style={{ marginBottom: 72 }}>
           {TESTIMONIALS.map((t, i) => (
             <TestimonialCard key={i} t={t} index={i} />
           ))}
