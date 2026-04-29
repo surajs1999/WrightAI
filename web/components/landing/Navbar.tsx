@@ -27,17 +27,7 @@ export default function Navbar() {
         borderBottom: scrolled ? "1px solid var(--border)" : "1px solid transparent",
       }}
     >
-      <div
-        style={{
-          maxWidth: 1600,
-          margin: "0 auto",
-          padding: "0 64px",
-          height: 120,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
+      <div className="nav-inner">
         {/* Logo */}
         <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10 }}>
           <Image

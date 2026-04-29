@@ -139,12 +139,95 @@ main, nav, header, aside, footer, [data-layer="above"] {
   border-radius: 4px;
 }
 
-/* Responsive utilities (Tailwind v4 breakpoint classes unreliable) */
+/* ── Responsive utilities ───────────────────────────────────────────── */
 .desktop-only { display: none !important; }
-.mobile-only { display: block !important; }
+.mobile-only  { display: block  !important; }
 @media (min-width: 900px) {
-  .desktop-only { display: flex !important; }
-  .mobile-only { display: none !important; }
+  .desktop-only { display: flex  !important; }
+  .mobile-only  { display: none  !important; }
+}
+
+/* ── Navbar ─────────────────────────────────────────────────────────── */
+.nav-inner {
+  max-width: 1600px; margin: 0 auto;
+  padding: 0 64px; height: 80px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+@media (max-width: 1100px) { .nav-inner { padding: 0 32px; height: 68px; } }
+@media (max-width: 640px)  { .nav-inner { padding: 0 20px; height: 60px; } }
+
+/* ── Hero ───────────────────────────────────────────────────────────── */
+.hero-section {
+  min-height: 100vh;
+  display: flex; align-items: center;
+  padding: 80px 80px 40px;
+  overflow: hidden;
+}
+.hero-cols {
+  display: flex; align-items: center;
+  gap: 80px; width: 100%;
+}
+.hero-left  { flex: 0 0 48%; max-width: 640px; }
+.hero-right { flex: 1; min-width: 0; }
+.hero-stats {
+  display: flex; justify-content: center;
+  gap: 0; flex-wrap: wrap;
+  margin-top: 72px; padding-bottom: 8px;
+}
+
+@media (max-width: 1200px) {
+  .hero-section { padding: 80px 40px 40px; }
+  .hero-cols    { gap: 48px; }
+}
+@media (max-width: 960px) {
+  .hero-section { padding: 96px 32px 56px; overflow: visible; }
+  .hero-cols    { flex-direction: column; gap: 48px; align-items: flex-start; }
+  .hero-left    { flex: none !important; max-width: 100% !important; }
+  .hero-right   { width: 100%; }
+  .hero-stats   { margin-top: 48px; }
+}
+@media (max-width: 640px) {
+  .hero-section { padding: 80px 20px 48px; }
+}
+
+/* ── Dashboard shell ─────────────────────────────────────────────────── */
+.dash-layout  { display: flex; min-height: 100vh; background: var(--bg); }
+.dash-sidebar {
+  width: 228px; flex-shrink: 0;
+  position: relative; z-index: 20;
+  transition: transform 0.25s ease;
+}
+.dash-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.dash-overlay { display: none; }
+.dash-hamburger { display: none; }
+
+@media (max-width: 900px) {
+  .dash-sidebar {
+    position: fixed; top: 0; left: 0; height: 100vh;
+    transform: translateX(-100%);
+  }
+  .dash-sidebar.is-open {
+    transform: translateX(0);
+    box-shadow: 4px 0 40px rgba(0,0,0,0.6);
+  }
+  .dash-overlay {
+    display: block;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 19;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  .dash-overlay.is-open { opacity: 1; pointer-events: auto; }
+  .dash-hamburger {
+    display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px;
+    border: none; background: transparent;
+    cursor: pointer; color: var(--text-muted);
+    border-radius: 6px; transition: background 0.15s;
+    flex-shrink: 0;
+  }
+  .dash-hamburger:hover { background: rgba(175,169,236,0.08); color: var(--text); }
 }
 
 /* Cyan accent glow button */

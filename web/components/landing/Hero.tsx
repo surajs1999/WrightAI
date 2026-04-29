@@ -122,20 +122,12 @@ export default function Hero() {
   };
 
   return (
-    <section
-      style={{
-        height: "100vh",
-        display: "flex",
-        alignItems: "center",
-        padding: "40px 80px 0",
-        overflow: "hidden",
-      }}
-    >
-      <div style={{ maxWidth: 1600, margin: "0 auto", width: "100%", display: "flex", flexDirection: "column", gap: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 80 }}>
+    <section className="hero-section">
+      <div style={{ maxWidth: 1600, margin: "0 auto", width: "100%", display: "flex", flexDirection: "column" }}>
+      <div className="hero-cols">
 
         {/* Left: text content */}
-        <div style={{ flex: "0 0 48%", maxWidth: 640 }}>
+        <div className="hero-left">
 
           {/* MCP badge */}
           <div
@@ -284,14 +276,14 @@ export default function Hero() {
         </div>
 
         {/* Right: terminal */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="hero-right">
           <Terminal />
         </div>
 
       </div>
 
-      {/* Stat row — centered bottom */}
-      <div style={{ display: "flex", justifyContent: "center", gap: 0, flexWrap: "wrap", marginTop: 96, paddingBottom: 8 }}>
+      {/* Stat row */}
+      <div className="hero-stats">
         {[
           { num: "6", label: "Languages Supported" },
           { num: "4", label: "Docstring styles" },

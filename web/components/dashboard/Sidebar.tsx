@@ -37,7 +37,7 @@ const NAV = [
   },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const isActive = (href: string) =>
     href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href);
@@ -47,11 +47,13 @@ export default function Sidebar() {
       style={{
         width: 228,
         minHeight: "100vh",
+        height: "100%",
         background: "var(--surface)",
         borderRight: "1px solid var(--border)",
         display: "flex",
         flexDirection: "column",
         flexShrink: 0,
+        overflowY: "auto",
       }}
     >
       {/* Logo */}
@@ -97,6 +99,7 @@ export default function Sidebar() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  onClick={onClose}
                   style={{
                     display: "flex",
                     alignItems: "center",
