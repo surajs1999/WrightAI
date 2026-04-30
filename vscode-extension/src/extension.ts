@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import * as cp from "child_process";
 import { ChatPanel } from "./chat";
 import { WrightCodeLensProvider } from "./codelens";
-import { CoverageTreeProvider } from "./coverage";
+// import { CoverageTreeProvider } from "./coverage"; // DISABLED: requires GitHub repo connection (Option B)
 import { initDriftDecoration, setupDriftOnSave, runDriftCheck } from "./drift";
 import { generateAndInject } from "./injector";
 import { checkHealth, generateDocstring } from "./client";
@@ -54,19 +54,21 @@ async function checkApiKeyOnboarding(): Promise<void> {
   }
 }
 
-async function updateStatusBar(statusBar: vscode.StatusBarItem): Promise<void> {
-  const repoRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  if (!repoRoot) return;
-
-  try {
-    const { getCoverage } = await import("./client");
-    const data = await getCoverage(repoRoot);
-    statusBar.text = `$(book) Wright: ${data.overall_pct.toFixed(1)}%`;
-    statusBar.tooltip = `Documentation coverage: ${data.documented}/${data.total} functions`;
-  } catch {
-    statusBar.text = "$(book) Wright";
-    statusBar.tooltip = "Wright: API not reachable";
-  }
+// DISABLED: coverage requires GitHub repo connection (Option B)
+// async function updateStatusBar(statusBar: vscode.StatusBarItem): Promise<void> {
+//   try {
+//     const { getCoverage } = await import("./client");
+//     const data = await getCoverage(repoRoot);
+//     statusBar.text = `$(book) Wright: ${data.overall_pct.toFixed(1)}%`;
+//     statusBar.tooltip = `Documentation coverage: ${data.documented}/${data.total} functions`;
+//   } catch {
+//     statusBar.text = "$(book) Wright";
+//     statusBar.tooltip = "Wright: API not reachable";
+//   }
+// }
+function updateStatusBar(statusBar: vscode.StatusBarItem): void {
+  statusBar.text = "$(book) Wright";
+  statusBar.tooltip = "Wright AI — AI Code Documentation";
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -134,17 +136,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   initDriftDecoration(context);
   setupDriftOnSave(context, codeLensProvider);
 
-  // 5. Register coverage tree view
-  const coverageProvider = new CoverageTreeProvider();
-  vscode.window.registerTreeDataProvider("wrightCoverage", coverageProvider);
-  coverageProvider.loadCoverage().catch(console.error);
+  // 5. Coverage tree view — DISABLED until GitHub repo connection (Option B) is built
+  // const coverageProvider = new CoverageTreeProvider();
+  // vscode.window.registerTreeDataProvider("wrightCoverage", coverageProvider);
+  // coverageProvider.loadCoverage().catch(console.error);
 
   // 6. Status bar
   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-  statusBarItem.command = "wright.showCoverage";
   statusBarItem.show();
   context.subscriptions.push(statusBarItem);
-  updateStatusBar(statusBarItem).catch(console.error);
+  updateStatusBar(statusBarItem);
 
   // 7. Register commands
   context.subscriptions.push(
@@ -217,14 +218,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         ? `Wright: Done — ${documented} function${documented !== 1 ? "s" : ""} documented.`
         : `Wright: Done — ${documented} documented, ${failed} could not be processed.`;
       vscode.window.showInformationMessage(msg);
-      coverageProvider.loadCoverage().catch(console.error);
-      updateStatusBar(statusBarItem).catch(console.error);
     }),
 
-    vscode.commands.registerCommand("wright.showCoverage", async () => {
-      await coverageProvider.loadCoverage();
-      vscode.window.showInformationMessage("Wright: Coverage data refreshed.");
-      updateStatusBar(statusBarItem).catch(console.error);
+    // DISABLED: wright.showCoverage requires GitHub repo connection (Option B)
+    vscode.commands.registerCommand("wright.showCoverage", () => {
+      vscode.window.showInformationMessage(
+        "Wright: Coverage is coming soon. Connect your GitHub repo from the dashboard to enable it.",
+        "Open Dashboard"
+      ).then(choice => {
+        if (choice === "Open Dashboard") {
+          vscode.env.openExternal(vscode.Uri.parse("https://wrightai-web.fly.dev/dashboard"));
+        }
+      });
     }),
 
     vscode.commands.registerCommand("wright.chat", () => {
@@ -249,12 +254,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     })
   );
 
-  // 8. File watcher — coverage refresh only (drift is handled by setupDriftOnSave to avoid double-run)
-  const watcher = vscode.workspace.createFileSystemWatcher("**/*.{py,js,ts,java,go,rs}");
-  watcher.onDidChange(() => {
-    updateStatusBar(statusBarItem).catch(console.error);
-  });
-  context.subscriptions.push(watcher);
+  // 8. File watcher — DISABLED (was only used for coverage refresh)
+  // const watcher = vscode.workspace.createFileSystemWatcher("**/*.{py,js,ts,java,go,rs}");
+  // watcher.onDidChange(() => { updateStatusBar(statusBarItem); });
+  // context.subscriptions.push(watcher);
 }
 
 export function deactivate(): void {
