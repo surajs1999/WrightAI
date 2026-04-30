@@ -79,6 +79,25 @@ async def health() -> dict:
     return {"status": "ok", "version": "1.0.0"}
 
 
+from fastapi import Depends  # noqa: E402
+from api.auth import verify_api_key  # noqa: E402
+
+
+@app.get("/user/me", dependencies=[Depends(verify_api_key)])
+async def user_me(request: Request) -> dict:
+    from api.user_store import get_user_by_api_key
+    api_key = request.headers.get("X-Wright-API-Key", "")
+    user = get_user_by_api_key(api_key)
+    if not user:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    return {
+        "email": user.email,
+        "api_key": user.api_key,
+        "created_at": user.created_at,
+    }
+
+
 def start() -> None:
     uvicorn.run(
         "api.main:app",
