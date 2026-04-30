@@ -890,8 +890,24 @@ class CodeParser:
     def extract_docstring(self, node: Node, language: str) -> str | None:
         raise NotImplementedError("Use parse_file which calls language-specific extractors")
 
+    _DEFAULT_EXCLUDE = {
+        ".git", ".svn", ".hg",
+        "__pycache__", ".venv", "venv", "env", ".env", ".tox",
+        ".mypy_cache", ".pytest_cache", ".ruff_cache", ".eggs",
+        "site-packages", "htmlcov",
+        "node_modules", "bower_components",
+        "dist", "build", "out", "output", ".next", ".nuxt",
+        "_build", ".build",
+        "target", "bin", "obj", "pkg",
+        ".gradle", ".mvn", ".cargo",
+        "vendor",
+        ".idea", ".vscode",
+        "coverage", "lcov-report",
+        "tmp", "temp", ".tmp", "logs", ".cache",
+    }
+
     def parse_directory(self, dir_path: str, exclude: list[str] | None = None) -> list[ParsedFile]:
-        exclude_set = set(exclude or ["node_modules", ".git", "__pycache__", "dist", "build"])
+        exclude_set = set(exclude) if exclude is not None else self._DEFAULT_EXCLUDE
         parsed: list[ParsedFile] = []
 
         for root, dirs, files in os.walk(dir_path):

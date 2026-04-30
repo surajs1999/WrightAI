@@ -22,9 +22,11 @@ export async function generateAndInject(
     { location: vscode.ProgressLocation.Notification, title: `Wright: Generating docs for ${functionName}…` },
     async () => {
       try {
+        const fileContent = document.getText();
+
         // Step 1: dry run to get preview
         const preview = await generateDocstring(
-          document.uri.fsPath, functionName, repoRoot, true, document.languageId
+          document.uri.fsPath, functionName, repoRoot, true, document.languageId, fileContent
         );
 
         if (!preview.success || !preview.preview) {
@@ -38,7 +40,7 @@ export async function generateAndInject(
 
         // Step 3: apply
         const applied = await generateDocstring(
-          document.uri.fsPath, functionName, repoRoot, false, document.languageId
+          document.uri.fsPath, functionName, repoRoot, false, document.languageId, fileContent
         );
 
         if (!applied.success) {

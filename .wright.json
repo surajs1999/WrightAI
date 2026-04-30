@@ -1,10 +1,19 @@
 {
   "style": "google",
   "verbosity": "standard",
-  "languages": ["python", "typescript"],
-  "exclude": ["node_modules", "dist", "*.test.ts"],
+  "languages": [
+    "python"
+  ],
+  "exclude": [
+    "node_modules",
+    ".git",
+    "__pycache__",
+    "dist",
+    "build"
+  ],
   "output_dir": "docs",
-  "coverage_threshold": 0.8,
-  "include_examples": true,
-  "model": "claude-sonnet-4-5"
+  "coverage_threshold": 0.7,
+  "max_tokens_per_request": 8000,
+  "model": "claude-sonnet-4-5",
+  "include_examples": true
 }

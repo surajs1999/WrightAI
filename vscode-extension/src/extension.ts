@@ -203,7 +203,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               increment: (1 / functionNames.length) * 100,
             });
             try {
-              const result = await generateDocstring(filePath, name, repoRoot, false, languageId);
+              const result = await generateDocstring(filePath, name, repoRoot, false, languageId, editor.document.getText());
               if (result.success) documented++;
               else failed++;
             } catch {

@@ -41,6 +41,43 @@ DARK_SVG = MASTER_SVG.replace("#534AB7", "#26215C")
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def write_file(path: Path, data: bytes | str) -> None:
+"""
+Writes data to a file, handling both text and binary data appropriately.
+
+Writes the provided data to the specified file path. If the data is a string, it writes as UTF-8 encoded text. If the data is bytes, it writes as binary data.
+
+Args:
+    """
+    Asserts that a PNG file exists at the specified path, is non-empty, has the expected dimensions, and is a valid image.
+
+    Performs a series of validation checks on a PNG file: verifies file existence and non-zero size, checks that the image dimensions match the expected size, and validates image integrity by opening and verifying the file. Raises AssertionError if any check fails.
+
+    Args:
+        path (Path): The filesystem path to the PNG file to validate.
+        expected_size (tuple[int, int]): The expected image dimensions as (width, height) in pixels.
+
+    Returns:
+        None: This function returns nothing; it raises AssertionError if validation fails.
+
+    Raises:
+        AssertionError: When the file does not exist, is empty, has incorrect dimensions, or is not a valid PNG image.
+
+    Example:
+        ```
+        assert_png(Path('logo.png'), (512, 512))
+        ```
+    """
+    path (Path): The file system path where the data will be written.
+    data (bytes | str): The content to write to the file, either as a string or bytes.
+
+Returns:
+    None: This function does not return a value.
+
+Example:
+    ```
+    write_file(Path("output.txt"), "Hello, World!")
+    ```
+"""
     if isinstance(data, str):
         path.write_text(data, encoding="utf-8")
     else:

@@ -44,7 +44,8 @@ export async function generateDocstring(
   functionName: string,
   repoRoot: string,
   dryRun: boolean = true,
-  languageId: string = "python"
+  languageId: string = "python",
+  snippet?: string
 ): Promise<{ success: boolean; preview: string | null; injected_at_line: number | null; error: string | null }> {
   const { apiUrl } = getConfig();
   const style = getStyleForLanguage(languageId);
@@ -57,6 +58,7 @@ export async function generateDocstring(
       repo_root: repoRoot,
       style,
       dry_run: dryRun,
+      ...(snippet ? { snippet } : {}),
     }),
   });
   if (!resp.ok) {
