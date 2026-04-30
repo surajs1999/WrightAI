@@ -38,22 +38,6 @@ const NAV = [
 ];
 
 export default function Sidebar({ onClose }: { onClose?: () => void }) {
-"""
-Renders a navigation sidebar component for the Wright AI dashboard with logo, navigation groups, and active route highlighting.
-
-A React functional component that displays a fixed-width sidebar containing the Wright AI logo, plan badge, and grouped navigation links. The component uses Next.js routing hooks to determine and highlight the active route, and supports an optional close callback for mobile or modal implementations.
-
-Args:
-    onClose ((() => void) | undefined): Optional callback function to be invoked when a navigation link is clicked, typically used to close the sidebar in mobile or overlay contexts.
-
-Returns:
-    JSX.Element: A React element representing an aside element styled as a sidebar with logo, plan badge, and navigation groups containing links with active state styling.
-
-Example:
-    ```
-    <Sidebar onClose={() => setIsOpen(false)} />
-    ```
-"""
   const pathname = usePathname();
   const isActive = (href: string) =>
     href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href);

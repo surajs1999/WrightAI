@@ -238,6 +238,9 @@ def _open_pr(drifted: list) -> None:
 
 
 if __name__ == "__main__":
+    print("\n" + "━" * 60)
+    print("  Wright AI — Documentation Check")
+    print("━" * 60)
     if WRIGHT_MODE == "coverage":
         run_coverage()
     elif WRIGHT_MODE == "generate":
@@ -247,3 +250,4 @@ if __name__ == "__main__":
     else:
         print(f"Unknown mode: {WRIGHT_MODE}. Use 'coverage', 'generate', or 'drift'.")
         sys.exit(1)
+    print("━" * 60 + "\n")

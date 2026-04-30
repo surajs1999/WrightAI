@@ -1,5 +1,8 @@
 name: Wright Documentation Check
-description: Automatically generate and check code documentation
+description: >
+  Check documentation coverage, detect drift, and generate docstrings.
+  Run as a separate job from pytest/pytest-cov to keep outputs clean and unambiguous.
+  See github-action/README.md for recommended workflow patterns.
 
 inputs:
   anthropic-api-key:

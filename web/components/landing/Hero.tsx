@@ -113,19 +113,6 @@ function Terminal() {
 }
 
 export default function Hero() {
-"""
-Renders the hero section of the landing page with a headline, call-to-action buttons, installation commands, and product statistics.
-
-A React functional component that displays the main hero section featuring Wright AI's value proposition. It includes an MCP server status badge, animated headline with gradient text, product description, interactive buttons for navigation and clipboard copying, a VS Code marketplace link, a Terminal component, and a statistics row showing supported languages, docstring styles, and pricing information. The component manages clipboard copy state with a 2-second confirmation timeout.
-
-Returns:
-    JSX.Element: A React element containing the complete hero section layout with styled components, buttons, links, and statistics.
-
-Example:
-    ```
-    <Hero />
-    ```
-"""
   const [copied, setCopied] = useState(false);
 
   const copy = () => {
