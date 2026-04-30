@@ -30,17 +30,23 @@ interface CoverageItem {
   description?: string;
 }
 
-function scanWorkspace(repoRoot: string): { total: number; documented: number; files: number } {
+const MAX_FILES = 2000; // safety cap — avoids scanning entire system
+
+function scanWorkspace(repoRoot: string): { total: number; documented: number; files: number; capped: boolean } {
   let total = 0;
   let documented = 0;
   let files = 0;
+  let capped = false;
 
   function walk(dir: string) {
+    if (capped) return;
     let entries: fs.Dirent[];
     try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
     catch { return; }
 
     for (const entry of entries) {
+      if (capped) return;
+
       if (entry.isDirectory()) {
         if (!EXCLUDE_DIRS.has(entry.name) && !entry.name.startsWith(".")) {
           walk(path.join(dir, entry.name));
@@ -49,6 +55,8 @@ function scanWorkspace(repoRoot: string): { total: number; documented: number; f
         const ext = path.extname(entry.name).toLowerCase();
         const lang = EXT_TO_LANG[ext];
         if (!lang) continue;
+
+        if (files >= MAX_FILES) { capped = true; return; }
 
         let text: string;
         try { text = fs.readFileSync(path.join(dir, entry.name), "utf8"); }
@@ -73,7 +81,7 @@ function scanWorkspace(repoRoot: string): { total: number; documented: number; f
   }
 
   walk(repoRoot);
-  return { total, documented, files };
+  return { total, documented, files, capped };
 }
 
 export class CoverageTreeProvider implements vscode.TreeDataProvider<CoverageItem> {
@@ -108,22 +116,28 @@ export class CoverageTreeProvider implements vscode.TreeDataProvider<CoverageIte
     await new Promise<void>(resolve => setImmediate(resolve));
 
     try {
-      const { total, documented, files } = scanWorkspace(repoRoot);
+      const { total, documented, files, capped } = scanWorkspace(repoRoot);
       const pct = total > 0 ? (documented / total) * 100 : 100;
 
       this._pct = pct;
       this._total = total;
       this._documented = documented;
 
+      const rootName = path.basename(repoRoot);
       this._items = [
         {
           label: `Coverage: ${pct.toFixed(1)}%`,
           pct,
-          description: `${files} files scanned`,
+          description: `${files}${capped ? "+" : ""} files`,
+        },
+        {
+          label: `Workspace: ${rootName}`,
+          pct: 100,
+          description: repoRoot,
         },
         {
           label: `Documented: ${documented} / ${total}`,
-          pct: pct,
+          pct,
           description: "functions",
         },
         {
@@ -132,6 +146,14 @@ export class CoverageTreeProvider implements vscode.TreeDataProvider<CoverageIte
           description: "functions",
         },
       ];
+
+      if (capped) {
+        this._items.push({
+          label: `⚠ Scan capped at ${MAX_FILES} files`,
+          pct: 50,
+          description: "workspace may be too large",
+        });
+      }
     } catch {
       this._items = [{ label: "Could not scan workspace", pct: 0 }];
     }
