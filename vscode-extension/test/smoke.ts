@@ -12,7 +12,49 @@ import { getStyleForLanguage } from "../src/client";
 let passed = 0;
 let failed = 0;
 
+/**
+ * Compares actual and expected values using JSON serialization and logs the result with a pass/fail indicator.
+ *
+ * Performs an assertion-style check by comparing two values after JSON stringification. Logs a success message with a checkmark (✅) if values match, or an error message with detailed expected vs actual output if they differ. Updates global passed and failed counters accordingly.
+ *
+ * @param {string} label - A descriptive label for the test case that will be displayed in the output.
+ * @param {unknown} actual - The actual value produced by the code being tested.
+ * @param {unknown} expected - The expected value that the actual value should match.
+ * @returns {void} This function does not return a value; it performs side effects by logging to console and updating global counters.
+ * @example
+ * expect('should return sum', calculator.add(2, 3), 5)
+ */
+/**
+ * Compares actual and expected values using JSON serialization and logs the result with a pass/fail indicator.
+ *
+ * This function performs an assertion-style check by comparing two values after JSON stringification. It logs a success message with a checkmark if values match, or an error message with detailed expected vs actual output if they differ. It also increments global passed or failed counters accordingly.
+ *
+ * @param {string} label - A descriptive label for the test case that will be displayed in the output.
+ * @param {unknown} actual - The actual value produced by the code being tested.
+ * @param {unknown} expected - The expected value that the actual value should match.
+ * @returns {void} This function does not return a value; it performs side effects by logging to console and updating global counters.
+ * @example
+ * expect('should return sum', calculator.add(2, 3), 5)
+ */
 function expect(label: string, actual: unknown, expected: unknown): void {
+"""
+Compares actual and expected values using JSON serialization and logs the result with a pass/fail indicator.
+
+This function performs an assertion-style check by comparing two values after JSON stringification. It logs a success message with a checkmark if values match, or an error message with detailed expected vs actual output if they differ. It also increments global passed or failed counters accordingly.
+
+Args:
+    label (string): A descriptive label for the test case that will be displayed in the output.
+    actual (unknown): The actual value produced by the code being tested.
+    expected (unknown): The expected value that the actual value should match.
+
+Returns:
+    void: This function does not return a value; it performs side effects by logging to console and updating global counters.
+
+Example:
+    ```
+    expect('should return sum', calculator.add(2, 3), 5)
+    ```
+"""
   const ok = JSON.stringify(actual) === JSON.stringify(expected);
   if (ok) {
     console.log(`  ✅  ${label}`);
@@ -208,6 +250,42 @@ expect("rust pub async fn",      extractName("rust",       "pub async fn fetch()
 
 const javaP = PATTERNS["java"]; javaP.lastIndex = 0;
 const javaM = javaP.exec("  public int getValue() {");
+"""
+Parses a raw Server-Sent Events (SSE) string and yields JSON objects from each data line.
+
+Iterates through lines in the raw SSE response string, extracting and parsing JSON data from lines prefixed with 'data: '. Stops processing when encountering the '[DONE]' sentinel value. Silently skips lines that fail JSON parsing.
+
+Args:
+    raw (string): The raw SSE response string containing newline-separated event data.
+
+Returns:
+    Generator<Record<string, unknown>>: A generator that yields parsed JSON objects as key-value records from valid SSE data lines.
+
+Example:
+    ```
+    for (const event of parseSse('data: {    """
+    Filters elements by checking if their type property equals 'followups'.
+
+    This is an arrow function predicate used as a filter callback to identify elements with a type property matching the string 'followups'.
+
+    Args:
+        e (unknown): The element to check, expected to have a type property.
+
+    Returns:
+        boolean: True if the element's type property equals 'followups', false otherwise.
+
+    Example:
+        ```
+        const followupElements = elements.filter(e => e.type === "followups")
+        ```
+
+    Complexity: O(1) time, O(1) space
+    """
+"id":"1","text":"hello"}\ndata: [DONE]')) { console.log(event); }
+    ```
+
+Complexity: O(n) time where n is the number of characters in the input string, O(1) space for the generator state
+"""
 expect("java method name in group 2", javaM ? javaM[2] : null, "getValue");
 
 const javaStaticP = PATTERNS["java"]; javaStaticP.lastIndex = 0;

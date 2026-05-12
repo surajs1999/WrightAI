@@ -23,12 +23,51 @@ GITHUB_REF = os.getenv("GITHUB_REF", "main")
 
 
 def write_summary(content: str) -> None:
+    """
+    Appends content to the GitHub Actions step summary file if the GITHUB_STEP_SUMMARY environment variable is set.
+
+    Writes the provided content string to the GitHub Actions step summary file in append mode, adding a newline character after the content. This function is used to add formatted output to the workflow run summary that appears in the GitHub Actions UI.
+
+    Args:
+        content (str): The text content to append to the step summary file.
+
+    Returns:
+        None: This function does not return a value.
+
+    Raises:
+        IOError: When the GITHUB_STEP_SUMMARY file path exists but cannot be opened or written to due to permissions or file system errors.
+
+    Example:
+        ```
+        write_summary("## Coverage Report\n\nCoverage: 85%")
+        ```
+    """
     if GITHUB_STEP_SUMMARY:
         with open(GITHUB_STEP_SUMMARY, "a") as f:
             f.write(content + "\n")
 
 
 def set_output(name: str, value: str) -> None:
+    """
+    Sets a GitHub Actions output parameter by writing to the GITHUB_OUTPUT file or using the legacy set-output command.
+
+    This function provides a compatibility layer for setting GitHub Actions outputs. It prefers the newer file-based approach (GITHUB_OUTPUT environment variable) but falls back to the deprecated workflow command syntax if the environment variable is not set.
+
+    Args:
+        name (str): The name of the output parameter to set.
+        value (str): The value to assign to the output parameter.
+
+    Returns:
+        None: This function does not return a value.
+
+    Raises:
+        IOError: When the GITHUB_OUTPUT file exists but cannot be opened or written to.
+
+    Example:
+        ```
+        set_output('coverage_percent', '95.3')
+        ```
+    """
     github_output = os.getenv("GITHUB_OUTPUT", "")
     if github_output:
         with open(github_output, "a") as f:
@@ -38,6 +77,24 @@ def set_output(name: str, value: str) -> None:
 
 
 def run_coverage() -> None:
+    """
+    Analyzes and reports documentation coverage for all functions in the codebase, exiting with an error if coverage falls below the configured threshold.
+
+    Parses all Python files in the configured directory, counts functions with and without docstrings, calculates the documentation coverage percentage, prints a detailed report to console including undocumented function locations, writes a markdown summary, sets GitHub Action output, and exits with status code 1 if coverage is below the threshold.
+
+    Returns:
+        None: This function does not return a value; it performs side effects including printing to console, writing summaries, setting outputs, and potentially exiting the process.
+
+    Raises:
+        SystemExit: When documentation coverage percentage is below WRIGHT_THRESHOLD * 100.
+
+    Example:
+        ```
+        run_coverage()
+        ```
+
+    Complexity: O(n) time where n is the total number of functions across all parsed files, O(m) space where m is the number of undocumented functions
+    """
     from core.config import load_config
     from core.parser.tree_sitter_parser import CodeParser
 
@@ -80,6 +137,19 @@ def run_coverage() -> None:
 
 """
     if pct < WRIGHT_THRESHOLD * 100:
+        """
+        Runs drift detection on the codebase to identify functions with outdated or missing documentation.
+
+        Performs drift detection by first attempting to check git diff against HEAD~1, falling back to full directory scan if that fails. Identifies functions that are drifted or undocumented, prints results to console, writes a summary report, sets GitHub Action output, and optionally opens a pull request if auto-PR is enabled and drifted functions are found.
+
+        Returns:
+            None: This function does not return a value; it performs side effects including printing to console, writing summaries, and potentially opening PRs.
+
+        Example:
+            ```
+            run_drift()
+            ```
+        """
         summary += f"❌ Coverage {pct:.1f}% is below threshold {WRIGHT_THRESHOLD * 100:.0f}%\n"
     else:
         summary += f"✅ Coverage meets the {WRIGHT_THRESHOLD * 100:.0f}% threshold\n"
@@ -95,6 +165,24 @@ def run_coverage() -> None:
 
 
 def run_generate() -> None:
+    """
+    Generates docstrings for undocumented functions in the repository and commits the changes to git.
+
+    Parses the target repository to identify functions without docstrings, retrieves relevant context using hybrid retrieval (embeddings and dependency graph), generates docstrings using an LLM gateway, injects them into source files, and automatically commits the changes to git with a standardized commit message.
+
+    Returns:
+        None: This function does not return a value.
+
+    Raises:
+        subprocess.CalledProcessError: When git commands fail during the commit process (logged as warning, does not halt execution).
+
+    Example:
+        ```
+        run_generate()
+        ```
+
+    Complexity: O(n*m) time where n is the number of undocumented functions and m is the average context retrieval cost, O(n) space for storing parsed files and dependencies
+    """
     from core.config import load_config
     from core.llm.gateway import LLMGateway
     from core.output.injector import DocstringInjector
@@ -163,6 +251,19 @@ def run_generate() -> None:
 
 
 def run_drift() -> None:
+    """
+    Executes a documentation drift check to identify functions with outdated or missing documentation.
+
+    Performs drift detection by comparing function signatures with their documentation. First attempts to check git diff against HEAD~1, falling back to full directory scan if that fails. Filters results to identify drifted or undocumented functions, prints a summary, writes GitHub Actions output, and optionally opens a pull request if auto-PR is enabled.
+
+    Returns:
+        None: This function does not return a value; it performs side effects including console output, file writes, and potential PR creation.
+
+    Example:
+        ```
+        run_drift()
+        ```
+    """
     from core.drift.drift_detector import DriftDetector
     from core.parser.cache import ASTCache
 
@@ -203,6 +304,26 @@ def run_drift() -> None:
 
 
 def _open_pr(drifted: list) -> None:
+    """
+    Creates a new Git branch and opens a GitHub pull request to fix documentation drift for the specified functions.
+
+    This function automates the process of creating a PR to address documentation drift. It creates a new Git branch, configures Git user settings for the Wright Bot, and submits a pull request via the GitHub API. The PR includes information about the number of drifted functions. Note that actual docstring regeneration would occur between the Git configuration and PR creation steps.
+
+    Args:
+        drifted (list): List of functions that have documentation drift and need to be updated.
+
+    Returns:
+        None: This function does not return a value; it prints status messages and sets output for the PR URL if successful.
+
+    Raises:
+        Exception: When Git operations fail, GitHub API request fails, or any other error occurs during PR creation (caught and printed as warning).
+
+    Example:
+        ```
+        drifted_functions = [{'name': 'calculate_sum', 'file': 'utils.py'}]
+        _open_pr(drifted_functions)
+        ```
+    """
     import httpx
 
     branch_name = "wright/fix-doc-drift"

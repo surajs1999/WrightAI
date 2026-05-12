@@ -12,6 +12,14 @@ interface ApiKey {
   expiry: string;
 }
 
+/**
+ * Renders a React component that displays and manages API keys for the Wright API, including fetching, copying, revealing, and revoking keys.
+ *
+ * This component provides a dashboard interface for API key management with features including: loading keys from the /api/auth/key endpoint, displaying keys in a table with masked/revealed toggle, copying keys to clipboard, revoking keys with confirmation, enforcing a free-tier limit of 1 key, and showing security tips and usage examples in a sidebar. The component handles multiple UI states including loading, empty state, and a modal for upgrade prompts.
+ * @returns {JSX.Element} A React component containing the complete API keys management interface with table, sidebar, and modal elements.
+ * @example
+ * <KeysPage />
+ */
 export default function KeysPage() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);

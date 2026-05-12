@@ -8,6 +8,28 @@ from api.tasks.celery_app import celery_app
 
 @celery_app.task(bind=True, name="api.tasks.generation_tasks.generate_file_docs")
 def generate_file_docs(self, file_path: str, repo_root: str, style: str, dry_run: bool) -> dict:
+    """
+    Generates docstrings for undocumented functions in a Python file or directory using AI and injects them into the source code.
+
+    This Celery task orchestrates the entire documentation generation pipeline: parses Python files to extract functions, builds a dependency graph, retrieves relevant context using hybrid retrieval (vector + graph), generates docstrings using an LLM gateway, and injects the generated documentation back into the source files. The task reports progress via Celery state updates and returns a summary of results for each processed function.
+
+    Args:
+        self (Task): Celery task instance for state management and progress updates.
+        file_path (str): Path to a single Python file or directory containing Python files to document.
+        repo_root (str): Root directory of the repository, used for configuration loading and relative path resolution.
+        style (str): Documentation style to use (e.g., 'google', 'numpy'); if empty, uses the style from config.
+        dry_run (bool): If True, generates previews without modifying files; if False, injects docstrings into source files.
+
+    Returns:
+        dict: Dictionary containing 'results' (list of dicts with function name, file path, success status, preview, and error for each processed function) and 'total' (total count of undocumented functions processed).
+
+    Example:
+        ```
+        result = generate_file_docs.delay('src/my_module.py', '/path/to/repo', 'google', True)
+        ```
+
+    Complexity: O(n*m) where n is the number of undocumented functions and m is the average time for LLM generation and retrieval
+    """
     from core.config import load_config
     from core.embeddings.chroma_store import ChromaStore
     from core.embeddings.voyage_embeddings import VoyageEmbedder

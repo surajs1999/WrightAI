@@ -9,6 +9,19 @@ from core.llm.schema import DocstringSchema
 
 
 def test_docstring_schema_validates_correctly() -> None:
+    """
+    Validates that the DocstringSchema model correctly parses and stores docstring data.
+
+    Tests the model_validate method of DocstringSchema by providing a sample dictionary with docstring components including summary, parameters, returns, and other metadata, then asserts that the parsed schema object contains the expected values.
+
+    Returns:
+        None: This test function does not return a value.
+
+    Example:
+        ```
+        test_docstring_schema_validates_correctly()
+        ```
+    """
     data = {
         "summary": "Returns the sum of two numbers.",
         "description": None,
@@ -29,6 +42,19 @@ def test_docstring_schema_validates_correctly() -> None:
 
 
 def test_docstring_schema_from_json() -> None:
+    """
+    Tests the deserialization of a DocstringSchema object from a JSON string.
+
+    Verifies that a DocstringSchema instance can be correctly created from a JSON string using model_validate_json, and that all fields (summary, parameters, returns, raises) are properly populated or set to their expected default values.
+
+    Returns:
+        None: This function does not return a value.
+
+    Example:
+        ```
+        test_docstring_schema_from_json()
+        ```
+    """
     json_str = json.dumps(
         {
             "summary": "Tests the schema.",
@@ -43,6 +69,19 @@ def test_docstring_schema_from_json() -> None:
 
 
 def test_gateway_parse_structured_output_valid_json() -> None:
+    """
+    Tests that the LLMGateway can successfully parse valid JSON output into a structured schema object.
+
+    This test verifies that the _parse_structured_output method correctly deserializes a valid JSON string containing summary, parameters, and raises fields into a schema object, and that the summary field is properly accessible.
+
+    Returns:
+        None: This is a test function that returns nothing.
+
+    Example:
+        ```
+        test_gateway_parse_structured_output_valid_json()
+        ```
+    """
     from core.llm.gateway import LLMGateway
 
     gateway = LLMGateway.__new__(LLMGateway)
@@ -59,6 +98,19 @@ def test_gateway_parse_structured_output_valid_json() -> None:
 
 
 def test_gateway_parse_structured_output_with_fences() -> None:
+    """
+    Tests that the LLMGateway._parse_structured_output method correctly parses JSON output wrapped in markdown code fences.
+
+    This test verifies that when JSON data is provided within markdown-style code fences (```json...```), the _parse_structured_output method can extract and parse the JSON content, returning a properly structured schema object with the expected attributes.
+
+    Returns:
+        None: This test function does not return a value.
+
+    Example:
+        ```
+        test_gateway_parse_structured_output_with_fences()
+        ```
+    """
     from core.llm.gateway import LLMGateway
 
     gateway = LLMGateway.__new__(LLMGateway)
@@ -69,6 +121,19 @@ def test_gateway_parse_structured_output_with_fences() -> None:
 
 
 def test_gateway_parse_structured_output_fallback_on_bad_json() -> None:
+    """
+    Tests that the LLMGateway fallback mechanism returns a valid DocstringSchema when parsing invalid JSON input.
+
+    Verifies that _parse_structured_output gracefully handles malformed JSON by falling back to a minimal schema with a non-empty summary instead of raising an exception.
+
+    Returns:
+        None: This test function does not return a value.
+
+    Example:
+        ```
+        test_gateway_parse_structured_output_fallback_on_bad_json()
+        ```
+    """
     from core.llm.gateway import LLMGateway
 
     gateway = LLMGateway.__new__(LLMGateway)

@@ -38,6 +38,14 @@ Verify JWT signature and expiry, return decoded User or raise 401.
 ### \`refreshToken(token: string) -> string\`  *(line 31)*
 Issue a new token if within the refresh window, otherwise raise.`;
 
+/**
+ * Renders a small circular dot with a pulsing animation effect.
+ *
+ * Creates an inline span element styled as a purple circular dot (7x7 pixels) with 90% opacity and an infinite pulsing animation that repeats every 1.2 seconds using ease-in-out timing.
+ * @returns {JSX.Element} A span element with inline styles creating an animated pulsing dot visual indicator.
+ * @example
+ * <PulsingDot />
+ */
 function PulsingDot() {
   return (
     <span style={{
@@ -48,6 +56,14 @@ function PulsingDot() {
   );
 }
 
+/**
+ * Renders a React page component that generates and displays an llms.txt documentation file for a selected repository.
+ *
+ * This component provides a UI for selecting a connected repository, generating an llms.txt file (a machine-readable index of all functions in the codebase), and exporting the result via copy or download. It manages loading states, error handling, and displays statistics about the generated content including function count and line count. The component features a two-panel layout with controls on the left and a preview/output panel on the right.
+ * @returns {React.JSX.Element} A React component containing the complete llms.txt generator interface with repository selector, generation controls, content preview, and export options.
+ * @example
+ * <LlmsTxtPage />
+ */
 export default function LlmsTxtPage() {
   const { repos, loadingRepos, selectedRepoId, setSelectedRepoId, selectedRepo } = useConnectedRepos();
   const [content, setContent] = useState<string | null>(null);

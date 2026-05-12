@@ -20,6 +20,20 @@ const MOCK: UsageStats = {
   tokens_used: 0,
 };
 
+/**
+ * Renders a styled statistics card component displaying a label, value, and optional subtitle with support for coming soon state.
+ *
+ * A React functional component that displays a statistic in a card format with customizable styling. When the 'coming' flag is true, it displays a 'SOON' badge, blurs the value (showing '99' as placeholder), and shows 'Coming soon' text instead of the subtitle.
+ *
+ * @param {string} label - The label text displayed at the top of the card in uppercase monospace font.
+ * @param {string} value - The main statistic value to display prominently in the card (hidden if coming is true).
+ * @param {string | undefined} sub - Optional subtitle text displayed below the value in smaller monospace font.
+ * @param {string | undefined} color - Optional CSS color value for the main statistic value text (defaults to '--text' CSS variable).
+ * @param {boolean | undefined} coming - Optional flag that when true, displays a 'SOON' badge, blurs the value, and shows 'Coming soon' text.
+ * @returns {JSX.Element} A React element representing the styled statistics card with configured content and appearance.
+ * @example
+ * <StatCard label="Total Users" value="1,234" sub="+12% from last month" color="var(--green)" />
+ */
 function StatCard({
   label, value, sub, color, coming,
 }: {
@@ -67,6 +81,18 @@ function StatCard({
   );
 }
 
+/**
+ * Renders a horizontal progress bar with a label and percentage indicator.
+ *
+ * A React component that displays a labeled progress bar with customizable color. The bar shows a percentage-based fill within a light purple background container. The label is displayed on the left with a decorative dash on the right.
+ *
+ * @param {string} label - The text label displayed above the progress bar.
+ * @param {number} pct - The percentage value (0-100) that determines the width of the filled portion of the bar.
+ * @param {string} color - The CSS color value for the progress bar fill.
+ * @returns {JSX.Element} A React element containing the styled progress bar with label.
+ * @example
+ * <MiniBar label="CPU Usage" pct={75} color="#4CAF50" />
+ */
 function MiniBar({ label, pct, color }: { label: string; pct: number; color: string }) {
   return (
     <div style={{ marginBottom: 14 }}>
@@ -81,6 +107,14 @@ function MiniBar({ label, pct, color }: { label: string; pct: number; color: str
   );
 }
 
+/**
+ * Renders a React component displaying usage statistics and analytics for the application, including activity metrics, API usage, and a sidebar with plan information.
+ *
+ * A functional React component that fetches usage statistics from the /api/proxy/usage endpoint on mount and displays them in a grid layout. The main content area shows activity statistics (docs generated, drift checks, coverage scans) and API usage metrics (calls today, calls this month, tokens used). A sidebar displays the current plan information and a usage breakdown visualization. Includes a banner announcing upcoming detailed analytics features.
+ * @returns {JSX.Element} A React element containing the usage page layout with statistics, plan information, and activity breakdown.
+ * @example
+ * <UsagePage />
+ */
 export default function UsagePage() {
   const [stats, setStats] = useState<UsageStats>(MOCK);
 

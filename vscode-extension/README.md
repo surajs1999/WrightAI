@@ -12,7 +12,7 @@ Powered by Claude (Anthropic). No local server or Python installation required �
 2. Sign in at **[wrightai-web.fly.dev](https://wrightai-web.fly.dev)** with GitHub or Google
 3. Copy your personal API key (starts with `wai_`)
 4. Open VS Code Settings (`Cmd+,` / `Ctrl+,`), search for `WrightAI`, and paste the key into **Wright: Api Key**
-5. Open any supported file — a **Generate Docs** CodeLens button will appear above each function
+5. Open any supported file — a **Generate Docs** CodeLens button appears above each function
 
 ---
 
@@ -25,14 +25,14 @@ A **side-by-side diff preview** shows the generated docstring before anything is
 
 You can also:
 - Right-click anywhere in a file → **Wright: Generate docs for this function**
-- Hover over any function name to see the existing docstring and a **Generate docs** link inline
+- Hover over any function name to see the existing docstring and a **Regenerate** link inline
 
-### Generate Docs for Entire File
+### Generate Docs for an Entire File
 Open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`) and run:
 ```
 Wright: Generate docs for entire file
 ```
-WrightAI documents every undocumented function in the file with a live progress bar showing per-function status.
+Wright documents every undocumented function in the file with a live progress bar showing per-function status.
 
 ### Gutter Icons
 Every function line shows a real-time status icon in the editor gutter:
@@ -40,29 +40,35 @@ Every function line shows a real-time status icon in the editor gutter:
 - **○** (grey) — no documentation yet
 - **⚠** (amber) — documentation is out of date (drifted)
 
+Hover over a gutter icon to see the function name and a quick-action link.
+
 ### Chat with Your Codebase
 Run **Wright: Chat with codebase** from the Command Palette to open an interactive chat panel. Ask anything:
 - "How does authentication work?"
 - "Where is the payment logic?"
-- "Explain the retry mechanism"
 - "What does the `process_batch` function do?"
 
-Answers stream in real time, include **clickable file citations** that jump straight to the source, and suggest **follow-up questions** to keep the conversation going. Full conversation history is maintained across turns.
+Answers stream in real time, include **clickable file:line citations** that jump straight to the source, and suggest follow-up questions. Full conversation history is maintained across turns.
 
 ### Coverage Dashboard
-The **Wright Coverage** panel in the Explorer sidebar shows live documentation coverage. Run **Wright: Show coverage** to refresh it, or watch the status bar percentage update as you document your code.
+The **Wright Coverage** panel in the Explorer sidebar shows live documentation coverage:
+- Overall percentage and function counts
+- Workspace path and file count
+- Color-coded icons (green ≥ 80%, yellow ≥ 50%, red < 50%)
+
+Run **Wright: Show coverage** from the Command Palette to refresh it manually.
 
 ### Drift Detection
-Run **Wright: Check for doc drift** to find functions whose code has changed since their docstring was written. Stale functions are highlighted with an **⚠ docs outdated** inline marker and a regenerate CodeLens button.
+Run **Wright: Check for doc drift** to find functions whose implementation has changed since their docstring was written. Stale functions are highlighted with an **⚠ Docs outdated — regenerate** CodeLens.
 
 Drift is also checked automatically every time you save a file.
 
 ---
 
-## Keyboard Shortcut
+## Keyboard Shortcuts
 
 | Shortcut | Action |
-|---|---|
+|----------|--------|
 | `Cmd+Shift+D` / `Ctrl+Shift+D` | Generate docs for the current function |
 
 ---
@@ -70,7 +76,7 @@ Drift is also checked automatically every time you save a file.
 ## Extension Settings
 
 | Setting | Default | Description |
-|---|---|---|
+|---------|---------|-------------|
 | `wright.apiUrl` | `https://wrightai-api.fly.dev` | WrightAI backend URL |
 | `wright.apiKey` | _(empty)_ | Your personal `wai_` API key |
 | `wright.style` | `google` | Default docstring style |
@@ -78,6 +84,8 @@ Drift is also checked automatically every time you save a file.
 | `wright.style.javascript` | `jsdoc` | JavaScript style: `jsdoc` |
 | `wright.style.typescript` | `jsdoc` | TypeScript style: `jsdoc` |
 | `wright.style.rust` | `rust` | Rust style: `rust` |
+
+> **Note:** JavaScript, TypeScript, and Java always use JSDoc. Go always uses `//` line comments. Rust always uses `///` doc comments. The style setting only applies to Python.
 
 ---
 
@@ -87,15 +95,7 @@ Python · JavaScript · TypeScript · Java · Go · Rust
 
 ---
 
-## Coming Soon
-
-- **Batch generation** — document an entire folder or workspace in one click
-- **Doc quality score** — per-function completeness and accuracy rating
-- **Multi-model support** — choose Claude model from VS Code settings
-
----
-
 ## Support
 
-- Bug reports and feature requests: [GitHub Issues](https://wrightai-web.fly.dev/)
+- Bug reports and feature requests: [GitHub Issues](https://github.com/surajs1999/WrightAI/issues)
 - Questions and feedback: [GitHub Discussions](https://github.com/surajs1999/WrightAI/discussions)

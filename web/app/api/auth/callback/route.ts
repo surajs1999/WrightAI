@@ -3,6 +3,17 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { API_URL, APP_URL } from "@/lib/api";
 
+/**
+ * Handles the OAuth callback by exchanging an authorization code for an API key and setting authentication cookies before redirecting the user.
+ *
+ * This Next.js API route handler processes OAuth callback requests by validating the authorization code, exchanging it with the backend API for an API key and user data, storing the credentials in HTTP-only cookies, and redirecting the user to the appropriate destination. If any step fails, the user is redirected to the login page with an error parameter.
+ *
+ * @param {NextRequest} request - The incoming Next.js request object containing URL search parameters including 'code', 'state', and optionally 'redirect_uri'.
+ * @returns {Promise<NextResponse>} A Next.js response that redirects to either the state-specified destination on success, or to the login page with an error parameter on failure.
+ * @throws {Error} When the backend authentication API returns a non-OK status.
+ * @example
+ * await GET(new NextRequest('https://example.com/auth/callback?code=abc123&state=/dashboard'))
+ */
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const state = request.nextUrl.searchParams.get("state") ?? "/dashboard";

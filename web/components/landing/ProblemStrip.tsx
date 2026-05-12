@@ -98,6 +98,14 @@ const CARDS = [
   },
 ];
 
+/**
+ * Renders a section component that displays a problem statement with decorative background elements and a grid of comparison cards showing scenarios without and with the Wright solution.
+ *
+ * This React functional component creates a visually rich landing page section with animated background effects (dot grid, blurred orbs, decorative rings) and a header followed by a grid of cards. Each card maps over the CARDS array and displays a comparison between scenarios 'Without' (marked with X icon in red) and 'With Wright' (marked with check icon in green), featuring smooth hover interactions and staggered animation entrance effects using Framer Motion.
+ * @returns {JSX.Element} A React section element containing layered background decorations, an animated header describing the problem, and a grid of animated comparison cards with hover effects.
+ * @example
+ * <ProblemStrip />
+ */
 export default function ProblemStrip() {
   return (
     <section className="problem-section" style={{ display: "flex", flexDirection: "column" }}>

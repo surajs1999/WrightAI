@@ -3,6 +3,16 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 
+/**
+ * Renders a button component that copies text to the clipboard and displays visual feedback for 2 seconds.
+ *
+ * A React functional component that provides a copy-to-clipboard button with state-based visual feedback. When clicked, it copies the provided text to the clipboard using the Clipboard API, displays a success state with a checkmark icon and green styling for 2 seconds, then returns to the default copy icon and styling.
+ *
+ * @param {string} text - The text content to be copied to the clipboard when the button is clicked.
+ * @returns {JSX.Element} A styled button element that toggles between 'copy' and 'copied' states with corresponding icons and visual styling.
+ * @example
+ * <CopyBtn text="npm install @wright/cli" />
+ */
 function CopyBtn({ text }: { text: string }) {
   const [ok, setOk] = useState(false);
   return (
@@ -32,6 +42,18 @@ function CopyBtn({ text }: { text: string }) {
   );
 }
 
+/**
+ * Renders a styled code block component with syntax highlighting, optional terminal prompt, and a copy button.
+ *
+ * A React component that displays code in a terminal-like interface with a macOS-style title bar (red, yellow, green dots), optional command prompt line, and a positioned copy button. The code is rendered line-by-line with monospace font and custom styling.
+ *
+ * @param {string} code - The code content to display in the code block, with newlines preserved for multi-line code.
+ * @param {string | undefined} accent - Optional color value for styling the prompt text when a prompt is provided.
+ * @param {string | undefined} prompt - Optional terminal command prompt text to display above the code (e.g., 'npm install').
+ * @returns {JSX.Element} A React element containing the styled code block with title bar, optional prompt, code content, and copy button.
+ * @example
+ * <CodeBlock code="npm install wright" accent="#1D9E75" prompt="npm install wright" />
+ */
 function CodeBlock({ code, accent, prompt }: { code: string; accent?: string; prompt?: string }) {
   return (
     <div style={{ position: "relative", marginTop: 16 }}>
@@ -163,6 +185,14 @@ const CARDS = [
   },
 ];
 
+/**
+ * Renders an installation section component displaying four integration methods in a responsive grid layout with animated cards and decorative background elements.
+ *
+ * A React functional component that returns a section element showcasing different installation/integration options. The component includes animated background decorations (dot grid, blurred orbs, diagonal accents, corner brackets), a centered header with motion animations, and a grid of cards mapping over a CARDS array. Each card displays integration details including icons, descriptions, compatibility badges, code snippets, and call-to-action buttons with hover effects.
+ * @returns {JSX.Element} A React section element containing the installation grid UI with animated header, decorative background layers, and interactive installation method cards.
+ * @example
+ * <InstallGrid />
+ */
 export default function InstallGrid() {
   return (
     <section id="install" className="install-section" style={{ background: "var(--bg)", position: "relative", overflow: "hidden" }}>

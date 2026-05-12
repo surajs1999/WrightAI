@@ -25,6 +25,22 @@ class ChatRequest(BaseModel):
 
 @router.post("")
 async def chat(request: ChatRequest) -> StreamingResponse:
+    """
+    Handles chat requests by retrieving relevant code context and streaming AI-generated responses with citations and follow-up questions.
+
+    This endpoint initializes the LLM gateway, embedder, vector store, and hybrid retriever to process user questions about a codebase. It retrieves relevant code contexts using semantic and dependency-based search, maintains conversation history (trimmed to last 20 messages), and streams responses as server-sent events including tokens, file citations, and suggested follow-up questions.
+
+    Args:
+        request (ChatRequest): The chat request containing the user's question, repository root path, and conversation history.
+
+    Returns:
+        StreamingResponse: A streaming HTTP response that emits server-sent events with types 'token' (text chunks), 'citations' (referenced files), 'followups' (suggested questions), and a final '[DONE]' message.
+
+    Example:
+        ```
+        response = await chat(ChatRequest(question='How does authentication work?', repo_root='/path/to/repo', conversation_history=[]))
+        ```
+    """
     from core.embeddings.chroma_store import ChromaStore
     from core.embeddings.voyage_embeddings import VoyageEmbedder
     from core.llm.gateway import LLMGateway

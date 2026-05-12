@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# WrightAI Web Dashboard
 
-## Getting Started
+The WrightAI web dashboard — hosted at [wrightai-web.fly.dev](https://wrightai-web.fly.dev) — is the sign-in portal and user-facing control panel for the hosted WrightAI service.
 
-First, run the development server:
+Built with Next.js (App Router). TypeScript throughout.
+
+---
+
+## What's in here
+
+| Route | Description |
+|-------|-------------|
+| `/` | Landing page |
+| `/login` | GitHub / Google OAuth sign-in via WorkOS |
+| `/auth/callback` | OAuth callback handler |
+| `/dashboard` | Overview — coverage %, recent activity |
+| `/dashboard/generate` | Trigger doc generation for a connected repo |
+| `/dashboard/coverage` | Documentation coverage report |
+| `/dashboard/drift` | Drift detection results |
+| `/dashboard/chat` | Codebase chat (streaming) |
+| `/dashboard/keys` | Manage personal `wai_` API keys |
+| `/dashboard/usage` | API usage stats |
+| `/dashboard/settings` | Account settings |
+| `/dashboard/llms-txt` | View / regenerate `llms.txt` |
+| `/dashboard/mcp` | MCP server setup instructions |
+| `/dashboard/help` | Help and documentation links |
+| `/docs` | In-app documentation |
+
+---
+
+## Local Development
 
 ```bash
+# Install dependencies
+npm install
+
+# Copy environment template
+cp .env.local.example .env.local
+# Fill in NEXT_PUBLIC_API_URL and other vars
+
+# Start dev server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Environment Variables
 
-## Learn More
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_API_URL` | WrightAI API base URL (default: `https://wrightai-api.fly.dev`) |
+| `WORKOS_API_KEY` | WorkOS API key (server-side OAuth) |
+| `WORKOS_CLIENT_ID` | WorkOS client ID |
+| `WORKOS_REDIRECT_URI` | OAuth redirect URI |
+| `NEXTAUTH_SECRET` | Session secret |
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deployment
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The dashboard is deployed to Fly.io from the project root:
 
-## Deploy on Vercel
+```bash
+fly deploy
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The `fly.toml` at the repo root configures the app name, region, and health checks.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## API Proxy
+
+All requests to the WrightAI backend go through `/app/api/proxy/[...path]/route.ts`, which forwards them to `NEXT_PUBLIC_API_URL` and attaches the user's session cookie / API key. This keeps API keys server-side and avoids CORS issues.

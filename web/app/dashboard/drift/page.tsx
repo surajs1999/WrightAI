@@ -34,6 +34,14 @@ const selectStyle: React.CSSProperties = {
   padding: "9px 12px", outline: "none", cursor: "pointer",
 };
 
+/**
+ * Renders the Drift Check page component for detecting and fixing outdated docstrings in git commits.
+ *
+ * A React functional component that provides UI for running drift checks on connected repositories, displaying functions with outdated or missing documentation, and creating pull requests to fix them. Manages state for repository selection, drift check results, loading states, error handling, toast notifications, and a PR creation modal. Integrates with the useConnectedRepos hook and communicates with backend API endpoints for drift checking and PR creation.
+ * @returns {JSX.Element} A React component displaying the drift check interface with repository selection, drift statistics, results table, and PR creation modal.
+ * @example
+ * <DriftPage />
+ */
 export default function DriftPage() {
   const router = useRouter();
   const { repos, loadingRepos, selectedRepoId, setSelectedRepoId, selectedRepo } = useConnectedRepos();

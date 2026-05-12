@@ -11,6 +11,16 @@ const EXT: Record<string, string> = {
   Python: "py", TypeScript: "ts", JavaScript: "js", Java: "java", Go: "go", Rust: "rs",
 };
 
+/**
+ * Generates CSS properties for a tab button with conditional styling based on its active state.
+ *
+ * Returns a React.CSSProperties object containing inline styles for a tab button component. When active, the button displays with a purple background and white text. When inactive, it shows a transparent background with muted text and border colors. All styles use CSS custom properties (variables) for theming consistency.
+ *
+ * @param {boolean} active - Determines whether the tab button should render in its active state (true) or inactive state (false).
+ * @returns {React.CSSProperties} A CSS properties object containing padding, background, border, borderRadius, fontFamily, fontSize, color, cursor, and transition styles conditionally set based on the active parameter.
+ * @example
+ * const activeStyles = tabBtn(true); const inactiveStyles = tabBtn(false);
+ */
 const tabBtn = (active: boolean): React.CSSProperties => ({
   padding: "7px 20px",
   background: active ? "var(--purple)" : "transparent",
@@ -30,6 +40,14 @@ const selectStyle: React.CSSProperties = {
   padding: "8px 12px", outline: "none", cursor: "pointer", width: "100%",
 };
 
+/**
+ * Renders an AI-powered docstring generation interface that allows users to generate documentation for code snippets or repository files.
+ *
+ * This React component provides a comprehensive UI for generating docstrings using AI. It supports two modes: snippet mode (paste code directly) and repo mode (target specific files in connected repositories). Users can configure style (google, numpy, sphinx, restructuredtext) and verbosity (concise, standard, verbose) settings. The component handles API calls for docstring generation, displays preview output, and optionally creates pull requests with the generated documentation injected into repository files. It also restores navigation hints from session storage when navigating from the drift detection page.
+ * @returns {JSX.Element} A React component rendering the docstring generation interface with tab navigation, input controls, output preview, and PR creation functionality.
+ * @example
+ * <GeneratePage />
+ */
 export default function GeneratePage() {
   const { repos, loadingRepos, selectedRepoId, setSelectedRepoId, selectedRepo } = useConnectedRepos();
 

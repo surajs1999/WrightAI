@@ -12,6 +12,14 @@ interface CoverageData {
   by_folder: Record<string, number>;
 }
 
+/**
+ * Renders the main dashboard home page component with repository management, GitHub integration, and code coverage visualization.
+ *
+ * A React functional component that provides a comprehensive dashboard interface for managing connected repositories, viewing documentation coverage metrics, and integrating with GitHub. It handles repository connection/disconnection, displays coverage statistics by folder, and provides authentication flows for GitHub integration. The component fetches and displays real-time coverage data, manages repository selection, and handles various UI states including loading, errors, and empty states.
+ * @returns {JSX.Element} A JSX element containing the complete dashboard UI with repository connection controls, metric cards, coverage visualizations, and activity feed.
+ * @example
+ * <DashboardHome />
+ */
 export default function DashboardHome() {
   const searchParams = useSearchParams();
   const [coverage, setCoverage] = useState<CoverageData | null>(null);

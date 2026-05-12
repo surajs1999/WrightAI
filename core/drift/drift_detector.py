@@ -20,6 +20,24 @@ class DriftResult:
 
 
 def _signature_str(func: ParsedFunction) -> str:
+    """
+    Generates a string representation of a function signature including parameters, types, and return annotation.
+
+    Constructs a human-readable function signature string from a ParsedFunction object, including async prefix if applicable, parameter names with type annotations, and return type annotation. The format follows Python function signature syntax.
+
+    Args:
+        func (ParsedFunction): A parsed function object containing metadata including name, parameters, return type, and async status.
+
+    Returns:
+        str: A formatted string representing the function signature in the format '[async ]function_name(param1: type1, param2: type2)[-> return_type]'.
+
+    Example:
+        ```
+        signature = _signature_str(parsed_func)  # Returns 'async fetch_data(url: str, timeout: int) -> dict'
+        ```
+
+    Complexity: O(n) time where n is the number of parameters, O(n) space for string concatenation
+    """
     params = ", ".join(f"{p['name']}: {p.get('type_annotation', '')}" for p in func.parameters)
     async_prefix = "async " if func.is_async else ""
     ret = f" -> {func.return_type}" if func.return_type else ""

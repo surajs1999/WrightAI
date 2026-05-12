@@ -23,10 +23,30 @@ const selectStyle: React.CSSProperties = {
   padding: "6px 12px", outline: "none", cursor: "pointer",
 };
 
+/**
+ * Generates a storage key string for a chat session associated with a specific repository.
+ *
+ * Creates a prefixed storage key by concatenating 'wright_chat_' with the provided repository ID, typically used for localStorage or sessionStorage operations in the ChatPage component.
+ *
+ * @param {string} repoId - The unique identifier of the repository for which to generate the storage key.
+ * @returns {string} A formatted storage key string in the format 'wright_chat_{repoId}'.
+ * @example
+ * const key = STORAGE_KEY('repo-123'); // Returns: 'wright_chat_repo-123'
+ */
 const STORAGE_KEY = (repoId: string) => `wright_chat_${repoId}`;
 const MAX_HISTORY = 20;
 
 // Renders markdown-like text with code block support
+/**
+ * Renders formatted message content with support for code blocks and inline code formatting.
+ *
+ * Parses text containing markdown-style code blocks (triple backticks) and inline code (single backticks), rendering code blocks with syntax highlighting, language labels, and copy buttons, while preserving whitespace and formatting for regular text.
+ *
+ * @param {string} text - The message text content to parse and render, which may contain markdown-style code blocks (```lang\ncode\n```) and inline code (`code`).
+ * @returns {JSX.Element} A React fragment containing the formatted message content with rendered code blocks (including language label and copy button) and inline code elements.
+ * @example
+ * <MessageContent text="Here is some code:\n```javascript\nconst x = 5;\n```\nAnd inline `code` too." />
+ */
 function MessageContent({ text }: { text: string }) {
   const parts = text.split(/(```[\s\S]*?```)/g);
   return (
@@ -75,6 +95,14 @@ function MessageContent({ text }: { text: string }) {
   );
 }
 
+/**
+ * Renders a chat interface that allows users to ask questions about a selected connected repository and view streaming responses with citations and follow-up suggestions.
+ *
+ * This React component provides a complete chat interface for interacting with a codebase. It manages message history persistence in localStorage per repository, handles real-time streaming responses from the chat API, displays user and assistant messages with citations to relevant files, and supports follow-up question suggestions. The component loads and persists conversation history when the selected repository changes, streams token-by-token responses from the backend, and auto-scrolls to the latest message.
+ * @returns {JSX.Element} A React component containing the chat interface with repository selector, message history, input textarea, and control buttons.
+ * @example
+ * <ChatPage />
+ */
 export default function ChatPage() {
   const { repos, loadingRepos, selectedRepoId, setSelectedRepoId, selectedRepo } = useConnectedRepos();
   const [messages, setMessages] = useState<Message[]>([]);

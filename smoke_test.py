@@ -33,27 +33,27 @@ def check(
     expect: int = 200,
     skip_on_auth: bool = False,
 ):
-"""
-Performs an HTTP request to a specified endpoint and records the result with a label.
+    """
+    Performs an HTTP request to test an API endpoint and appends the result to a global results list.
 
-Makes an HTTP request using the specified method and path, optionally sending a JSON body. The function validates the response status code against an expected value and appends the result (label, success status, and optional detail) to a global results list. Can optionally skip recording if authentication fails.
+    Makes an HTTP request using the specified method and path, validates the response status code against the expected value, and stores the test result (label, success status, and optional error detail) in a global results list. Optionally skips authentication-related failures.
 
-Args:
-    label (str): A descriptive label identifying this test or check.
-    method (str): The HTTP method to use (e.g., 'GET', 'POST', 'PUT', 'DELETE').
-    path (str): The URL path to append to BASE_URL for the request.
-    body (dict | None): Optional JSON body to send with the request. Defaults to None.
-    expect (int): Expected HTTP status code for a successful request. Defaults to 200.
-    skip_on_auth (bool): If True, skips recording the result when a 401 status is received. Defaults to False.
+    Args:
+        label (str): Descriptive label for this test case, used to identify the result.
+        method (str): HTTP method to use for the request (e.g., 'GET', 'POST', 'PUT', 'DELETE').
+        path (str): API endpoint path to append to the base URL.
+        body (dict | None): Optional JSON body to send with the request. Defaults to None.
+        expect (int): Expected HTTP status code for a successful test. Defaults to 200.
+        skip_on_auth (bool): If True, skips the test and marks it as skipped when a 401 status is received. Defaults to False.
 
-Returns:
-    None: This function does not return a value; it appends results to a global results list.
+    Returns:
+        None: No value is returned; results are appended to a global results list.
 
-Example:
-    ```
-    check('User login', 'POST', '/api/auth/login', body={'username': 'admin', 'password': 'secret'}, expect=200)
-    ```
-"""
+    Example:
+        ```
+        check('Get users endpoint', 'GET', '/api/users', expect=200)
+        ```
+    """
     url = f"{BASE_URL}{path}"
     try:
         r = httpx.request(method, url, headers=HEADERS, json=body, timeout=15)

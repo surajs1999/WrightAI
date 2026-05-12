@@ -7,6 +7,16 @@ import { motion, AnimatePresence } from "framer-motion";
 const TABS = ["Overview", "Generate", "Coverage", "Drift", "Chat", "API Keys"] as const;
 type Tab = (typeof TABS)[number];
 
+/**
+ * Renders an animated horizontal progress bar with a percentage value that changes color based on thresholds.
+ *
+ * A React component that displays a percentage-based progress bar with color-coded visual feedback (red for <50%, orange for 50-79%, green for 80%+). The bar animates from 0 to the specified percentage over 0.7 seconds using an ease-out transition. The component includes both a filled bar with a glow effect and a right-aligned percentage label.
+ *
+ * @param {number} v - The percentage value to display (0-100), which determines both the bar width and color.
+ * @returns {JSX.Element} A JSX element containing a flex container with an animated progress bar and percentage label.
+ * @example
+ * <Bar v={75} />
+ */
 function Bar({ v }: { v: number }) {
   const color = v >= 80 ? "#1D9E75" : v >= 50 ? "#EF9F27" : "#E24B4A";
   return (
@@ -24,6 +34,19 @@ function Bar({ v }: { v: number }) {
   );
 }
 
+/**
+ * Renders a styled statistics card component with a label, value, color accent, and optional subtitle.
+ *
+ * A React functional component that displays a statistic in a dark, bordered card with a gradient top border accent. The card includes a label in uppercase monospace font, a large value in heading font with custom color, and an optional subtitle in muted monospace font.
+ *
+ * @param {string} label - The uppercase label text displayed at the top of the card in monospace font
+ * @param {string} value - The main statistic value displayed prominently in large heading font with the specified color
+ * @param {string} color - The CSS color value used for the value text and the gradient top border accent
+ * @param {string | undefined} sub - Optional subtitle text displayed below the value in muted monospace font
+ * @returns {JSX.Element} A JSX element representing a styled div container with nested divs for the gradient border, label, value, and optional subtitle
+ * @example
+ * <StatCard label="Total Users" value="1,234" color="#8B5CF6" sub="+12% from last month" />
+ */
 function StatCard({ label, value, color, sub }: { label: string; value: string; color: string; sub?: string }) {
   return (
     <div style={{
@@ -358,6 +381,14 @@ const CONTENT: Record<Tab, React.ReactNode> = {
   ),
 };
 
+/**
+ * Renders an interactive dashboard preview section with animated content tabs, decorative background effects, and a call-to-action button.
+ *
+ * A React functional component that displays a preview of the WrightAI dashboard interface. It manages tab navigation state, renders a mock browser window with chrome controls, includes a sidebar navigation menu, and displays tab-specific content with animations. The component features decorative background elements including grid lines, gradient orbs, and concentric rings for visual enhancement.
+ * @returns {JSX.Element} A section element containing the complete dashboard preview UI with animated transitions, navigation sidebar, content area, and call-to-action button.
+ * @example
+ * <DashboardPreview />
+ */
 export default function DashboardPreview() {
   const [active, setActive] = useState<Tab>("Overview");
 

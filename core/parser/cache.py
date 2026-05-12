@@ -9,6 +9,24 @@ from core.parser.tree_sitter_parser import ParsedFile, ParsedFunction, ParsedCla
 
 
 def _serialize_parsed_file(pf: ParsedFile) -> str:
+    """
+    Serializes a ParsedFile object into a JSON string representation.
+
+    Converts a ParsedFile object and all its nested structures (functions, classes, methods) into a dictionary format, then serializes it to a JSON string. The function handles the conversion of ParsedFunction and ParsedClass objects by extracting their attributes into dictionary representations.
+
+    Args:
+        pf (ParsedFile): The parsed file object containing functions, classes, imports, and metadata to be serialized.
+
+    Returns:
+        str: A JSON-formatted string containing the serialized representation of the parsed file, including its path, language, functions, classes, imports, and last modified timestamp.
+
+    Example:
+        ```
+        json_str = _serialize_parsed_file(parsed_file)
+        ```
+
+    Complexity: O(n) time where n is the total number of functions and methods across all classes, O(n) space for the constructed dictionary
+    """
     def _func_to_dict(f: ParsedFunction) -> dict:
         return {
             "name": f.name,
@@ -21,6 +39,28 @@ def _serialize_parsed_file(pf: ParsedFile) -> str:
             "source": f.source,
             "existing_docstring": f.existing_docstring,
             "parameters": f.parameters,
+            """
+            Deserializes a JSON string into a ParsedFile object with nested functions and classes.
+
+            Parses a JSON-encoded string representation of a parsed source file and reconstructs the complete ParsedFile object hierarchy, including all nested ParsedFunction objects (as standalone functions or class methods) and ParsedClass objects. Helper functions convert dictionaries to their respective typed objects.
+
+            Args:
+                raw (str): JSON-encoded string containing serialized ParsedFile data with functions, classes, and metadata.
+
+            Returns:
+                ParsedFile: A fully reconstructed ParsedFile object containing the file path, language, functions, classes, imports, and last modified timestamp.
+
+            Raises:
+                json.JSONDecodeError: When the input string is not valid JSON.
+                KeyError: When required fields are missing from the JSON structure.
+
+            Example:
+                ```
+                parsed_file = _deserialize_parsed_file('{"path": "app.py", "language": "python", "functions": [], "classes": []}')
+                ```
+
+            Complexity: O(n) time where n is the total number of functions and classes in the file, O(n) space for constructing the object hierarchy
+            """
             "return_type": f.return_type,
             "is_async": f.is_async,
             "decorators": f.decorators,
@@ -52,6 +92,28 @@ def _serialize_parsed_file(pf: ParsedFile) -> str:
 
 
 def _deserialize_parsed_file(raw: str) -> ParsedFile:
+    """
+    Deserializes a JSON string into a ParsedFile object with nested functions and classes.
+
+    Converts a JSON-serialized representation of parsed source code back into structured ParsedFile, ParsedFunction, and ParsedClass objects. Uses nested helper functions to reconstruct the object hierarchy from dictionaries.
+
+    Args:
+        raw (str): JSON string containing serialized ParsedFile data with functions, classes, and metadata.
+
+    Returns:
+        ParsedFile: A ParsedFile object reconstructed from the JSON data, containing parsed functions, classes, imports, and file metadata.
+
+    Raises:
+        json.JSONDecodeError: When the raw string is not valid JSON.
+        KeyError: When required keys are missing from the JSON structure.
+
+    Example:
+        ```
+        parsed_file = _deserialize_parsed_file('{"path": "example.py", "language": "python", "functions": [], "classes": []}')
+        ```
+
+    Complexity: O(n + m) time where n is the number of functions and m is the total number of methods across all classes, O(n + m) space
+    """
     data = json.loads(raw)
 
     def _dict_to_func(d: dict) -> ParsedFunction:

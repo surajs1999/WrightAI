@@ -169,6 +169,16 @@ const TABS = [
   },
 ];
 
+/**
+ * Renders a code mockup component displaying multiple lines of code with optional styling for warnings, CI blocks, additions, and removals.
+ *
+ * A React functional component that takes an array of line objects and renders them as a styled code display. Each line can represent normal code, warnings (yellow-styled), CI blocks (red-styled), or code changes (additions/removals with green/red backgrounds). Line numbers are displayed in a gutter on the left, and various visual indicators help distinguish different line types.
+ *
+ * @param {any[]} lines - Array of line objects where each object can contain properties: n (line number), text (line content), warn (warning message), ciblock (CI block message), added (boolean for added lines), removed (boolean for removed lines), color (text color), and italic (boolean for italic styling).
+ * @returns {JSX.Element} A React element representing the rendered code mockup with styled line numbers and content.
+ * @example
+ * <CodeMockup lines={[{ n: 1, text: 'const foo = "bar";' }, { n: 2, text: 'console.log(foo);', added: true }, { warn: 'Deprecated API usage' }]} />
+ */
 function CodeMockup({ lines }: { lines: any[] }) {
   return (
     <div style={{ display: "flex", flexDirection: "column" }}>
@@ -239,6 +249,16 @@ function CodeMockup({ lines }: { lines: any[] }) {
   );
 }
 
+/**
+ * Renders a styled mockup container displaying different UI states (code, coverage, chat, MCP logs, or llms.txt) based on the provided tab configuration.
+ *
+ * A React component that creates a terminal-like window with a title bar and dynamic content area. The content can display code snippets, documentation coverage bars with animations, chat interfaces, MCP server logs, or llms.txt documentation index based on the mockup properties defined in the tab object. The component uses inline styles to create a dark-themed interface with custom colors and shadows.
+ *
+ * @param {(typeof TABS)[number]} tab - Tab configuration object containing a mockup property that defines the content and appearance of the mockup (title, command, lines, bars, chat, mcp, or llmstxt).
+ * @returns {JSX.Element} A React component rendering a styled div container with a title bar, optional terminal prompt, and dynamic content based on the mockup configuration.
+ * @example
+ * <Mockup tab={{ mockup: { title: 'example.ts', cmd: 'npm run dev', lines: [...] } }} />
+ */
 function Mockup({ tab }: { tab: (typeof TABS)[number] }) {
   const m = tab.mockup as any;
 
@@ -415,6 +435,14 @@ function Mockup({ tab }: { tab: (typeof TABS)[number] }) {
   );
 }
 
+/**
+ * Renders an interactive feature showcase section with tabbed navigation, animated transitions, and decorative background elements.
+ *
+ * A React component that displays a features section with multiple tabs (defined in TABS constant). Users can switch between features by clicking or hovering over tab buttons. Each feature displays an animated mockup on the left and descriptive content (eyebrow, headline, description, bullet points, and statistics) on the right. The component includes decorative background elements such as grid lines, blurred orbs, and concentric rings for visual enhancement.
+ * @returns {JSX.Element} A section element containing the complete feature showcase UI with background decorations, tab navigation, feature mockup, and feature details.
+ * @example
+ * <FeatureScroll />
+ */
 export default function FeatureScroll() {
   const [active, setActive] = useState(0);
 

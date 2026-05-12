@@ -41,6 +41,28 @@ class JobStatusResponse(BaseModel):
 
 @router.post("", response_model=GenerateResponse)
 async def generate_docstring(request: GenerateRequest) -> GenerateResponse:
+    """
+    Generates a docstring for a specified function in a Python file using AI and contextual code analysis.
+
+    This endpoint accepts a request to generate documentation for a Python function. It supports both batch processing (via Celery task queue) and synchronous generation. For synchronous requests, it parses the target file, retrieves relevant context using hybrid retrieval (embeddings + dependency graph), generates a docstring using an LLM gateway, and returns a preview of the injected documentation. Handles both file paths and raw code snippets by creating temporary files when needed.
+
+    Args:
+        request (GenerateRequest): Request object containing file_path, optional function_name, repo_root, style preferences, batch flag, optional snippet, and dry_run flag.
+
+    Returns:
+        GenerateResponse: Response object containing success status, function name, docstring preview, injection line number, any error message, and optional job_id for batch requests.
+
+    Raises:
+        HTTPException: When file_path is a directory (status 400).
+        HTTPException: When file parsing fails (status 400).
+        HTTPException: When the specified function_name is not found in the file (status 404).
+        HTTPException: When no functions are found in the file (status 400).
+
+    Example:
+        ```
+        response = await generate_docstring(GenerateRequest(file_path='core/parser.py', function_name='parse_file', repo_root='/project', style='google', batch=False))
+        ```
+    """
     if request.batch:
         from api.tasks.generation_tasks import generate_file_docs
 
@@ -146,6 +168,24 @@ async def generate_docstring(request: GenerateRequest) -> GenerateResponse:
 
 @router.get("/status/{job_id}", response_model=JobStatusResponse)
 async def get_job_status(job_id: str) -> JobStatusResponse:
+    """
+    Retrieves the status, progress, result, and error information for a Celery background job.
+
+    Queries the Celery task result backend using the provided job ID to determine the current state of an asynchronous task. Maps Celery status values to a standardized response format, calculating progress percentages for running tasks and extracting results or error messages for completed tasks.
+
+    Args:
+        job_id (str): The unique identifier of the Celery task to query.
+
+    Returns:
+        JobStatusResponse: A response object containing the job ID, normalized status ('pending', 'started', 'success', 'failure', etc.), optional progress value (0.0 to 1.0), task result if successful, and error message if failed.
+
+    Example:
+        ```
+        status = await get_job_status('a1b2c3d4-e5f6-7890-abcd-ef1234567890')
+        ```
+
+    Complexity: O(1) time - single lookup in Celery result backend
+    """
     from api.tasks.celery_app import celery_app
     from celery.result import AsyncResult
 

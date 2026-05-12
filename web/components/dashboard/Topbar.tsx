@@ -18,6 +18,17 @@ const PAGE_TITLES: Record<string, string> = {
   "/dashboard/help": "Need Help?",
 };
 
+/**
+ * Renders a sticky top navigation bar component for the dashboard with page title, user avatar dropdown menu, and mobile hamburger button.
+ *
+ * The Topbar component displays the current page title based on the pathname, a clickable user avatar with initials that toggles a dropdown menu containing navigation links (Settings, API Keys, Help) and a sign-out option, and a hamburger menu button for mobile navigation. The dropdown menu automatically closes when clicking outside of it using a ref-based click-outside handler.
+ *
+ * @param {string} userInitials - The user's initials to display in the avatar circle, defaults to 'U' if not provided. Only the first two characters are shown in uppercase.
+ * @param {() => void} onMenuClick - Optional callback function triggered when the hamburger menu button is clicked, typically used to toggle the mobile sidebar navigation.
+ * @returns {JSX.Element} A React header element containing the navigation bar with title, hamburger button, user avatar, and dropdown menu.
+ * @example
+ * <Topbar userInitials="JS" onMenuClick={() => setSidebarOpen(true)} />
+ */
 export default function Topbar({
   userInitials = "U",
   onMenuClick,

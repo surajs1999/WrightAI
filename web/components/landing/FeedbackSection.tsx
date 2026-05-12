@@ -67,6 +67,14 @@ const TESTIMONIALS = [
   },
 ];
 
+/**
+ * Renders a row of five amber-colored star icons for displaying a 5-star rating.
+ *
+ * A React functional component that creates a flexbox container with five identical SVG star icons, styled with a gap of 3px between each star and a bottom margin of 14px. The stars are filled with the color #F59E0B (amber).
+ * @returns {JSX.Element} A div element containing five SVG star icons arranged horizontally.
+ * @example
+ * <Stars />
+ */
 const Stars = () => (
   <div style={{ display: "flex", gap: 3, marginBottom: 14 }}>
     {[...Array(5)].map((_, i) => (
@@ -77,6 +85,17 @@ const Stars = () => (
   </div>
 );
 
+/**
+ * Renders an animated testimonial card component with hover effects, displaying a customer quote, star rating, and author information.
+ *
+ * A React functional component that creates a motion-animated card displaying testimonial content. The card features a staggered entrance animation based on its index, hover lift effect, themed accent colors, and includes a star rating, quote text, and author details with avatar initials. Uses Framer Motion for animations and inline styles for visual presentation.
+ *
+ * @param {typeof TESTIMONIALS[number]} t - Testimonial object containing quote, name, role, company, initials, accent color, and accentBg properties for rendering the card content and styling.
+ * @param {number} index - Zero-based position index used to calculate the staggered animation delay (delay = index * 0.08 seconds).
+ * @returns {JSX.Element} A motion.div element containing the fully styled and animated testimonial card with quote, stars, and author information.
+ * @example
+ * <TestimonialCard t={TESTIMONIALS[0]} index={0} />
+ */
 function TestimonialCard({ t, index }: { t: typeof TESTIMONIALS[number]; index: number }) {
   return (
     <motion.div
@@ -142,6 +161,14 @@ function TestimonialCard({ t, index }: { t: typeof TESTIMONIALS[number]; index: 
   );
 }
 
+/**
+ * Renders a feedback section component that displays testimonials and provides a form for users to submit feedback messages with optional email.
+ *
+ * This React component manages state for a feedback form including input text, email, loading status, and submission confirmation. It submits feedback to a Supabase database when configured, otherwise logs to console. The component features animated testimonial cards, decorative background elements (gradient orbs, dot grid, sparkles), and a styled feedback input area with keyboard shortcut support (Cmd/Ctrl + Enter to submit).
+ * @returns {JSX.Element} A complete feedback section including background decorations, testimonial grid, and an interactive feedback form with email input and submit button.
+ * @example
+ * <FeedbackSection />
+ */
 export default function FeedbackSection() {
   const [input, setInput] = useState("");
   const [email, setEmail] = useState("");

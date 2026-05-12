@@ -2,6 +2,32 @@
  * Converts raw API/network errors into user-friendly messages.
  * Never expose status codes, stack traces, or backend implementation details.
  */
+/**
+ * Converts an unknown error into a user-friendly message by pattern-matching common error types.
+ *
+ * @param err - The error to convert, which can be an Error object, string, or any other type.
+ * @returns A user-friendly error message describing the issue and suggesting remediation steps.
+ */
+/**
+ * Converts an unknown error into a user-friendly error message by pattern-matching common error types.
+ *
+ * Examines the error message or string representation of an error and returns a human-readable message tailored to specific error conditions such as authentication failures, network errors, rate limiting, server errors, resource not found, injection point issues, and workspace problems. Falls back to a generic error message if no specific pattern is matched.
+ *
+ * @param {unknown} err - The error to convert, which can be an Error instance, string, or any other type.
+ * @returns {string} A user-friendly error message describing the issue and suggesting how to resolve it.
+ * @example
+ * const message = friendlyError(new Error('401 Unauthorized')); // Returns: "Invalid or missing API key. Open Settings and update Wright: Api Key."
+ */
+/**
+ * Converts an unknown error into a user-friendly error message with contextual guidance based on error patterns.
+ *
+ * Analyzes the error message or string representation and matches it against common error patterns (authentication, rate limiting, server errors, network issues, etc.) to return a helpful, actionable message for the user. Falls back to a generic message if no pattern matches.
+ *
+ * @param {unknown} err - The error object or value to convert into a friendly message. Can be an Error instance, string, or any other type.
+ * @returns {string} A user-friendly error message with contextual guidance based on the error type detected.
+ * @example
+ * const message = friendlyError(new Error('401 Unauthorized')); // Returns: "Invalid or missing API key. Open Settings and update Wright: Api Key."
+ */
 export function friendlyError(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err);
 
@@ -30,7 +56,27 @@ export function friendlyError(err: unknown): string {
 }
 
 /** Sanitises backend error strings returned in API response bodies. */
-export function friendlyApiError(apiError: string | null | undefined): string {
+export /**
+ * Converts an API error string into a user-friendly error message based on pattern matching.
+ *
+ * Analyzes the provided API error string using regular expression patterns to identify common error categories (injection point errors, parse/syntax errors, authentication errors) and returns an appropriate human-readable message for each category. Returns a generic error message for null, undefined, or unrecognized error strings.
+ *
+ * @param {string | null | undefined} apiError - The raw API error message to convert into a user-friendly format.
+ * @returns {string} A user-friendly error message that corresponds to the identified error category or a generic fallback message.
+ * @example
+ * friendlyApiError("injection point not found") // Returns: "Couldn't locate this function. Place your cursor inside the function and try again."
+ */
+/**
+ * Converts a raw API error message into a user-friendly error message.
+ *
+ * Analyzes the API error string using pattern matching to identify specific error types (injection point errors, parsing errors, authentication errors) and returns an appropriate user-friendly message for each case.
+ *
+ * @param {string | null | undefined} apiError - The raw error message from the API, or null/undefined if no error message is available.
+ * @returns {string} A user-friendly error message appropriate for the type of error detected, or a generic error message if the error type cannot be determined.
+ * @example
+ * const message = friendlyApiError('injection point not found'); // Returns: "Couldn't locate this function. Place your cursor inside the function and try again."
+ */
+function friendlyApiError(apiError: string | null | undefined): string {
   if (!apiError) return "Something went wrong. Please try again.";
   if (/injection point|inject/i.test(apiError)) {
     return "Couldn't locate this function. Place your cursor inside the function and try again.";

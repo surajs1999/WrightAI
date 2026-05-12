@@ -27,7 +27,40 @@ app = typer.Typer(name="wright", help="AI-powered code documentation", add_compl
 console = Console()
 
 
+def _resolve_workspace(path: str) -> str:
+    """Walk up from path to find the directory containing .wright.json."""
+    start = os.path.abspath(path)
+    check = start if os.path.isdir(start) else os.path.dirname(start)
+    while True:
+        if os.path.isfile(os.path.join(check, ".wright.json")):
+            return check
+        parent = os.path.dirname(check)
+        if parent == check:
+            break
+        check = parent
+    return start
+
+
 def _require_env(key: str) -> str:
+    """
+    Retrieves a required environment variable value or exits the application if it is not set.
+
+    This function attempts to read an environment variable by key. If the variable is not set or empty, it prints a red error message to the console instructing the user to add it to their .env file and exits the application with code 1.
+
+    Args:
+        key (str): The name of the environment variable to retrieve.
+
+    Returns:
+        str: The value of the environment variable.
+
+    Raises:
+        typer.Exit: When the environment variable is not set or is empty.
+
+    Example:
+        ```
+        api_key = _require_env('OPENAI_API_KEY')
+        ```
+    """
     val = os.getenv(key)
     if not val:
         console.print(f"[red]Error: {key} is not set. Add it to your .env file.[/red]")
@@ -36,6 +69,22 @@ def _require_env(key: str) -> str:
 
 
 def _build_gateway() -> "LLMGateway":
+    """
+    Builds and returns an LLMGateway instance configured with API keys from environment variables.
+
+    Creates an LLMGateway object by reading the Anthropic API key (required) and OpenAI API key (optional) from environment variables. The Anthropic key must be present or an exception will be raised.
+
+    Returns:
+        LLMGateway: A configured LLMGateway instance with Anthropic and OpenAI API keys.
+
+    Raises:
+        KeyError: When the ANTHROPIC_API_KEY environment variable is not set.
+
+    Example:
+        ```
+        gateway = _build_gateway()
+        ```
+    """
     from core.llm.gateway import LLMGateway
 
     return LLMGateway(
@@ -45,6 +94,19 @@ def _build_gateway() -> "LLMGateway":
 
 
 def _build_embedder() -> "VoyageEmbedder":
+    """
+    Builds and returns a VoyageEmbedder instance configured with the API key from environment variables.
+
+    Creates a VoyageEmbedder object by retrieving the VOYAGE_API_KEY from the environment. If the environment variable is not set, an empty string is used as the API key.
+
+    Returns:
+        VoyageEmbedder: A configured VoyageEmbedder instance initialized with the API key from the VOYAGE_API_KEY environment variable.
+
+    Example:
+        ```
+        embedder = _build_embedder()
+        ```
+    """
     from core.embeddings.voyage_embeddings import VoyageEmbedder
 
     voyage_key = os.getenv("VOYAGE_API_KEY", "")
@@ -52,6 +114,25 @@ def _build_embedder() -> "VoyageEmbedder":
 
 
 def _get_cache(repo_root: str) -> "ASTCache":
+    """
+    Retrieves or initializes an ASTCache instance for the specified repository root.
+
+    Creates an ASTCache instance using a cache database path determined by the SQLITE_CACHE_PATH environment variable or a default path within the .wright directory. Ensures the cache directory exists before instantiating the cache.
+
+    Args:
+        repo_root (str): The root directory path of the repository where the cache should be stored.
+
+    Returns:
+        ASTCache: An initialized ASTCache instance configured with the determined cache database path.
+
+    Raises:
+        OSError: When the cache directory cannot be created due to permission issues or invalid path.
+
+    Example:
+        ```
+        cache = _get_cache('/path/to/repo')
+        ```
+    """
     from core.parser.cache import ASTCache
 
     cache_path = os.getenv("SQLITE_CACHE_PATH", os.path.join(repo_root, ".wright", "ast_cache.db"))
@@ -60,6 +141,22 @@ def _get_cache(repo_root: str) -> "ASTCache":
 
 
 def _get_chroma(repo_root: str) -> "ChromaStore":
+    """
+    Initializes and returns a ChromaStore instance for vector embeddings storage.
+
+    Creates a ChromaStore object using either the CHROMA_PATH environment variable or a default path within the repository's .wright directory. This function serves as a factory method for obtaining a configured ChromaStore instance.
+
+    Args:
+        repo_root (str): The root directory path of the repository where the Chroma database will be stored.
+
+    Returns:
+        ChromaStore: A configured ChromaStore instance with the persistence path set to either the environment variable CHROMA_PATH or the default .wright/chroma directory.
+
+    Example:
+        ```
+        chroma_store = _get_chroma('/path/to/repo')
+        ```
+    """
     from core.embeddings.chroma_store import ChromaStore
 
     chroma_path = os.getenv("CHROMA_PATH", os.path.join(repo_root, ".wright", "chroma"))
@@ -88,8 +185,9 @@ def init(repo: str = typer.Argument(".", help="Repository root")) -> None:
         parsed_files = parser.parse_directory(repo_path)
         progress.update(scan_task, completed=True, description=f"Found {len(parsed_files)} files")
 
-    total_funcs = sum(len(pf.functions) for pf in parsed_files)
-    documented = sum(1 for pf in parsed_files for f in pf.functions if f.existing_docstring)
+    named_funcs = [f for pf in parsed_files for f in pf.functions if f.name != "<anonymous>"]
+    total_funcs = len(named_funcs)
+    documented = sum(1 for f in named_funcs if f.existing_docstring)
     console.print("\n[bold]Scan results:[/bold]")
     console.print(f"  Files:     {len(parsed_files)}")
     console.print(f"  Functions: {total_funcs}")
@@ -126,14 +224,14 @@ def generate(
 ) -> None:
     """Generate docstrings for all undocumented functions."""
     from core.config import load_config
-    from core.llm.prompts import DocStyle
+    from core.llm.prompts import DocStyle, LANGUAGE_DEFAULT_STYLE
     from core.output.injector import DocstringInjector
     from core.parser.dep_graph import DependencyGraph
     from core.parser.tree_sitter_parser import CodeParser
     from core.retrieval.hybrid_retriever import HybridRetriever
 
     path_abs = os.path.abspath(path)
-    repo_root = path_abs if os.path.isdir(path_abs) else os.path.dirname(path_abs)
+    repo_root = _resolve_workspace(path_abs)
     config = load_config(repo_root)
     doc_style = DocStyle(style) if style else config.style
 
@@ -147,13 +245,13 @@ def generate(
     if os.path.isfile(path_abs):
         parsed_files = [parser.parse_file(path_abs)]
     else:
-        parsed_files = parser.parse_directory(path_abs, exclude=config.exclude)
+        parsed_files = parser.parse_directory(repo_root)
 
     dep_graph = DependencyGraph()
     dep_graph.build(parsed_files)
     retriever = HybridRetriever(chroma, dep_graph, embedder)
 
-    undoc_funcs = [(pf, f) for pf in parsed_files for f in pf.functions if not f.existing_docstring]
+    undoc_funcs = [(pf, f) for pf in parsed_files for f in pf.functions if not f.existing_docstring and f.name != "<anonymous>"]
 
     if not undoc_funcs:
         console.print("[green]All functions are already documented![/green]")
@@ -171,6 +269,17 @@ def generate(
     results_table.add_column("Status", style="green")
 
     async def _run() -> None:
+        # Fix 1: group by file so functions in the same file are injected serially.
+        # After each injection the file changes on disk; we re-parse before the next
+        # function in that file so byte offsets are always fresh.
+        # Different files are processed concurrently (semaphore=3).
+        from collections import defaultdict
+        by_file: dict[str, list] = defaultdict(list)
+        for _pf, f in undoc_funcs:
+            by_file[f.file_path].append(f)
+
+        sem = asyncio.Semaphore(3)
+
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
@@ -180,23 +289,46 @@ def generate(
         ) as progress:
             task = progress.add_task("Generating...", total=len(undoc_funcs))
 
-            for pf, func in undoc_funcs:
-                progress.update(task, description=f"[cyan]{func.name}[/cyan]")
-                try:
-                    context = retriever.retrieve_for_function(func)
-                    doc = await gateway.generate_docstring(func, context, doc_style)
-                    result = injector.inject(func.file_path, func, doc, doc_style, dry_run=dry_run)
-                    status = (
-                        "✓ preview"
-                        if dry_run
-                        else ("✓ injected" if result.success else f"✗ {result.error}")
-                    )
-                    results_table.add_row(func.name, os.path.basename(func.file_path), status)
-                except Exception as e:
-                    results_table.add_row(
-                        func.name, os.path.basename(func.file_path), f"[red]Error: {e}[/red]"
-                    )
-                progress.advance(task)
+            async def process_file(file_path: str, funcs: list) -> None:
+                async with sem:
+                    for func in funcs:
+                        try:
+                            # Re-parse to get fresh byte offsets before each injection
+                            # (previous injection shifted bytes for later functions).
+                            if not dry_run:
+                                fresh_parsed = parser.parse_file(file_path)
+                                func = next(
+                                    (f for f in fresh_parsed.functions if f.name == func.name),
+                                    func,
+                                )
+
+                            effective_style = (
+                                doc_style if style
+                                else LANGUAGE_DEFAULT_STYLE.get(func.language, doc_style)
+                            )
+                            context = retriever.retrieve_for_function(func)
+                            doc = await gateway.generate_docstring(func, context, effective_style)
+                            result = injector.inject(
+                                file_path, func, doc, effective_style, dry_run=dry_run
+                            )
+                            status = (
+                                "✓ preview"
+                                if dry_run
+                                else ("✓ injected" if result.success else f"✗ {result.error}")
+                            )
+                            results_table.add_row(
+                                func.name, os.path.basename(file_path), status
+                            )
+                        except Exception as e:
+                            results_table.add_row(
+                                func.name, os.path.basename(file_path), f"[red]Error: {e}[/red]"
+                            )
+                        finally:
+                            progress.advance(task)
+
+            await asyncio.gather(
+                *[process_file(fp, funcs) for fp, funcs in by_file.items()]
+            )
 
     asyncio.run(_run())
     console.print(results_table)
@@ -214,10 +346,10 @@ def coverage(
     from core.config import load_config
     from core.parser.tree_sitter_parser import CodeParser
 
-    path_abs = os.path.abspath(path)
+    path_abs = _resolve_workspace(os.path.abspath(path))
     config = load_config(path_abs)
     parser = CodeParser()
-    parsed_files = parser.parse_directory(path_abs, exclude=config.exclude)
+    parsed_files = parser.parse_directory(path_abs)
 
     total_funcs = 0
     documented_funcs = 0
@@ -226,6 +358,8 @@ def coverage(
     for pf in parsed_files:
         folder = os.path.dirname(pf.path)
         for func in pf.functions:
+            if func.name == "<anonymous>":
+                continue
             total_funcs += 1
             t, d = by_folder.get(folder, (0, 0))
             by_folder[folder] = (t + 1, d)
@@ -262,6 +396,7 @@ def coverage(
             "overall_pct": overall_pct,
             "total": total_funcs,
             "documented": documented_funcs,
+            "files": len(parsed_files),
             "by_folder": {k: {"total": v[0], "documented": v[1]} for k, v in by_folder.items()},
         }
         with open(output, "w") as f:
@@ -284,7 +419,7 @@ def drift(
     """Check for documentation drift since a git ref."""
     from core.drift.drift_detector import DriftDetector
 
-    path_abs = os.path.abspath(path)
+    path_abs = _resolve_workspace(os.path.abspath(path))
     cache = _get_cache(path_abs)
     detector = DriftDetector()
 
@@ -321,6 +456,23 @@ def drift(
 
 
 def _open_drift_pr(repo_root: str, drifted: list) -> None:
+    """
+    Attempts to open a GitHub pull request for drifted infrastructure resources, currently a placeholder feature.
+
+    Checks for the presence of a GITHUB_TOKEN environment variable and notifies the user that automatic PR creation functionality is not yet implemented. This function is intended to automate the process of creating pull requests when infrastructure drift is detected.
+
+    Args:
+        repo_root (str): The root directory path of the repository where the PR would be created.
+        drifted (list): A list of drifted resources or configurations that would be included in the PR description.
+
+    Returns:
+        None: This function does not return a value.
+
+    Example:
+        ```
+        _open_drift_pr('/path/to/repo', ['resource1', 'resource2'])
+        ```
+    """
     token = os.getenv("GITHUB_TOKEN")
     if not token:
         console.print("[red]GITHUB_TOKEN not set — cannot open PR[/red]")
@@ -335,7 +487,7 @@ def chat(path: str = typer.Argument(".", help="Repository root")) -> None:
     from core.parser.dep_graph import DependencyGraph
     from core.retrieval.hybrid_retriever import HybridRetriever
 
-    path_abs = os.path.abspath(path)
+    path_abs = _resolve_workspace(os.path.abspath(path))
     console.print(f"[bold green]Wright Codebase Chat[/bold green] — {path_abs}")
     console.print("Type your question, or 'exit' to quit.\n")
 
@@ -373,14 +525,14 @@ def llms_txt(path: str = typer.Argument(".", help="Repository root")) -> None:
     from core.output.llms_txt import LLMSTxtWriter
     from core.parser.tree_sitter_parser import CodeParser
 
-    path_abs = os.path.abspath(path)
+    path_abs = _resolve_workspace(os.path.abspath(path))
     config = load_config(path_abs)
     parser = CodeParser()
     gateway = _build_gateway()
 
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as progress:
         t = progress.add_task("Parsing repository...", total=None)
-        parsed_files = parser.parse_directory(path_abs, exclude=config.exclude)
+        parsed_files = parser.parse_directory(path_abs)
         progress.update(t, description="Generating llms.txt...")
         repo_name = os.path.basename(path_abs)
         writer = LLMSTxtWriter()

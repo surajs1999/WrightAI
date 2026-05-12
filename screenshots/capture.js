@@ -22,6 +22,17 @@ const VIEWPORTS = [
   { name: "mobile-390",   width: 390,  height: 844  },
 ];
 
+/**
+ * Captures full-page and per-section screenshots of a URL across multiple viewport configurations using Playwright Chromium browser.
+ *
+ * This asynchronous function orchestrates a screenshot capture workflow by launching a Chromium browser instance, iterating through predefined VIEWPORTS configurations, navigating to a specified URL, and capturing both full-page screenshots and individual section screenshots based on SECTIONS selectors. It handles output directory creation, waits for page animations to settle, and logs progress to console.
+ * @returns {Promise<void>} A promise that resolves when all screenshots have been captured and the browser has been closed.
+ * @throws {Error} When the browser fails to launch or navigate to the URL within the 30-second timeout.
+ * @throws {Error} When the output directory cannot be created due to permissions or filesystem issues.
+ * @throws {Error} When screenshot capture fails due to invalid file paths or disk space issues.
+ * @example
+ * await run();
+ */
 async function run() {
   const fs = require("fs");
   if (!fs.existsSync(OUT)) fs.mkdirSync(OUT, { recursive: true });

@@ -29,6 +29,24 @@ class CoverageResponse(BaseModel):
 async def get_coverage(
     repo_root: str = Query(..., description="Repository root path"),
 ) -> CoverageResponse:
+    """
+    Analyzes a repository to calculate documentation coverage statistics for all Python functions.
+
+    Parses all Python files in the specified repository root directory, excluding configured paths, and computes overall documentation coverage percentage, per-file coverage, per-folder coverage, and identifies all undocumented functions with their locations.
+
+    Args:
+        repo_root (str): Absolute or relative path to the repository root directory to analyze for documentation coverage.
+
+    Returns:
+        CoverageResponse: Coverage statistics including overall percentage, total and documented function counts, list of undocumented functions with file paths and line numbers, coverage percentages by file, and coverage percentages by folder.
+
+    Example:
+        ```
+        coverage = await get_coverage(repo_root="/path/to/my/project")
+        ```
+
+    Complexity: O(n*m) time where n is the number of files and m is the average number of functions per file, O(n*m) space for storing parsed function data
+    """
     from core.config import load_config
     from core.parser.tree_sitter_parser import CodeParser
 

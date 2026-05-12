@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
@@ -171,18 +172,28 @@ class LLMGateway:
                 }
             )
 
-        try:
-            response = await self._anthropic.messages.create(
-                model=self.PRIMARY_MODEL,
-                max_tokens=2048,
-                system=system,
-                messages=messages,
-            )
-            return response.content[0].text
-        except anthropic.APIError as e:
-            if self._openai:
-                return await self._call_openai_fallback(prompt, system)
-            raise RuntimeError(f"Anthropic API error: {e}") from e
+        # Retry with exponential backoff on rate limit (429) errors
+        for attempt in range(5):
+            try:
+                response = await self._anthropic.messages.create(
+                    model=self.PRIMARY_MODEL,
+                    max_tokens=2048,
+                    system=system,
+                    messages=messages,
+                )
+                return response.content[0].text
+            except anthropic.RateLimitError:
+                if attempt == 4:
+                    if self._openai:
+                        return await self._call_openai_fallback(prompt, system)
+                    raise
+                wait = 2 ** attempt  # 1s, 2s, 4s, 8s
+                await asyncio.sleep(wait)
+            except anthropic.APIError as e:
+                if self._openai:
+                    return await self._call_openai_fallback(prompt, system)
+                raise RuntimeError(f"Anthropic API error: {e}") from e
+        raise RuntimeError("Exhausted retries calling Anthropic API")
 
     async def _call_openai_fallback(self, prompt: str, system: str) -> str:
         if not self._openai:

@@ -54,6 +54,14 @@ const hintStyle: React.CSSProperties = {
   marginTop: 5,
 };
 
+/**
+ * Renders a help and support form component that allows users to submit bug reports, feature requests, or general questions with dynamic form fields based on the selected category.
+ *
+ * A React functional component that manages a multi-step support form with state for category selection (bug/feature/question), severity levels, subject, description, reproduction steps, affected features, and user email. The component automatically pre-fills the email from a cookie on mount, conditionally displays bug-specific fields (severity and steps to reproduce), handles form submission via POST to /api/support, and displays a success confirmation screen after submission. The form includes client-side validation, error handling, and a reset mechanism.
+ * @returns {JSX.Element} A React element containing either a success confirmation view or a two-column layout with a support form on the left and informational sidebar on the right, styled with inline CSS using CSS variables.
+ * @example
+ * <HelpPage />
+ */
 export default function HelpPage() {
   const [category, setCategory] = useState<Category>("bug");
   const [subject, setSubject] = useState("");

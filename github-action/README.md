@@ -1,4 +1,4 @@
-# Wright AI — GitHub Action
+# WrightAI — GitHub Action
 
 Automatically check documentation coverage, detect drift, and generate docstrings in CI.
 
@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: pytest tests/ --cov
 
-  # Wright in its own job — separate output, separate summary
+  # Wright in its own job — separate output, separate pass/fail
   docs:
     runs-on: ubuntu-latest
     steps:
@@ -26,7 +26,7 @@ jobs:
         with:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           mode: coverage
-          threshold: "0.7"
+          coverage-threshold: "0.7"
 ```
 
 > **Why a separate job?**
@@ -37,11 +37,11 @@ jobs:
 ## Inputs
 
 | Input | Required | Default | Description |
-|---|---|---|---|
+|-------|----------|---------|-------------|
 | `anthropic-api-key` | ✅ | — | Anthropic API key for doc generation |
 | `voyage-api-key` | No | `""` | Voyage AI key for embeddings (used in `generate` mode) |
 | `mode` | No | `coverage` | `coverage` · `generate` · `drift` |
-| `threshold` | No | `0.7` | Fail if documentation coverage drops below this (0.0–1.0) |
+| `coverage-threshold` | No | `0.7` | Fail if documentation coverage drops below this (0.0–1.0) |
 | `auto-pr` | No | `false` | Open a PR with generated docs (drift mode only) |
 | `path` | No | `.` | Path to scan (defaults to repo root) |
 
@@ -50,10 +50,10 @@ jobs:
 ## Outputs
 
 | Output | Description |
-|---|---|
-| `coverage-pct` | Documentation coverage percentage |
-| `drifted-functions` | Number of functions with stale docs |
-| `pr-url` | URL of the auto-opened PR (drift + auto-pr mode) |
+|--------|-------------|
+| `coverage-pct` | Documentation coverage percentage (e.g. `87.5`) |
+| `drifted-functions` | Number of functions with stale documentation |
+| `pr-url` | URL of the auto-opened PR (if `auto-pr` is `true` in drift mode) |
 
 ---
 
@@ -61,19 +61,19 @@ jobs:
 
 ### `coverage` — Enforce documentation coverage
 
-Scans your codebase and fails CI if documentation coverage drops below the threshold.
+Scans your codebase and fails CI if documentation coverage drops below the threshold. Writes a summary to the GitHub Actions job summary panel.
 
 ```yaml
 - uses: surajs1999/WrightAI@v1
   with:
     anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
     mode: coverage
-    threshold: "0.8"   # fail below 80%
+    coverage-threshold: "0.8"   # fail below 80%
 ```
 
 ### `generate` — Auto-generate missing docstrings
 
-Generates docstrings for all undocumented functions and commits them to the branch.
+Generates docstrings for all undocumented functions and commits them back to the branch. Uses language-native formats: JSDoc for JS/TS/Java, `//` comments for Go, `///` for Rust, and Google-style for Python by default.
 
 ```yaml
 - uses: surajs1999/WrightAI@v1
@@ -84,14 +84,14 @@ Generates docstrings for all undocumented functions and commits them to the bran
 
 ### `drift` — Detect stale documentation
 
-Checks if any function signatures have changed since their docstring was written.
+Checks if any function signatures or bodies have changed since their docstring was written. Optionally opens a pull request with AI-generated fixes.
 
 ```yaml
 - uses: surajs1999/WrightAI@v1
   with:
     anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
     mode: drift
-    auto-pr: "true"   # open a PR to fix drift automatically
+    auto-pr: "true"   # open a PR to fix stale docs automatically
 ```
 
 ---
@@ -117,7 +117,7 @@ jobs:
         with:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           mode: coverage
-          threshold: "0.7"
+          coverage-threshold: "0.7"
 
   docs-drift:
     name: Documentation Drift
@@ -134,13 +134,16 @@ jobs:
 
 ## GitHub Step Summary
 
-Wright writes a clean summary to GitHub's job summary panel. View it under **Actions → your workflow run → Summary**.
+Wright writes a clean summary to the GitHub Actions job summary panel. View it under **Actions → your workflow run → Summary**.
 
 ---
 
 ## Secrets
 
-Add your Anthropic API key to your repository:  
+Add your Anthropic API key to your repository:
 `Settings → Secrets and variables → Actions → New repository secret`
 
 Name: `ANTHROPIC_API_KEY`
+Value: your `sk-ant-...` key
+
+If you use `generate` mode, also add `VOYAGE_API_KEY` for the embedding store.

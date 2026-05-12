@@ -177,6 +177,24 @@ def _build_sig(func) -> str:
 
 
 def _relevant_decorators(decorators: list[str]) -> list[str]:
+    """
+    Filters a list of decorator strings to keep only those starting with signal decorator prefixes.
+
+    Iterates through the provided decorator strings, extracts the first line of each, and retains only those decorators whose first line starts with any of the predefined signal decorator prefixes from _SIGNAL_DECORATOR_PREFIXES.
+
+    Args:
+        decorators (list[str]): A list of decorator strings, potentially containing multiline decorator definitions.
+
+    Returns:
+        list[str]: A filtered list containing only the first lines of decorators that match signal decorator prefixes.
+
+    Example:
+        ```
+        filtered = _relevant_decorators(['@app.route("/api")', '@signal.emit("user_created")', '@other_decorator'])
+        ```
+
+    Complexity: O(n*m) time where n is the number of decorators and m is the number of signal decorator prefixes, O(k) space where k is the number of matching decorators
+    """
     kept = []
     for d in decorators:
         first_line = d.strip().split("\n")[0]
@@ -195,6 +213,27 @@ def _should_skip(func) -> bool:
 
 
 def _emit_func(lines: list[str], func, indent: str = "") -> None:
+    """
+    Generates an llms.txt file containing structured documentation of functions and classes from a repository.
+
+    Walks through a repository directory, parses all supported code files using tree-sitter, extracts functions and classes with their signatures and docstrings, and formats them into a markdown-style llms.txt document. The output includes metadata such as generation timestamp, file count, and function count, along with a token estimate for LLM context usage.
+
+    Args:
+        body (LlmsTxtRequest): Request object containing the repository root path to generate documentation from.
+
+    Returns:
+        dict: Dictionary containing 'content' (the generated llms.txt markdown string), 'file_count' (number of parsed files), 'function_count' (total functions and methods), and 'token_estimate' (estimated tokens for LLM context).
+
+    Raises:
+        HTTPException: When the repository path specified in body.repo_root does not exist (status_code=404).
+
+    Example:
+        ```
+        result = await generate_llms_txt(LlmsTxtRequest(repo_root='/path/to/repo'))
+        ```
+
+    Complexity: O(n*m) time where n is the number of files and m is average file size for parsing, O(n) space for storing parsed results
+    """
     if _should_skip(func):
         return
     sig = _build_sig(func)
@@ -217,6 +256,27 @@ def _emit_func(lines: list[str], func, indent: str = "") -> None:
 
 @router.post("")
 async def generate_llms_txt(body: LlmsTxtRequest) -> dict:
+    """
+    Generates an llms.txt documentation file for a given repository by parsing code files and extracting functions and classes.
+
+    Walks through the repository directory tree, parses supported code files using tree-sitter, extracts functions and classes with their signatures and docstrings, and formats them into a markdown-style llms.txt document. The output includes metadata such as file count, function count, and a token estimate for LLM context usage.
+
+    Args:
+        body (LlmsTxtRequest): Request object containing the repository root path to generate documentation for.
+
+    Returns:
+        dict: Dictionary containing 'content' (the generated llms.txt markdown string), 'file_count' (number of parsed files), 'function_count' (total number of functions and methods), and 'token_estimate' (estimated token count for LLM usage).
+
+    Raises:
+        HTTPException: When the repository path specified in body.repo_root does not exist on the server (status_code=404).
+
+    Example:
+        ```
+        result = await generate_llms_txt(LlmsTxtRequest(repo_root='/path/to/repo'))
+        ```
+
+    Complexity: O(n * m) time where n is the number of files and m is the average file size, O(n) space for storing parsed file results
+    """
     from core.parser.tree_sitter_parser import CodeParser
 
     repo_path = Path(body.repo_root)

@@ -5,6 +5,25 @@ interface MetricCardProps {
   trend?: { dir: "up" | "down"; text: string };
 }
 
+/**
+ * Renders a styled metric card component displaying a label, value, optional color, and optional trend indicator.
+ *
+ * A React functional component that creates a card UI element to display dashboard metrics. The card features a monospaced uppercase label, a large heading-style value, and an optional trend indicator with directional arrow and text. Styling uses CSS custom properties for theming.
+ *
+ * Args:
+ *     label (string): The metric label text displayed in uppercase monospace font at the top of the card.
+ *     value (string | number): The primary metric value displayed prominently in large font size.
+ *     color (string | undefined): Optional CSS color value for the metric value text. Defaults to 'var(--text)' if not provided.
+ *     trend ({ dir: 'up' | 'down', text: string } | undefined): Optional trend object containing direction ('up' or 'down') and descriptive text, displayed as a colored badge with an arrow indicator.
+ *
+ * Returns:
+ *     JSX.Element: A React JSX element representing the styled metric card.
+ *
+ * Example:
+ *     ```
+ *     <MetricCard label="Total Users" value="1,234" color="var(--blue)" trend={{ dir: 'up', text: '+12.5%' }} />
+ *     ```
+ */
 export default function MetricCard({ label, value, color, trend }: MetricCardProps) {
   return (
     <div

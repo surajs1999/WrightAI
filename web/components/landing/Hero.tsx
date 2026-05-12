@@ -37,6 +37,14 @@ const LINES: Line[] = [
   { text: "  Queryable by Claude Code, Cursor, Copilot", color: "#8884A8", delay: 6900 },
 ];
 
+/**
+ * Renders an animated terminal component that progressively displays lines with a typewriter effect and includes a macOS-style chrome bar.
+ *
+ * A React functional component that simulates a terminal interface with sequential line animation. It uses local state to track visible lines and completion status, scheduling timeouts based on each line's delay property from the LINES constant. The component displays a styled terminal window with window controls (red, yellow, green dots) and animates lines appearing one by one, finishing with a blinking cursor.
+ * @returns {JSX.Element} A JSX element representing a styled terminal window with animated text content and a chrome bar.
+ * @example
+ * <Terminal />
+ */
 function Terminal() {
   const [visible, setVisible] = useState<number[]>([]);
   const [done, setDone] = useState(false);
@@ -112,6 +120,14 @@ function Terminal() {
   );
 }
 
+/**
+ * Renders the hero section of the landing page with heading, description, call-to-action buttons, and statistics.
+ *
+ * A React functional component that displays the main hero banner featuring the Wright AI product value proposition, installation command with copy functionality, links to the dashboard and VS Code marketplace, and key statistics about language support and pricing. Includes a live MCP server badge, gradient heading, descriptive text, interactive buttons with hover effects, and a terminal component visualization.
+ * @returns {JSX.Element} A section element containing the hero banner with text content, action buttons, and statistics row.
+ * @example
+ * <Hero />
+ */
 export default function Hero() {
   const [copied, setCopied] = useState(false);
 

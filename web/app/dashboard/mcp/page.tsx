@@ -14,6 +14,18 @@ const TOOLS: { id: Tool; label: string; icon: string }[] = [
   { id: "windsurf", label: "Windsurf", icon: "〜" },
 ];
 
+/**
+ * Generates a JSON configuration string for integrating Wright MCP server with the specified development tool.
+ *
+ * Creates a tool-specific JSON configuration containing the Wright MCP server endpoint and authentication headers. Supports Claude, Cursor, Continue, and Windsurf tools, with Continue using a different experimental configuration structure while others share the same mcpServers format.
+ *
+ * @param {Tool} tool - The development tool to generate configuration for (claude, cursor, continue, or windsurf).
+ * @param {string} apiKey - The Wright API key for authentication. Defaults to 'YOUR_API_KEY' if empty or not provided.
+ * @param {string} repoPath - The local repository path to be sent in headers. Defaults to '/path/to/your/repo' if empty or not provided.
+ * @returns {string} A formatted JSON string (with 2-space indentation) containing the tool-specific MCP server configuration.
+ * @example
+ * const config = configFor('claude', 'wrt_abc123', '/home/user/my-project')
+ */
 function configFor(tool: Tool, apiKey: string, repoPath: string): string {
   const key = apiKey || "YOUR_API_KEY";
   const repo = repoPath || "/path/to/your/repo";
@@ -54,6 +66,16 @@ function configFor(tool: Tool, apiKey: string, repoPath: string): string {
   );
 }
 
+/**
+ * Returns the configuration file path for a specified MCP-compatible tool.
+ *
+ * Maps each supported tool (Claude, Cursor, Continue, Windsurf) to its corresponding MCP configuration file location in the user's home directory. The Claude path includes an alternative command-line usage hint.
+ *
+ * @param {Tool} tool - The tool identifier for which to retrieve the configuration path.
+ * @returns {string} The file system path to the tool's MCP configuration file, relative to the user's home directory.
+ * @example
+ * const path = configPath('claude'); // Returns: '~/.claude/mcp.json  (or use: claude mcp add)'
+ */
 function configPath(tool: Tool): string {
   const paths: Record<Tool, string> = {
     claude: "~/.claude/mcp.json  (or use: claude mcp add)",
@@ -64,6 +86,14 @@ function configPath(tool: Tool): string {
   return paths[tool];
 }
 
+/**
+ * Renders the MCP (Model Context Protocol) server configuration page that allows users to connect Wright AI to various AI-powered code editors like Claude Code, Cursor, and Continue.
+ *
+ * This React component provides a comprehensive interface for setting up MCP server integration. It manages API key retrieval and display, repository selection, tool-specific configuration generation, connection testing, and clipboard operations. The component fetches the user's API key on mount and refocus, displays server status, allows selection of a connected repository, provides tab-based navigation between different supported tools (Claude Code, Cursor, Continue, etc.), generates tool-specific configuration with pre-filled API key and repository path, and offers copy-to-clipboard functionality for server URL, API key, and configuration snippets.
+ * @returns {JSX.Element} A React component rendering the MCP server configuration interface with header section showing server status and test connection button, API URL and key display cards with copy functionality, repository selector dropdown (if repositories are available), tabbed interface for different tool setup guides, and code block displaying tool-specific configuration with copy button.
+ * @example
+ * <McpPage />
+ */
 export default function McpPage() {
   const { repos, selectedRepoId, setSelectedRepoId, selectedRepo } = useConnectedRepos();
   const [activeTool, setActiveTool] = useState<Tool>("claude");
@@ -276,6 +306,17 @@ export default function McpPage() {
   );
 }
 
+/**
+ * Renders a numbered step component with a circular badge and descriptive text.
+ *
+ * A React functional component that displays a step indicator consisting of a circular numbered badge with purple styling and an accompanying text label. The badge and text are arranged horizontally with flex layout.
+ *
+ * @param {number} n - The step number to display inside the circular badge.
+ * @param {string} text - The descriptive text to display next to the step number.
+ * @returns {JSX.Element} A React element containing a flex container with a numbered circular badge and text span.
+ * @example
+ * <Step n={1} text="Install the MCP server package" />
+ */
 function Step({ n, text }: { n: number; text: string }) {
   return (
     <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>

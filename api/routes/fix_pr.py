@@ -56,6 +56,26 @@ def _parse_github_owner_repo(remote_url: str) -> tuple[str, str]:
 
 
 def _get_default_branch(repo_path: Path, git_env: dict) -> str:
+    """
+    Retrieves the default branch name of a Git repository from the remote origin HEAD reference.
+
+    Attempts to determine the repository's default branch by querying the symbolic reference of refs/remotes/origin/HEAD using Git. If the query fails or returns a non-zero exit code, defaults to 'main' as the branch name.
+
+    Args:
+        repo_path (Path): The filesystem path to the Git repository.
+        git_env (dict): Environment variables dictionary to pass to the Git subprocess execution.
+
+    Returns:
+        str: The name of the default branch (e.g., 'main', 'master') extracted from the symbolic reference, or 'main' if the reference cannot be determined.
+
+    Raises:
+        subprocess.TimeoutExpired: When the Git command execution exceeds the 10-second timeout.
+
+    Example:
+        ```
+        branch = _get_default_branch(Path('/path/to/repo'), {'GIT_AUTHOR_NAME': 'Bot'})
+        ```
+    """
     result = subprocess.run(
         ["git", "-C", str(repo_path), "symbolic-ref", "refs/remotes/origin/HEAD"],
         capture_output=True,
@@ -70,6 +90,32 @@ def _get_default_branch(repo_path: Path, git_env: dict) -> str:
 
 @router.post("")
 async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
+    """
+    Generates docstrings for specified functions, commits them to a new Git branch, and creates a GitHub pull request.
+
+    This endpoint orchestrates the complete workflow of AI-powered documentation generation: it validates the repository, extracts GitHub credentials, creates a new branch, generates docstrings using LLM and retrieval-augmented generation for each specified function, injects them into the codebase, commits the changes, pushes the branch, and finally creates a pull request via the GitHub API.
+
+    Args:
+        body (FixAndPRRequest): Request body containing repo_root path, list of functions to document with their file paths and names, optional branch_name, pr_title, github_token, and documentation style preference.
+        request (Request): FastAPI Request object representing the incoming HTTP request.
+
+    Returns:
+        dict: Dictionary containing pr_url (the GitHub PR URL), pr_number (integer PR number), branch (branch name created), fixed (list of successfully documented function names), and errors (list of error messages for failed functions).
+
+    Raises:
+        HTTPException: When status_code=404 if the repository path does not exist on the server.
+        HTTPException: When status_code=400 if the GitHub owner/repo cannot be parsed from the remote URL.
+        HTTPException: When status_code=400 if no GitHub token is found or provided for PR creation.
+        HTTPException: When status_code=500 if Git branch creation fails.
+        HTTPException: When status_code=400 if no functions were successfully fixed and documented.
+        HTTPException: When status_code=500 if Git commit or push operations fail.
+        HTTPException: When status_code=500 if GitHub API pull request creation fails.
+
+    Example:
+        ```
+        result = await fix_and_pr(FixAndPRRequest(repo_root='/path/to/repo', functions=[FunctionRef(file_path='main.py', function_name='process_data')], style='google'), request)
+        ```
+    """
     from core.config import load_config
     from core.embeddings.chroma_store import ChromaStore
     from core.embeddings.voyage_embeddings import VoyageEmbedder

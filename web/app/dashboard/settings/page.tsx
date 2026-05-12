@@ -7,6 +7,14 @@ import { HelpCircle } from "lucide-react";
 const STYLES = ["google", "numpy", "jsdoc", "epytext", "rust"];
 const VERBOSITY = ["concise", "standard", "detailed"];
 
+/**
+ * Renders the settings page component with configuration options for documentation style, verbosity, examples, repository management, and account information.
+ *
+ * A React functional component that provides a user interface for managing application settings. The component displays a two-column layout with documentation style preferences (including style guide selection, verbosity level, and example inclusion toggle) and repository connections on the left, and account details with a help link on the right. On mount, it fetches the user's email from cookies and retrieves connected repositories from the API.
+ * @returns {JSX.Element} A React element containing the settings page UI with interactive controls for style, verbosity, examples toggle, repository list, account information, and a save button.
+ * @example
+ * <SettingsPage />
+ */
 export default function SettingsPage() {
   const [style, setStyle] = useState("google");
   const [verbosity, setVerbosity] = useState("standard");

@@ -41,43 +41,13 @@ DARK_SVG = MASTER_SVG.replace("#534AB7", "#26215C")
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def write_file(path: Path, data: bytes | str) -> None:
-"""
-Writes data to a file, handling both text and binary data appropriately.
-
-Writes the provided data to the specified file path. If the data is a string, it writes as UTF-8 encoded text. If the data is bytes, it writes as binary data.
-
-Args:
     """
-    Asserts that a PNG file exists at the specified path, is non-empty, has the expected dimensions, and is a valid image.
-
-    Performs a series of validation checks on a PNG file: verifies file existence and non-zero size, checks that the image dimensions match the expected size, and validates image integrity by opening and verifying the file. Raises AssertionError if any check fails.
+    Writes data to a file, handling both text and binary data appropriately.
 
     Args:
-        path (Path): The filesystem path to the PNG file to validate.
-        expected_size (tuple[int, int]): The expected image dimensions as (width, height) in pixels.
-
-    Returns:
-        None: This function returns nothing; it raises AssertionError if validation fails.
-
-    Raises:
-        AssertionError: When the file does not exist, is empty, has incorrect dimensions, or is not a valid PNG image.
-
-    Example:
-        ```
-        assert_png(Path('logo.png'), (512, 512))
-        ```
+        path (Path): The file system path where the data will be written.
+        data (bytes | str): The content to write to the file, either as a string or bytes.
     """
-    path (Path): The file system path where the data will be written.
-    data (bytes | str): The content to write to the file, either as a string or bytes.
-
-Returns:
-    None: This function does not return a value.
-
-Example:
-    ```
-    write_file(Path("output.txt"), "Hello, World!")
-    ```
-"""
     if isinstance(data, str):
         path.write_text(data, encoding="utf-8")
     else:
@@ -85,6 +55,27 @@ Example:
 
 
 def assert_png(path: Path, expected_size: tuple[int, int]) -> None:
+    """
+    Validates that a PNG image file exists, has content, matches expected dimensions, and has valid image integrity.
+
+    Performs multiple assertions to verify a PNG file: checks file existence and non-zero size, validates image dimensions match expected size, and verifies the image file integrity by opening and validating it.
+
+    Args:
+        path (Path): Path object pointing to the PNG file to validate.
+        expected_size (tuple[int, int]): Expected image dimensions as (width, height) in pixels.
+
+    Returns:
+        None: This function returns nothing; it raises AssertionError if validation fails.
+
+    Raises:
+        AssertionError: When the file does not exist, is empty, has incorrect dimensions, or fails integrity verification.
+        PIL.UnidentifiedImageError: When the file cannot be opened as a valid image.
+
+    Example:
+        ```
+        assert_png(Path('logo.png'), (512, 512))
+        ```
+    """
     assert path.exists() and path.stat().st_size > 0, f"FAIL: {path} missing or empty"
     img = Image.open(path)
     assert img.size == expected_size, f"FAIL: {path} expected {expected_size}, got {img.size}"
@@ -94,6 +85,30 @@ def assert_png(path: Path, expected_size: tuple[int, int]) -> None:
 
 
 def assert_svg(path: Path, bg_color: str = "#534AB7") -> None:
+    """
+    Validates that an SVG file contains exactly one circle element, exactly one path element, and includes a specified background color.
+
+    Reads the content of an SVG file and performs three assertions: verifies the presence of exactly one <circle> tag, exactly one <path> tag, and confirms that the specified background color string appears in the content. This function is typically used in testing to ensure SVG files are generated with the correct structure and styling.
+
+    Args:
+        path (Path): The filesystem path to the SVG file to validate.
+        bg_color (str): The expected background color hex code that should appear in the SVG content. Defaults to '#534AB7'.
+
+    Returns:
+        None: This function does not return a value; it either completes successfully or raises an AssertionError.
+
+    Raises:
+        AssertionError: When the SVG file does not contain exactly one <circle> element.
+        AssertionError: When the SVG file does not contain exactly one <path> element.
+        AssertionError: When the specified background color is not found in the SVG content.
+
+    Example:
+        ```
+        assert_svg(Path('logo.svg'), bg_color='#534AB7')
+        ```
+
+    Complexity: O(n) time where n is the size of the SVG file content, O(n) space for storing the file content
+    """
     content = path.read_text()
     assert content.count("<circle") == 1, f"FAIL: {path} should have exactly 1 <circle>"
     assert content.count("<path") == 1, f"FAIL: {path} should have exactly 1 <path>"
@@ -101,6 +116,27 @@ def assert_svg(path: Path, bg_color: str = "#534AB7") -> None:
 
 
 def render_png(svg: str, size: int) -> bytes:
+    """
+    Renders an SVG string to a PNG image with the specified dimensions.
+
+    Converts an SVG string into PNG format using CairoSVG library, encoding the SVG as bytes and rendering it to the specified square dimensions.
+
+    Args:
+        svg (str): The SVG content as a string to be rendered.
+        size (int): The width and height in pixels for the output PNG image (creates a square image).
+
+    Returns:
+        bytes: The rendered PNG image as a bytes object.
+
+    Raises:
+        cairosvg.surface.cairo.CairoError: When the SVG content is malformed or cannot be parsed.
+        ValueError: When the size parameter is invalid or negative.
+
+    Example:
+        ```
+        png_data = render_png('<svg><circle cx="50" cy="50" r="40"/></svg>', 256)
+        ```
+    """
     return cairosvg.svg2png(bytestring=svg.encode(), output_width=size, output_height=size)
 
 

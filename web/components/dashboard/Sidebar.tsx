@@ -37,6 +37,16 @@ const NAV = [
   },
 ];
 
+/**
+ * Renders a fixed-width sidebar navigation component with logo, navigation groups, and active route highlighting.
+ *
+ * A React component that displays a vertical sidebar with the Wright AI logo, a free plan badge, and grouped navigation links. The sidebar uses the current pathname to highlight active routes, supports hover states, and provides an optional close callback for mobile/responsive use cases.
+ *
+ * @param {(() => void) | undefined} onClose - Optional callback function invoked when a navigation link is clicked, typically used to close the sidebar on mobile devices.
+ * @returns {JSX.Element} A React element representing the sidebar with navigation links, logo, and styling.
+ * @example
+ * <Sidebar onClose={() => setMobileMenuOpen(false)} />
+ */
 export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const isActive = (href: string) =>

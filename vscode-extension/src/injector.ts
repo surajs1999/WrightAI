@@ -7,6 +7,15 @@ import { friendlyError, friendlyApiError } from "./errors";
 
 const FIRST_INJECT_KEY = "wright.hasInjectedOnce";
 
+/**
+ * Generates and injects documentation for a specified function with preview and user confirmation.
+ *
+ * Orchestrates a four-step process: performs a dry-run to generate a documentation preview, displays an inline diff for user review, applies the documentation if accepted, and shows a first-time usage tip.
+ *
+ * @param {vscode.TextDocument} document - The VS Code text document containing the function to document.
+ * @param {string} functionName - The name of the function for which to generate documentation.
+ * @param {vscode.ExtensionContext | undefined} context - Optional VS Code extension context used to track first-time usage and display tips.
+ */
 export async function generateAndInject(
   document: vscode.TextDocument,
   functionName: string,
@@ -66,6 +75,14 @@ export async function generateAndInject(
   );
 }
 
+/**
+ * Displays a diff preview of the proposed docstring and prompts the user to apply or discard it.
+ *
+ * @param document - The VS Code text document containing the source code to be modified.
+ * @param functionName - The name of the function being documented, used in UI labels.
+ * @param docstringPreview - The generated docstring content to preview.
+ * @returns True if the user chose to apply the docstring, false if discarded.
+ */
 async function showDiffPreview(
   document: vscode.TextDocument,
   functionName: string,
@@ -113,6 +130,12 @@ async function showDiffPreview(
   }
 }
 
+/**
+ * Maps a language identifier to its corresponding file extension.
+ *
+ * @param {string} languageId - The programming language identifier (e.g., 'python', 'javascript', 'typescript').
+ * @returns {string} The file extension corresponding to the language, or 'txt' if unrecognized.
+ */
 export function langExt(languageId: string): string {
   const map: Record<string, string> = {
     python: "py", javascript: "js", typescript: "ts",
@@ -121,6 +144,15 @@ export function langExt(languageId: string): string {
   return map[languageId] ?? "txt";
 }
 
+/**
+ * Inserts a docstring into source code after the specified function definition.
+ *
+ * @param source - The source code content where the docstring will be inserted.
+ * @param functionName - The name of the function to locate in the source code.
+ * @param docstring - The documentation string to insert.
+ * @param languageId - The programming language identifier used to determine regex pattern and formatting.
+ * @returns The modified source code with the docstring inserted, or source with docstring prepended if function not found.
+ */
 export function insertPreviewIntoSource(
   source: string,
   functionName: string,

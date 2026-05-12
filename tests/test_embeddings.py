@@ -11,6 +11,22 @@ from core.parser.ast_chunker import CodeChunk
 
 
 def test_chroma_store_upsert_and_search(tmp_path) -> None:
+    """
+    Tests the ChromaStore upsert and search functionality by inserting a code chunk with embeddings and verifying retrieval.
+
+    This test function validates the ChromaStore's ability to persist code chunks with their embeddings and retrieve them through similarity search. It creates a temporary ChromaStore instance, inserts a single CodeChunk with a 384-dimensional embedding vector, verifies the collection size, and confirms that searching with the same embedding vector returns the expected code chunk.
+
+    Args:
+        tmp_path (pathlib.Path): Pytest fixture providing a temporary directory path for storing ChromaDB data during the test.
+
+    Returns:
+        None: This function does not return a value; it performs assertions to validate ChromaStore behavior.
+
+    Example:
+        ```
+        test_chroma_store_upsert_and_search(tmp_path)
+        ```
+    """
     store = ChromaStore(persist_path=str(tmp_path / "chroma"), repo_root=str(tmp_path))
     chunks = [
         CodeChunk(
@@ -36,6 +52,22 @@ def test_chroma_store_upsert_and_search(tmp_path) -> None:
 
 
 def test_chroma_store_delete_file(tmp_path) -> None:
+    """
+    Tests that ChromaStore correctly deletes all chunks associated with a specific file path.
+
+    This test verifies the delete_file functionality by creating a ChromaStore instance, inserting a single code chunk for a file, confirming the collection size is 1, deleting the file, and asserting the collection size returns to 0.
+
+    Args:
+        tmp_path (Path): Pytest fixture providing a temporary directory path for test isolation.
+
+    Returns:
+        None: This test function does not return a value.
+
+    Example:
+        ```
+        test_chroma_store_delete_file(tmp_path)
+        ```
+    """
     store = ChromaStore(persist_path=str(tmp_path / "chroma"), repo_root=str(tmp_path))
     chunks = [
         CodeChunk(
@@ -57,6 +89,19 @@ def test_chroma_store_delete_file(tmp_path) -> None:
 
 
 def test_voyage_embedder_requires_key() -> None:
+    """
+    Tests that VoyageEmbedder raises RuntimeError when instantiated without a valid API key and no fallback provider is available.
+
+    This test verifies the error handling behavior of the VoyageEmbedder class by ensuring it properly raises a RuntimeError with the message 'No embedding provider' when initialized with an empty API key string and all environment variables are cleared to prevent fallback to alternative providers like OpenAI.
+
+    Returns:
+        None: This test function does not return any value.
+
+    Example:
+        ```
+        test_voyage_embedder_requires_key()
+        ```
+    """
     from core.embeddings.voyage_embeddings import VoyageEmbedder
 
     with pytest.raises(RuntimeError, match="No embedding provider"):

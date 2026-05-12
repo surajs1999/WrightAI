@@ -12,6 +12,14 @@ const TRUST = [
 const AVATARS = ["SC", "MW", "PN", "TL", "AR", "JP"];
 const AVATAR_COLORS = ["#534AB7", "#22D3EE", "#F59E0B", "#534AB7", "#22D3EE", "#10B981"];
 
+/**
+ * Renders a final call-to-action section with social proof, heading, description, action buttons, and trust badges with animated entrance effects and decorative background elements.
+ *
+ * A React functional component that creates a visually rich final CTA section for a landing page. Features include: a grid overlay background pattern, ambient gradient glows for visual depth, animated entrance using Framer Motion, social proof with avatar stack showing 500+ developers, primary and secondary call-to-action buttons linking to dashboard and documentation, and trust badges displaying key product features. Uses CSS custom properties for theming and responsive design with clamp() for font sizing.
+ * @returns {JSX.Element} A section element containing the complete final CTA layout with background effects, animated content wrapper, social proof, heading, description text, action buttons, and trust badges.
+ * @example
+ * <FinalCTA />
+ */
 export default function FinalCTA() {
   return (
     <section className="finalcta-section" style={{ background: "var(--bg)", textAlign: "center", position: "relative", overflow: "hidden", boxSizing: "border-box" }}>

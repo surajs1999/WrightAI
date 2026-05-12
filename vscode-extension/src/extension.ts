@@ -13,6 +13,16 @@ import { DRIFTED_FUNCTIONS } from "./codelens";
 let apiProcess: cp.ChildProcess | undefined;
 let statusBarItem: vscode.StatusBarItem;
 
+/**
+ * Starts the Wright API server by attempting to connect to a remote server first, then spawning a local Python server if remote connection fails, with a 30-second timeout for local startup.
+ *
+ * This function implements a fallback strategy for API server initialization. It first checks if a remote API server is available using the default apiUrl. If the remote server is not accessible, it spawns a local Python API server as a child process and waits up to 30 seconds for it to become healthy. Error output from the local server process is logged to the console.
+ *
+ * @param {vscode.ExtensionContext} context - The VS Code extension context providing access to the extension's installation path and other extension-specific resources.
+ * @returns {Promise<"local" | "remote" | "none">} A promise that resolves to 'remote' if the remote server is available, 'local' if the local server started successfully, or 'none' if both attempts failed.
+ * @example
+ * const serverStatus = await startApiServer(extensionContext);
+ */
 async function startApiServer(context: vscode.ExtensionContext): Promise<"local" | "remote" | "none"> {
   // Try remote first (default apiUrl)
   if (await checkHealth()) return "remote";
@@ -36,7 +46,25 @@ async function startApiServer(context: vscode.ExtensionContext): Promise<"local"
   return "none";
 }
 
-async function checkApiKeyOnboarding(): Promise<void> {
+/**
+ * Checks if the Wright API key is configured and prompts the user to set it up if missing.
+ *
+ * This function verifies whether the Wright API key is present in the VS Code workspace configuration. If the key is not set, it displays an information message with options to either set the API key directly in settings, navigate to the Wright AI dashboard to obtain a new API key, or dismiss the prompt. The function facilitates the onboarding process by guiding users through API key configuration.
+ * @returns {Promise<void>} A promise that resolves when the API key check and any user interaction is complete.
+ * @example
+ * await checkApiKeyOnboarding()
+ */
+async function checkApiKeyOnboarding(): /**
+ * Activates the Wright VS Code extension by initializing the API server connection, registering providers, commands, and setting up file watchers for documentation coverage tracking.
+ *
+ * This activation function performs the complete initialization sequence for the Wright extension: establishes connection to the API server (local or remote), prompts for API key if missing, registers CodeLens and hover providers for multiple programming languages (Python, JavaScript, TypeScript, Java, Go, Rust), sets up gutter decorations for drift indicators, initializes the coverage tree view, creates status bar items, registers all extension commands (generate documentation, check drift, show coverage, chat), and sets up file system watchers to refresh coverage data when source files change.
+ *
+ * @param {vscode.ExtensionContext} context - The VS Code extension context providing access to subscriptions, extension URI, and other extension lifecycle management resources.
+ * @returns {Promise<void>} A promise that resolves when all activation tasks are complete.
+ * @example
+ * await activate(context)
+ */
+Promise<void> {
   const key = vscode.workspace.getConfiguration("wright").get<string>("apiKey", "");
   if (key) return;
 
@@ -54,6 +82,19 @@ async function checkApiKeyOnboarding(): Promise<void> {
   }
 }
 
+/**
+ * Updates the VS Code status bar item to display Wright documentation coverage statistics or a default message.
+ *
+ * Sets the status bar text and tooltip based on whether documentation coverage percentage is provided. When coverage data is available, displays the percentage with one decimal place and a tooltip showing documented/total function counts. Otherwise, displays the default Wright branding.
+ *
+ * @param {vscode.StatusBarItem} statusBar - The VS Code status bar item to update with text and tooltip.
+ * @param {number | null | undefined} pct - The documentation coverage percentage to display. If null or undefined, the status bar shows the default message.
+ * @param {number | undefined} documented - The number of documented functions, displayed in the tooltip when pct is provided.
+ * @param {number | undefined} total - The total number of functions, displayed in the tooltip when pct is provided.
+ * @returns {void} This function does not return a value.
+ * @example
+ * updateStatusBar(myStatusBar, 85.5, 17, 20)
+ */
 function updateStatusBar(statusBar: vscode.StatusBarItem, pct?: number | null, documented?: number, total?: number): void {
   if (pct !== null && pct !== undefined) {
     statusBar.text = `$(book) Wright: ${pct.toFixed(1)}%`;
@@ -64,6 +105,27 @@ function updateStatusBar(statusBar: vscode.StatusBarItem, pct?: number | null, d
   }
 }
 
+/**
+ * Activates the Wright extension by initializing the API server, registering providers, commands, and setting up file watchers.
+ *
+ * This function serves as the entry point for the Wright VS Code extension. It establishes connection to the API server (local or remote), performs onboarding checks for API key configuration, registers CodeLens and Hover providers for multiple programming languages, initializes gutter decorations for drift indicators, sets up a coverage tree view, creates a status bar item, registers all extension commands (generate documentation, check drift, chat), and configures file system watchers to refresh coverage on source file changes.
+ *
+ * @param {vscode.ExtensionContext} context - The extension context provided by VS Code, used to manage subscriptions and store extension state.
+ * @returns {Promise<void>} A promise that resolves when the extension activation is complete.
+ * @example
+ * await activate(context);
+ */
+/**
+ * Activates the Wright VSCode extension by initializing the API server, registering providers, commands, and setting up workspace watchers.
+ *
+ * This function serves as the entry point for the Wright extension activation lifecycle. It establishes connection to the API server (local or remote), performs onboarding checks for API keys, registers CodeLens and Hover providers for multiple programming languages, initializes gutter decorations for drift visualization, sets up a coverage tree view with status bar integration, registers all extension commands (generate documentation, check drift, chat), and creates file system watchers to refresh coverage on source file changes.
+ *
+ * @param {vscode.ExtensionContext} context - The extension context provided by VSCode, used to manage subscriptions, store extension state, and access extension resources.
+ * @returns {Promise<void>} A promise that resolves when the extension activation is complete.
+ * @throws {Error} When the API server fails to start or connect, though the function handles this gracefully by showing a warning message.
+ * @example
+ * await activate(context);
+ */
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   // 1. Start/connect to API server and report status
   const serverStatus = await vscode.window.withProgress(
@@ -252,6 +314,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(watcher);
 }
 
+/**
+ * Cleans up and releases resources when the extension is deactivated.
+ *
+ * Terminates the API process if it exists by calling kill() and setting it to undefined, then disposes of the status bar item if present. This function is called by VS Code when the extension is being deactivated or unloaded.
+ * @returns {void} No value is returned.
+ * @example
+ * deactivate()
+ */
+/**
+ * Cleans up and terminates the API process and disposes of the status bar item when the extension is deactivated.
+ *
+ * This function is called by VS Code when the extension is being deactivated. It ensures proper cleanup by terminating any running API process and disposing of UI elements like the status bar item to prevent resource leaks.
+ * @returns {void} This function does not return a value.
+ * @example
+ * deactivate()
+ */
 export function deactivate(): void {
   if (apiProcess) {
     apiProcess.kill();

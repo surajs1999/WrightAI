@@ -1,28 +1,8 @@
 import * as vscode from "vscode";
 import * as fs from "fs";
 import * as path from "path";
+import * as cp from "child_process";
 import { hasDocstring } from "./gutter";
-
-const FUNCTION_PATTERNS: Record<string, RegExp> = {
-  python:     /^(\s*)(async\s+)?def\s+(\w+)\s*\(/gm,
-  javascript: /^(\s*)(async\s+)?function\s+(\w+)\s*\(/gm,
-  typescript: /^(\s*)(async\s+)?function\s+(\w+)\s*\(/gm,
-  java:       /^\s*(public|private|protected|static|\s)+[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*\{/gm,
-  go:         /^func\s+(?:\(\w+\s+\*?\w+\)\s+)?(\w+)\s*\(/gm,
-  rust:       /^(pub\s+)?(async\s+)?fn\s+(\w+)\s*\(/gm,
-};
-
-const EXT_TO_LANG: Record<string, string> = {
-  ".py": "python", ".js": "javascript", ".ts": "typescript",
-  ".tsx": "typescript", ".jsx": "javascript",
-  ".java": "java", ".go": "go", ".rs": "rust",
-};
-
-const EXCLUDE_DIRS = new Set([
-  "node_modules", ".git", "__pycache__", ".venv", "venv", "env",
-  "dist", "build", "out", ".next", "target", "vendor", ".cargo",
-  "coverage", "htmlcov", ".tox", "tmp", "temp", ".cache", "out",
-]);
 
 interface CoverageItem {
   label: string;
@@ -30,68 +10,72 @@ interface CoverageItem {
   description?: string;
 }
 
-const MAX_FILES = 2000; // safety cap — avoids scanning entire system
-
-function scanWorkspace(repoRoot: string): { total: number; documented: number; files: number; capped: boolean } {
-  let total = 0;
-  let documented = 0;
-  let files = 0;
-  let capped = false;
-
-  function walk(dir: string) {
-    if (capped) return;
-    let entries: fs.Dirent[];
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
-    catch { return; }
-
-    for (const entry of entries) {
-      if (capped) return;
-
-      if (entry.isDirectory()) {
-        if (!EXCLUDE_DIRS.has(entry.name) && !entry.name.startsWith(".")) {
-          walk(path.join(dir, entry.name));
-        }
-      } else if (entry.isFile()) {
-        const ext = path.extname(entry.name).toLowerCase();
-        const lang = EXT_TO_LANG[ext];
-        if (!lang) continue;
-
-        if (files >= MAX_FILES) { capped = true; return; }
-
-        let text: string;
-        try { text = fs.readFileSync(path.join(dir, entry.name), "utf8"); }
-        catch { continue; }
-
-        const pattern = FUNCTION_PATTERNS[lang];
-        if (!pattern) continue;
-
-        const lines = text.split("\n");
-        pattern.lastIndex = 0;
-        let match: RegExpExecArray | null;
-
-        while ((match = pattern.exec(text)) !== null) {
-          const defLine = text.slice(0, match.index).split("\n").length - 1;
-          total++;
-          if (hasDocstring(lines, defLine, lang)) documented++;
-        }
-
-        files++;
-      }
-    }
+/** Find the Python executable that has the project's packages installed. */
+function findPython(repoRoot: string): string {
+  const candidates = [
+    path.join(repoRoot, ".venv", "bin", "python3"),
+    path.join(repoRoot, ".venv", "bin", "python"),
+    path.join(repoRoot, "venv",  "bin", "python3"),
+    path.join(repoRoot, "venv",  "bin", "python"),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
   }
+  return "python3"; // system fallback
+}
 
-  walk(repoRoot);
-  return { total, documented, files, capped };
+/**
+ * Run the exact same tree-sitter scan used by `wright init`.
+ * Uses the project's .venv Python so tree-sitter packages are always available.
+ */
+function runPythonScan(
+  repoRoot: string,
+): Promise<{ total: number; documented: number; files: number } | null> {
+  const os = require("os") as typeof import("os");
+  const tmpOut    = path.join(os.tmpdir(), `wright-cov-${Date.now()}.json`);
+  const tmpScript = path.join(os.tmpdir(), `wright-scan-${Date.now()}.py`);
+
+  const script = [
+    "import json, sys",
+    `sys.path.insert(0, ${JSON.stringify(repoRoot)})`,
+    "from core.parser.tree_sitter_parser import CodeParser",
+    "parser = CodeParser()",
+    `parsed = parser.parse_directory(${JSON.stringify(repoRoot)})`,
+    "all_funcs  = [f for pf in parsed for f in pf.functions if f.name != '<anonymous>']",
+    "total      = len(all_funcs)",
+    "documented = sum(1 for f in all_funcs if f.existing_docstring)",
+    `open(${JSON.stringify(tmpOut)}, 'w').write(`,
+    `  json.dumps({'total': total, 'documented': documented, 'files': len(parsed)}))`,
+  ].join("\n");
+
+  try { fs.writeFileSync(tmpScript, script, "utf8"); } catch { return Promise.resolve(null); }
+
+  const python = findPython(repoRoot);
+
+  return new Promise(resolve => {
+    cp.exec(`"${python}" "${tmpScript}"`, { cwd: repoRoot, timeout: 60_000 }, (err, _out, stderr) => {
+      try { fs.unlinkSync(tmpScript); } catch { /* ignore */ }
+      if (err) {
+        console.error("[Wright coverage]", stderr || err.message);
+        resolve(null);
+        return;
+      }
+      try {
+        const data = JSON.parse(fs.readFileSync(tmpOut, "utf8")) as {
+          total: number; documented: number; files: number;
+        };
+        try { fs.unlinkSync(tmpOut); } catch { /* ignore */ }
+        resolve({ total: data.total ?? 0, documented: data.documented ?? 0, files: data.files ?? 0 });
+      } catch { resolve(null); }
+    });
+  });
 }
 
 export class CoverageTreeProvider implements vscode.TreeDataProvider<CoverageItem> {
   private _onDidChangeTreeData = new vscode.EventEmitter<CoverageItem | undefined | null | void>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-  private _items: CoverageItem[] = [
-    { label: "Scanning…", pct: 100, description: "" },
-  ];
-
+  private _items: CoverageItem[] = [{ label: "Scanning…", pct: 100, description: "" }];
   private _pct: number | null = null;
   private _total = 0;
   private _documented = 0;
@@ -100,11 +84,10 @@ export class CoverageTreeProvider implements vscode.TreeDataProvider<CoverageIte
   get total(): number { return this._total; }
   get documented(): number { return this._documented; }
 
-  refresh(): void {
-    this._onDidChangeTreeData.fire();
-  }
+  refresh(): void { this._onDidChangeTreeData.fire(); }
 
   async loadCoverage(): Promise<void> {
+    // The workspace folder the user opened IS the project root — use it directly.
     const repoRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!repoRoot) {
       this._items = [{ label: "Open a workspace to see coverage", pct: 0 }];
@@ -112,50 +95,25 @@ export class CoverageTreeProvider implements vscode.TreeDataProvider<CoverageIte
       return;
     }
 
-    // Run synchronous scan off the main thread via setImmediate
     await new Promise<void>(resolve => setImmediate(resolve));
 
-    try {
-      const { total, documented, files, capped } = scanWorkspace(repoRoot);
-      const pct = total > 0 ? (documented / total) * 100 : 100;
+    // Use the same tree-sitter scanner as `wright init` / `wright coverage`
+    const result = await runPythonScan(repoRoot);
 
+    if (result) {
+      const { total, documented, files } = result;
+      const pct = total > 0 ? (documented / total) * 100 : 100;
       this._pct = pct;
       this._total = total;
       this._documented = documented;
-
-      const rootName = path.basename(repoRoot);
       this._items = [
-        {
-          label: `Coverage: ${pct.toFixed(1)}%`,
-          pct,
-          description: `${files}${capped ? "+" : ""} files`,
-        },
-        {
-          label: `Workspace: ${rootName}`,
-          pct: 100,
-          description: repoRoot,
-        },
-        {
-          label: `Documented: ${documented} / ${total}`,
-          pct,
-          description: "functions",
-        },
-        {
-          label: `Undocumented: ${total - documented}`,
-          pct: total - documented === 0 ? 100 : 0,
-          description: "functions",
-        },
+        { label: `Coverage: ${pct.toFixed(1)}%`,        pct,                              description: `${files} files` },
+        { label: `Workspace: ${path.basename(repoRoot)}`, pct: 100,                        description: repoRoot },
+        { label: `Documented: ${documented} / ${total}`, pct,                              description: "functions" },
+        { label: `Undocumented: ${total - documented}`,  pct: total - documented === 0 ? 100 : 0, description: "functions" },
       ];
-
-      if (capped) {
-        this._items.push({
-          label: `⚠ Scan capped at ${MAX_FILES} files`,
-          pct: 50,
-          description: "workspace may be too large",
-        });
-      }
-    } catch {
-      this._items = [{ label: "Could not scan workspace", pct: 0 }];
+    } else {
+      this._items = [{ label: "Could not scan workspace", pct: 0, description: "ensure Python + wright are installed" }];
     }
 
     this.refresh();
@@ -166,10 +124,10 @@ export class CoverageTreeProvider implements vscode.TreeDataProvider<CoverageIte
     item.description = element.description;
     item.iconPath =
       element.pct >= 80
-        ? new vscode.ThemeIcon("check", new vscode.ThemeColor("testing.iconPassed"))
+        ? new vscode.ThemeIcon("check",   new vscode.ThemeColor("testing.iconPassed"))
         : element.pct >= 50
         ? new vscode.ThemeIcon("warning", new vscode.ThemeColor("editorWarning.foreground"))
-        : new vscode.ThemeIcon("error", new vscode.ThemeColor("editorError.foreground"));
+        : new vscode.ThemeIcon("error",   new vscode.ThemeColor("editorError.foreground"));
     return item;
   }
 

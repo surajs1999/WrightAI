@@ -39,6 +39,14 @@ const SOCIALS = [
   },
 ];
 
+/**
+ * Renders the footer component for the Wright AI landing page with branding, navigation links, social media icons, and copyright information.
+ *
+ * A React functional component that returns a complete footer section featuring a gradient top border, a grid layout containing the Wright AI logo and tagline, social media links from the SOCIALS constant, grouped navigation links from the LINKS constant, and a bottom copyright bar. The footer uses CSS custom properties for theming and includes hover effects on interactive elements.
+ * @returns {JSX.Element} A React element representing a footer with brand information, navigation links organized by category, social media icons, and a copyright notice.
+ * @example
+ * <Footer />
+ */
 export default function Footer() {
   return (
     <footer style={{ background: "var(--bg)", borderTop: "1px solid rgba(175,169,236,0.08)" }}>

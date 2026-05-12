@@ -36,6 +36,24 @@ class DriftCheckResponse(BaseModel):
 
 @router.post("", response_model=DriftCheckResponse)
 async def check_drift(request: DriftCheckRequest) -> DriftCheckResponse:
+    """
+    Checks for documentation drift in a Python codebase by comparing function signatures with their docstrings.
+
+    Analyzes a Git repository to detect functions whose signatures have changed without corresponding docstring updates. First attempts to check only modified files via git diff, falling back to a full directory scan if git operations fail. Optionally generates fixed docstrings for drifted or undocumented functions when auto_fix is enabled.
+
+    Args:
+        request (DriftCheckRequest): Request object containing repo_root (repository path), since (base git reference for comparison), and auto_fix (boolean flag to enable automatic docstring generation).
+
+    Returns:
+        DriftCheckResponse: Response object containing total_checked (number of functions analyzed), drifted (count of functions with outdated docstrings), undocumented (count of functions without docstrings), up_to_date (count of functions with current docstrings), and results (list of DriftResultItem objects with detailed information for each function).
+
+    Example:
+        ```
+        response = await check_drift(DriftCheckRequest(repo_root='/path/to/repo', since='main', auto_fix=False))
+        ```
+
+    Complexity: O(n) time where n is the number of Python functions in the repository or changed files, O(n) space for storing drift results
+    """
     from core.drift.drift_detector import DriftDetector
     from core.parser.cache import ASTCache
 
