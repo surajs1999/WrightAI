@@ -208,7 +208,7 @@ async def _get_function_doc(args: dict[str, Any]) -> dict:
 
     function_name = args["function_name"]
     file_path = args["file_path"]
-    args["repo_root"]
+    repo_root = args["repo_root"]  # noqa: F841
 
     parser = CodeParser()
     try:
@@ -287,6 +287,8 @@ async def _list_undocumented(args: dict[str, Any]) -> dict:
 
     for pf in parsed_files:
         for func in pf.functions:
+            if func.name == "<anonymous>":
+                continue
             total += 1
             if func.existing_docstring:
                 documented += 1

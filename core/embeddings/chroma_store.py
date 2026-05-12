@@ -40,6 +40,10 @@ class ChromaStore:
             metadata={"hnsw:space": "cosine"},
         )
 
+    def count(self) -> int:
+        """Return the number of chunks currently stored in the collection."""
+        return self._collection.count()
+
     def upsert_chunks(self, chunks: list[CodeChunk], embeddings: list[list[float]]) -> None:
         if not chunks:
             return

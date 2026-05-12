@@ -34,7 +34,7 @@ _CHAT_SYSTEM = (
 
 
 class LLMGateway:
-    PRIMARY_MODEL = "claude-sonnet-4-5"
+    PRIMARY_MODEL = "claude-sonnet-4-6"
     FALLBACK_MODEL = "gpt-4o"
 
     def __init__(self, anthropic_key: str, openai_key: str | None = None) -> None:

@@ -488,6 +488,7 @@ def _open_drift_pr(repo_root: str, drifted: list) -> None:
 def chat(path: str = typer.Argument(".", help="Repository root")) -> None:
     """Start an interactive codebase chat session."""
     from core.parser.dep_graph import DependencyGraph
+    from core.parser.tree_sitter_parser import CodeParser
     from core.retrieval.hybrid_retriever import HybridRetriever
 
     path_abs = _resolve_workspace(os.path.abspath(path))
@@ -497,7 +498,21 @@ def chat(path: str = typer.Argument(".", help="Repository root")) -> None:
     gateway = _build_gateway()
     embedder = _build_embedder()
     chroma = _get_chroma(path_abs)
-    dep_graph = DependencyGraph()
+
+    # Build the dependency graph so PageRank scores are available for retrieval.
+    with console.status("Indexing repository..."):
+        parser = CodeParser()
+        parsed_files = parser.parse_directory(path_abs)
+        dep_graph = DependencyGraph()
+        dep_graph.build(parsed_files)
+
+    # Warn if the vector index is empty — retrieval will fall back to PageRank only.
+    if chroma.count() == 0:
+        console.print(
+            "[yellow]Tip: run [bold]wright init .[/bold] first to index your codebase "
+            "for better search results.[/yellow]\n"
+        )
+
     retriever = HybridRetriever(chroma, dep_graph, embedder)
 
     async def _run() -> None:
