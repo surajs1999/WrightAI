@@ -437,7 +437,10 @@ class CodeParser:
         functions: list,
     ) -> None:
         import re as _re
-        region = source[error_node.start_byte : error_node.end_byte].decode("utf-8", errors="replace")
+
+        region = source[error_node.start_byte : error_node.end_byte].decode(
+            "utf-8", errors="replace"
+        )
 
         # Find named function declarations at line start only (prevents matching
         # "function declaration (" inside JSX text / string literals).
@@ -1017,19 +1020,53 @@ class CodeParser:
         raise NotImplementedError("Use parse_file which calls language-specific extractors")
 
     _DEFAULT_EXCLUDE = {
-        ".git", ".svn", ".hg",
-        "__pycache__", ".venv", "venv", "env", ".env", ".tox",
-        ".mypy_cache", ".pytest_cache", ".ruff_cache", ".eggs",
-        "site-packages", "htmlcov",
-        "node_modules", "bower_components",
-        "dist", "build", "out", "output", ".next", ".nuxt",
-        "_build", ".build",
-        "target", "bin", "obj", "pkg",
-        ".gradle", ".mvn", ".cargo",
+        ".git",
+        ".svn",
+        ".hg",
+        "__pycache__",
+        ".venv",
+        "venv",
+        "env",
+        ".env",
+        ".tox",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".eggs",
+        "site-packages",
+        "htmlcov",
+        "node_modules",
+        "bower_components",
+        "dist",
+        "build",
+        "out",
+        "output",
+        ".next",
+        ".nuxt",
+        "_build",
+        ".build",
+        "target",
+        "bin",
+        "obj",
+        "pkg",
+        ".gradle",
+        ".mvn",
+        ".cargo",
         "vendor",
-        ".idea", ".vscode",
-        "coverage", "lcov-report",
-        "tmp", "temp", ".tmp", "logs", ".cache",
+        ".idea",
+        ".vscode",
+        "coverage",
+        "lcov-report",
+        "tmp",
+        "temp",
+        ".tmp",
+        "logs",
+        ".cache",
+        "tests",
+        "test",
+        "spec",
+        "specs",
+        "__tests__",
     }
 
     def parse_directory(self, dir_path: str, exclude: list[str] | None = None) -> list[ParsedFile]:
