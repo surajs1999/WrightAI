@@ -141,10 +141,12 @@ async def user_me(request: Request) -> dict:
         ```
     """
     from api.user_store import get_user_by_api_key
+
     api_key = request.headers.get("X-Wright-API-Key", "")
     user = get_user_by_api_key(api_key)
     if not user:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=401, detail="Invalid API key")
     return {
         "email": user.email,

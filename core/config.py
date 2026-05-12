@@ -15,30 +15,64 @@ class WrightConfig(BaseModel):
     languages: list[str] = ["python", "javascript", "typescript", "java", "go", "rust"]
     exclude: list[str] = [
         # Version control
-        ".git", ".svn", ".hg",
+        ".git",
+        ".svn",
+        ".hg",
         # Python
-        "__pycache__", ".venv", "venv", "env", ".env", ".tox",
-        ".mypy_cache", ".pytest_cache", ".ruff_cache", ".eggs",
-        "*.egg-info", "site-packages", "htmlcov",
+        "__pycache__",
+        ".venv",
+        "venv",
+        "env",
+        ".env",
+        ".tox",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".eggs",
+        "*.egg-info",
+        "site-packages",
+        "htmlcov",
         # JavaScript / Node
-        "node_modules", "bower_components", ".pnp",
+        "node_modules",
+        "bower_components",
+        ".pnp",
         # Build outputs
-        "dist", "build", "out", "output", ".next", ".nuxt",
-        "_build", ".build", "public/build",
+        "dist",
+        "build",
+        "out",
+        "output",
+        ".next",
+        ".nuxt",
+        "_build",
+        ".build",
+        "public/build",
         # Compiled / binary
-        "target", "bin", "obj", "pkg",
+        "target",
+        "bin",
+        "obj",
+        "pkg",
         # Java / Kotlin
-        ".gradle", ".mvn",
+        ".gradle",
+        ".mvn",
         # Rust
         ".cargo",
         # Go
         "vendor",
         # IDE / OS
-        ".idea", ".vscode", ".DS_Store",
+        ".idea",
+        ".vscode",
+        ".DS_Store",
         # Coverage / reports
-        "coverage", ".coverage", "htmlcov", "lcov-report",
+        "coverage",
+        ".coverage",
+        "htmlcov",
+        "lcov-report",
         # Misc
-        "tmp", "temp", ".tmp", "logs", ".cache",
+        "tmp",
+        "temp",
+        ".tmp",
+        "logs",
+        ".cache",
     ]
     output_dir: str = "docs"
     coverage_threshold: float = 0.7

@@ -113,6 +113,7 @@ def test_detects_signature_change(detector: DriftDetector) -> None:
         test_detects_signature_change(drift_detector)
         ```
     """
+
     def _make_func(**kwargs) -> ParsedFunction:
         defaults = dict(
             name="foo",
@@ -159,6 +160,7 @@ def test_marks_as_up_to_date_correctly(detector: DriftDetector) -> None:
         test_marks_as_up_to_date_correctly(detector)
         ```
     """
+
     def _make_func(**kwargs) -> ParsedFunction:
         defaults = dict(
             name="foo",

@@ -27,6 +27,7 @@ def _serialize_parsed_file(pf: ParsedFile) -> str:
 
     Complexity: O(n) time where n is the total number of functions and methods across all classes, O(n) space for the constructed dictionary
     """
+
     def _func_to_dict(f: ParsedFunction) -> dict:
         return {
             "name": f.name,

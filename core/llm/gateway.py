@@ -187,7 +187,7 @@ class LLMGateway:
                     if self._openai:
                         return await self._call_openai_fallback(prompt, system)
                     raise
-                wait = 2 ** attempt  # 1s, 2s, 4s, 8s
+                wait = 2**attempt  # 1s, 2s, 4s, 8s
                 await asyncio.sleep(wait)
             except anthropic.APIError as e:
                 if self._openai:
