@@ -251,7 +251,12 @@ def generate(
     dep_graph.build(parsed_files)
     retriever = HybridRetriever(chroma, dep_graph, embedder)
 
-    undoc_funcs = [(pf, f) for pf in parsed_files for f in pf.functions if not f.existing_docstring and f.name != "<anonymous>"]
+    undoc_funcs = [
+        (pf, f)
+        for pf in parsed_files
+        for f in pf.functions
+        if not f.existing_docstring and f.name != "<anonymous>"
+    ]
 
     if not undoc_funcs:
         console.print("[green]All functions are already documented![/green]")
@@ -274,6 +279,7 @@ def generate(
         # function in that file so byte offsets are always fresh.
         # Different files are processed concurrently (semaphore=3).
         from collections import defaultdict
+
         by_file: dict[str, list] = defaultdict(list)
         for _pf, f in undoc_funcs:
             by_file[f.file_path].append(f)
@@ -303,7 +309,8 @@ def generate(
                                 )
 
                             effective_style = (
-                                doc_style if style
+                                doc_style
+                                if style
                                 else LANGUAGE_DEFAULT_STYLE.get(func.language, doc_style)
                             )
                             context = retriever.retrieve_for_function(func)
@@ -316,9 +323,7 @@ def generate(
                                 if dry_run
                                 else ("✓ injected" if result.success else f"✗ {result.error}")
                             )
-                            results_table.add_row(
-                                func.name, os.path.basename(file_path), status
-                            )
+                            results_table.add_row(func.name, os.path.basename(file_path), status)
                         except Exception as e:
                             results_table.add_row(
                                 func.name, os.path.basename(file_path), f"[red]Error: {e}[/red]"
@@ -326,9 +331,7 @@ def generate(
                         finally:
                             progress.advance(task)
 
-            await asyncio.gather(
-                *[process_file(fp, funcs) for fp, funcs in by_file.items()]
-            )
+            await asyncio.gather(*[process_file(fp, funcs) for fp, funcs in by_file.items()])
 
     asyncio.run(_run())
     console.print(results_table)
@@ -521,12 +524,10 @@ def chat(path: str = typer.Argument(".", help="Repository root")) -> None:
 @app.command()
 def llms_txt(path: str = typer.Argument(".", help="Repository root")) -> None:
     """Generate or update llms.txt in the repository root."""
-    from core.config import load_config
     from core.output.llms_txt import LLMSTxtWriter
     from core.parser.tree_sitter_parser import CodeParser
 
     path_abs = _resolve_workspace(os.path.abspath(path))
-    config = load_config(path_abs)
     parser = CodeParser()
     gateway = _build_gateway()
 

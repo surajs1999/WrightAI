@@ -45,7 +45,9 @@ class DocstringInjector:
                     error=f"Could not find injection point (lang={func.language}, snippet={snippet!r})",
                 )
 
-            indent = self._get_body_indent(source_bytes, injection_point, func.language, func.start_byte)
+            indent = self._get_body_indent(
+                source_bytes, injection_point, func.language, func.start_byte
+            )
             formatted = self.format_docstring(docstring, style, func.language, indent)
 
             if self._has_existing_docstring(func):
@@ -69,6 +71,7 @@ class DocstringInjector:
                 if func.language == "python":
                     try:
                         import ast as _ast
+
                         _ast.parse(new_source_bytes.decode("utf-8", errors="replace"))
                     except SyntaxError as e:
                         # Injection broke the file — restore original
@@ -219,32 +222,46 @@ class DocstringInjector:
     def _replace_existing_docstring_bytes(
         self, source_bytes: bytes, func: ParsedFunction, new_doc: str
     ) -> bytes:
+        import re as _re
+
         if func.existing_docstring is None:
             return source_bytes
 
         source_str = source_bytes.decode("utf-8", errors="replace")
-        old_doc = func.existing_docstring
-
         func_end_char = len(source_bytes[: func.end_byte].decode("utf-8", errors="replace"))
 
         if func.language == "python":
-            # Docstring is inside the function node — search within it
-            func_region_start = len(source_bytes[: func.start_byte].decode("utf-8", errors="replace"))
+            # existing_docstring stores content only (no triple-quote delimiters).
+            # Replace the entire first triple-quoted literal in the function body.
+            func_region_start = len(
+                source_bytes[: func.start_byte].decode("utf-8", errors="replace")
+            )
             func_region = source_str[func_region_start:func_end_char]
-            new_func_region = func_region.replace(old_doc, new_doc, 1)
-            return (source_str[:func_region_start] + new_func_region + source_str[func_end_char:]).encode("utf-8")
+            # Include leading whitespace so new_doc's own indentation doesn't double up.
+            new_func_region = _re.sub(
+                r'[ \t]*(?:"""[\s\S]*?"""|\'\'\'[\s\S]*?\'\'\')',
+                lambda m: new_doc.rstrip("\n"),
+                func_region,
+                count=1,
+            )
+            return (
+                source_str[:func_region_start] + new_func_region + source_str[func_end_char:]
+            ).encode("utf-8")
         else:
             # Comment lives BEFORE func.start_byte — extend search back 2 kB to capture it
+            old_doc = func.existing_docstring
             pre_start = max(0, func.start_byte - 2000)
             region_start_char = len(source_bytes[:pre_start].decode("utf-8", errors="replace"))
             region = source_str[region_start_char:func_end_char]
             new_region = region.replace(old_doc, new_doc, 1)
-            return (source_str[:region_start_char] + new_region + source_str[func_end_char:]).encode("utf-8")
+            return (
+                source_str[:region_start_char] + new_region + source_str[func_end_char:]
+            ).encode("utf-8")
 
     @staticmethod
     def _safe(text: str) -> str:
         """Escape triple-quote sequences so they can't break a Python docstring."""
-        return text.replace('"""', r'\"\"\"').replace("'''", r"\'\'\'")
+        return text.replace('"""', r"\"\"\"").replace("'''", r"\'\'\'")
 
     def format_docstring(
         self,

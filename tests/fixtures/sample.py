@@ -17,25 +17,6 @@ def add_numbers(a: int, b: int) -> int:
 
 
 def undocumented_function(x: str, y: Optional[int] = None) -> bool:
-    """
-    Checks if a string length exceeds a specified threshold or is non-empty.
-
-    Evaluates whether the length of the input string is greater than a given threshold value. If no threshold is provided, returns True for any non-empty string.
-
-    Args:
-        x (str): The string whose length will be evaluated.
-        y (Optional[int]): The threshold length to compare against. If None, checks if the string is non-empty.
-
-    Returns:
-        bool: True if the string length is greater than the threshold (or non-empty when threshold is None), False otherwise.
-
-    Example:
-        ```
-        result = undocumented_function("hello", 3)
-        ```
-
-    Complexity: O(n) time where n is the length of x, O(1) space
-    """
     if y is None:
         return len(x) > 0
     return len(x) > y
@@ -55,26 +36,6 @@ async def async_fetch(url: str, timeout: int = 30) -> dict:
 
 
 def another_undocumented(items: list, key: str) -> list:
-    """
-    Filters a list of items to return only those containing the specified key.
-
-    Args:
-        items (list): The list of items to filter. Each item must support the 'in' operator for key lookup (e.g., dictionaries, strings, or other containers).
-        key (str): The key to search for within each item.
-
-    Returns:
-        list: A new list containing only the items from the input list that contain the specified key.
-
-    Raises:
-        TypeError: When an item in the list does not support the 'in' operator with the given key type.
-
-    Example:
-        ```
-        filtered = another_undocumented([{'name': 'Alice'}, {'age': 30}], 'name')
-        ```
-
-    Complexity: O(n*m) time where n is the number of items and m is the average cost of the 'in' operation, O(n) space for the result list
-    """
     return [item for item in items if key in item]
 
 
