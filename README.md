@@ -2,6 +2,12 @@
 
 > "Your codebase, written."
 
+[![PyPI version](https://img.shields.io/pypi/v/wright.svg?color=7F77DD)](https://pypi.org/project/wright/)
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/WrightAI.wrightai?label=VS%20Code&color=00D4FF)](https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai)
+[![VS Code Installs](https://img.shields.io/visual-studio-marketplace/i/WrightAI.wrightai?label=installs)](https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![CI](https://github.com/surajs1999/WrightAI/actions/workflows/ci.yml/badge.svg)](https://github.com/surajs1999/WrightAI/actions)
+
 WrightAI automatically generates, maintains, and serves code documentation using Claude AI. It supports Python, JavaScript, TypeScript, Java, Go, and Rust across four surfaces: a CLI tool, a VS Code extension, a GitHub Action, and an MCP server.
 
 ---

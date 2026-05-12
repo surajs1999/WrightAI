@@ -23,10 +23,67 @@ const poppins = Poppins({
   display: "swap",
 });
 
+const SITE_URL = "https://wrightai-web.fly.dev";
+
 export const metadata: Metadata = {
-  title: "Wright AI — AI-Powered Code Documentation",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "Wright AI — AI Docstring Generator for VS Code, CLI & CI",
+    template: "%s | Wright AI",
+  },
   description:
-    "Wright AI automatically generates, maintains, and serves code documentation using Claude AI. Works in VS Code, CLI, GitHub Actions, and MCP.",
+    "Wright AI auto-generates docstrings for Python, TypeScript, JavaScript, Go, and Rust — detects documentation drift, and exposes your codebase to Claude Code, Cursor, and Copilot via MCP. Free to start.",
+  keywords: [
+    "ai docstring generator",
+    "auto generate docstrings",
+    "code documentation generator",
+    "documentation drift detection",
+    "mcp server documentation",
+    "docstring generator vscode extension",
+    "document codebase with ai",
+    "python docstring generator",
+    "typescript docstring generator",
+    "javascript documentation generator",
+    "go documentation generator",
+    "llms.txt generator",
+    "wright ai",
+    "ai code documentation",
+  ],
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: SITE_URL,
+    siteName: "Wright AI",
+    title: "Wright AI — AI Docstring Generator for VS Code, CLI & CI",
+    description:
+      "Auto-generate docstrings for Python, TypeScript, Go & more. Detect documentation drift. Serve live docs to Claude Code, Cursor, and Copilot via MCP. Free to start.",
+    images: [
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "Wright AI — AI-Powered Code Documentation",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Wright AI — AI Docstring Generator",
+    description:
+      "Auto-generate docstrings, catch documentation drift, and give Claude Code & Cursor live access to your codebase via MCP. Free.",
+    images: ["/opengraph-image"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
 };
 
 /**
@@ -39,9 +96,37 @@ export const metadata: Metadata = {
  * @example
  * <RootLayout><HomePage /></RootLayout>
  */
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Wright AI",
+  applicationCategory: "DeveloperApplication",
+  operatingSystem: "Windows, macOS, Linux",
+  description:
+    "AI-powered code documentation generator. Auto-generates docstrings for Python, TypeScript, JavaScript, Go, and Rust. Detects documentation drift and serves live docs via MCP to Claude Code, Cursor, and Copilot.",
+  url: SITE_URL,
+  downloadUrl: "https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+  },
+  publisher: {
+    "@type": "Organization",
+    name: "Wright AI",
+    url: SITE_URL,
+  },
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${bricolage.variable} ${dmMono.variable} ${poppins.variable}`}>
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );
