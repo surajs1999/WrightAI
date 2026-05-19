@@ -219,6 +219,7 @@ def generate(
     style: Optional[str] = typer.Option(
         None, help="Override doc style (google/numpy/jsdoc/epytext/rust)"
     ),
+    verbosity: str = typer.Option("standard", "--verbosity", help="concise/standard/detailed"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview without writing"),
     watch: bool = typer.Option(False, "--watch", help="Watch for changes"),
 ) -> None:
@@ -314,7 +315,9 @@ def generate(
                                 else LANGUAGE_DEFAULT_STYLE.get(func.language, doc_style)
                             )
                             context = retriever.retrieve_for_function(func)
-                            doc = await gateway.generate_docstring(func, context, effective_style)
+                            doc = await gateway.generate_docstring(
+                                func, context, effective_style, verbosity=verbosity
+                            )
                             result = injector.inject(
                                 file_path, func, doc, effective_style, dry_run=dry_run
                             )

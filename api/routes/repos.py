@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -199,7 +200,7 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
     return RepoInfo(
         id=repo_id,
         name=repo_slug,
-        git_url=body.git_url,
+        git_url=re.sub(r"https://[^@]+@", "https://", body.git_url),
         local_path=str(repo_path),
         branch=actual_branch,
     )
@@ -240,7 +241,8 @@ async def list_repos(request: Request) -> list[RepoInfo]:
                     text=True,
                     timeout=10,
                 )
-                git_url = result.stdout.strip()
+                # Strip embedded OAuth token (https://token@github.com/...)
+                git_url = re.sub(r"https://[^@]+@", "https://", result.stdout.strip())
             except Exception:
                 git_url = ""
             repos.append(

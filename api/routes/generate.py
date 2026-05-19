@@ -16,6 +16,7 @@ class GenerateRequest(BaseModel):
     function_name: str | None = None
     repo_root: str
     style: str = "google"
+    verbosity: str = "standard"
     dry_run: bool = False
     batch: bool = False
     snippet: str | None = None  # raw code; if set, written to a temp file before parsing
@@ -150,7 +151,7 @@ async def generate_docstring(request: GenerateRequest) -> GenerateResponse:
 
     doc_style = DocStyle(request.style)
     context = retriever.retrieve_for_function(func)
-    doc = await gateway.generate_docstring(func, context, doc_style)
+    doc = await gateway.generate_docstring(func, context, doc_style, verbosity=request.verbosity)
     result = injector.inject(func.file_path, func, doc, doc_style, dry_run=True)
 
     if _tmp_path:

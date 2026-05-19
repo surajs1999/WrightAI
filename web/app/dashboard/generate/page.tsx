@@ -125,18 +125,22 @@ export default function GeneratePage() {
           function_name: null,
           repo_root: "/tmp",
           style,
+          verbosity,
           dry_run: true,
           snippet: code,
         };
       } else {
         if (!selectedRepo) { setError("Select a repo first."); setLoading(false); return; }
         if (!filePath.trim()) { setError("Enter a file path within the repo."); setLoading(false); return; }
-        const absPath = selectedRepo.local_path.replace(/\/$/, "") + "/" + filePath.replace(/^\//, "");
+        const repoRoot = selectedRepo.local_path.replace(/\/$/, "");
+        const relPath = filePath.replace(/^\//, "");
+        const absPath = `${repoRoot}/${relPath}`;
         body = {
           file_path: absPath,
           function_name: funcName.trim() || null,
           repo_root: selectedRepo.local_path,
           style,
+          verbosity,
           dry_run: true,
         };
       }

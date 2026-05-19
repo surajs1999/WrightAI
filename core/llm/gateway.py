@@ -54,8 +54,9 @@ class LLMGateway:
         func: ParsedFunction,
         context: RetrievedContext,
         style: DocStyle,
+        verbosity: str = "standard",
     ) -> DocstringSchema:
-        prompt = build_docstring_prompt(func, context, style, func.language)
+        prompt = build_docstring_prompt(func, context, style, func.language, verbosity)
         response_text = await self._call_claude(prompt, _DOCSTRING_SYSTEM)
         return self._parse_structured_output(response_text)
 
@@ -172,7 +173,7 @@ class LLMGateway:
                 }
             )
 
-        # Retry with exponential backoff on rate limit (429) errors
+        # Retry with exponential backoff on rate-limit (429) and overloaded (529) errors
         for attempt in range(5):
             try:
                 response = await self._anthropic.messages.create(
@@ -187,12 +188,19 @@ class LLMGateway:
                     if self._openai:
                         return await self._call_openai_fallback(prompt, system)
                     raise
-                wait = 2**attempt  # 1s, 2s, 4s, 8s
-                await asyncio.sleep(wait)
-            except anthropic.APIError as e:
-                if self._openai:
-                    return await self._call_openai_fallback(prompt, system)
-                raise RuntimeError(f"Anthropic API error: {e}") from e
+                await asyncio.sleep(2**attempt)
+            except anthropic.APIStatusError as e:
+                # 529 = Anthropic API overloaded — transient, worth retrying
+                if e.status_code == 529:
+                    if attempt == 4:
+                        if self._openai:
+                            return await self._call_openai_fallback(prompt, system)
+                        raise RuntimeError("Anthropic API overloaded after retries") from e
+                    await asyncio.sleep(2**attempt)
+                else:
+                    if self._openai:
+                        return await self._call_openai_fallback(prompt, system)
+                    raise RuntimeError(f"Anthropic API error: {e}") from e
         raise RuntimeError("Exhausted retries calling Anthropic API")
 
     async def _call_openai_fallback(self, prompt: str, system: str) -> str:

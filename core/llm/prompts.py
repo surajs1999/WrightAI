@@ -64,6 +64,7 @@ def build_docstring_prompt(
     context: RetrievedContext,
     style: DocStyle,
     language: str,
+    verbosity: str = "standard",
 ) -> str:
     """
     Builds a prompt string for generating documentation for a parsed function using LLM.
@@ -115,9 +116,16 @@ def build_docstring_prompt(
         indent=2,
     )
 
+    verbosity_guide = {
+        "concise": "Be brief. One-sentence summary only. Omit description, example, and complexity unless essential.",
+        "standard": "Include summary, parameters, returns, and a short example.",
+        "detailed": "Be thorough. Include summary, full description, all parameters, returns, raises, example, and complexity.",
+    }
+
     return f"""You are an expert technical writer generating documentation for {language} code.
 
 {style_guide.get(style, style_guide[DocStyle.GOOGLE])}
+Verbosity: {verbosity_guide.get(verbosity, verbosity_guide["standard"])}
 
 Function to document:
 ```{language}
