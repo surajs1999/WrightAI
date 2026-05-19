@@ -405,13 +405,13 @@ export default function ChatPage() {
           }
           disabled={!selectedRepo || indexStatus === "indexing"}
           rows={2}
-          style={{ flex: 1, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontFamily: "var(--font-body)", fontSize: 14, padding: "10px 14px", outline: "none", resize: "none", opacity: selectedRepo && indexStatus !== "indexing" ? 1 : 0.5 }}
+          style={{ flex: 1, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontFamily: "var(--font-body)", fontSize: 14, padding: "10px 14px", outline: "none", resize: "none", opacity: selectedRepo && indexStatus !== "indexing" ? 1 : 0.4 }}
         />
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <button
             onClick={() => send(input)}
             disabled={streaming || !input.trim() || !selectedRepo || indexStatus === "indexing"}
-            style={{ padding: "8px 16px", background: input.trim() && selectedRepo && indexStatus !== "indexing" ? "var(--purple)" : "rgba(83,74,183,0.3)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-body)", fontSize: 13, cursor: input.trim() && selectedRepo && !streaming && indexStatus !== "indexing" ? "pointer" : "default" }}
+            style={{ padding: "8px 16px", background: input.trim() && selectedRepo && indexStatus !== "indexing" ? "var(--purple)" : "rgba(83,74,183,0.3)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-body)", fontSize: 13, cursor: input.trim() && selectedRepo && !streaming && indexStatus !== "indexing" ? "pointer" : "not-allowed" }}
           >
             {streaming ? "…" : "Send →"}
           </button>

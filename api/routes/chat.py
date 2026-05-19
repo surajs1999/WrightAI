@@ -41,21 +41,29 @@ async def chat(request: ChatRequest) -> StreamingResponse:
         response = await chat(ChatRequest(question='How does authentication work?', repo_root='/path/to/repo', conversation_history=[]))
         ```
     """
-    from core.embeddings.chroma_store import ChromaStore
-    from core.embeddings.voyage_embeddings import VoyageEmbedder
     from core.llm.gateway import LLMGateway
-    from core.parser.dep_graph import DependencyGraph
-    from core.retrieval.hybrid_retriever import HybridRetriever
 
     gateway = LLMGateway(anthropic_key=os.getenv("ANTHROPIC_API_KEY", ""))
-    embedder = VoyageEmbedder(api_key=os.getenv("VOYAGE_API_KEY", ""))
-    chroma_path = os.getenv("CHROMA_PATH", os.path.join(request.repo_root, ".wright", "chroma"))
-    chroma = ChromaStore(persist_path=chroma_path, repo_root=request.repo_root)
-    dep_graph = DependencyGraph()
-    retriever = HybridRetriever(chroma, dep_graph, embedder)
-
     history = [{"role": m.role, "content": m.content} for m in request.conversation_history]
-    contexts = retriever.retrieve_for_query(request.question, n=5)
+
+    # Retrieval is best-effort — if embeddings are unavailable (no Voyage/OpenAI
+    # key, or repo not yet indexed) we fall back to empty context and Claude
+    # answers from the question alone.
+    contexts = []
+    try:
+        from core.embeddings.chroma_store import ChromaStore
+        from core.embeddings.voyage_embeddings import VoyageEmbedder
+        from core.parser.dep_graph import DependencyGraph
+        from core.retrieval.hybrid_retriever import HybridRetriever
+
+        embedder = VoyageEmbedder(api_key=os.getenv("VOYAGE_API_KEY", ""))
+        chroma_path = os.getenv("CHROMA_PATH", os.path.join(request.repo_root, ".wright", "chroma"))
+        chroma = ChromaStore(persist_path=chroma_path, repo_root=request.repo_root)
+        dep_graph = DependencyGraph()
+        retriever = HybridRetriever(chroma, dep_graph, embedder)
+        contexts = retriever.retrieve_for_query(request.question, n=5)
+    except Exception:
+        pass  # no embeddings available — Claude answers without code context
 
     # Trim history to last 20 messages to stay within context limits
     if len(history) > 20:
