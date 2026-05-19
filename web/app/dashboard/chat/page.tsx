@@ -108,8 +108,54 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [indexStatus, setIndexStatus] = useState<"checking" | "indexing" | "ready" | "unavailable">("checking");
   const bottomRef = useRef<HTMLDivElement>(null);
   const initializedRepo = useRef<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Check index status whenever the selected repo changes
+  useEffect(() => {
+    if (!selectedRepo) return;
+
+    const repoName = selectedRepo.id.split("/").pop()!;
+
+    const checkAndMaybeIndex = async () => {
+      setIndexStatus("checking");
+      if (pollRef.current) clearInterval(pollRef.current);
+
+      try {
+        const res = await fetch(`/api/proxy/repos/${encodeURIComponent(repoName)}/index-status`);
+        if (!res.ok) { setIndexStatus("unavailable"); return; }
+        const data = await res.json() as { indexed: boolean; indexing: boolean };
+
+        if (data.indexed) { setIndexStatus("ready"); return; }
+
+        // Not indexed yet — trigger indexing if not already running
+        if (!data.indexing) {
+          await fetch(`/api/proxy/repos/${encodeURIComponent(repoName)}/index`, { method: "POST" });
+        }
+        setIndexStatus("indexing");
+
+        // Poll every 4s until indexed
+        pollRef.current = setInterval(async () => {
+          try {
+            const poll = await fetch(`/api/proxy/repos/${encodeURIComponent(repoName)}/index-status`);
+            if (!poll.ok) return;
+            const pollData = await poll.json() as { indexed: boolean };
+            if (pollData.indexed) {
+              setIndexStatus("ready");
+              if (pollRef.current) clearInterval(pollRef.current);
+            }
+          } catch { /* keep polling */ }
+        }, 4000);
+      } catch {
+        setIndexStatus("unavailable");
+      }
+    };
+
+    checkAndMaybeIndex();
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [selectedRepo?.id]);
 
   // Load persisted history when repo changes
   useEffect(() => {
@@ -313,22 +359,59 @@ export default function ChatPage() {
         <div ref={bottomRef} />
       </div>
 
+      {/* Index status bar */}
+      {selectedRepo && indexStatus !== "ready" && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10,
+          padding: "9px 14px", marginBottom: 10,
+          background: indexStatus === "indexing" ? "rgba(83,74,183,0.07)" : "rgba(175,169,236,0.04)",
+          border: `1px solid ${indexStatus === "indexing" ? "rgba(83,74,183,0.25)" : "var(--border)"}`,
+          borderRadius: 8,
+        }}>
+          {indexStatus === "checking" && (
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>
+              Checking index…
+            </span>
+          )}
+          {indexStatus === "indexing" && (
+            <>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--purple-light)", display: "inline-block", animation: "pulse-hex 1.2s ease-in-out infinite" }} />
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text)" }}>
+                Indexing {selectedRepo.name}…
+              </span>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)" }}>
+                Chat will be ready in a moment
+              </span>
+            </>
+          )}
+          {indexStatus === "unavailable" && (
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>
+              Index unavailable — chat will work without file citations
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Input bar */}
       <div style={{ display: "flex", gap: 10, borderTop: "1px solid var(--border)", paddingTop: 12 }}>
         <textarea
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
-          placeholder={selectedRepo ? `Ask anything about ${selectedRepo.name}…` : "Select a repo above to start chatting…"}
-          disabled={!selectedRepo}
+          placeholder={
+            !selectedRepo ? "Select a repo above to start chatting…" :
+            indexStatus === "indexing" ? "Indexing repo, almost ready…" :
+            `Ask anything about ${selectedRepo.name}…`
+          }
+          disabled={!selectedRepo || indexStatus === "indexing"}
           rows={2}
-          style={{ flex: 1, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontFamily: "var(--font-body)", fontSize: 14, padding: "10px 14px", outline: "none", resize: "none", opacity: selectedRepo ? 1 : 0.5 }}
+          style={{ flex: 1, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontFamily: "var(--font-body)", fontSize: 14, padding: "10px 14px", outline: "none", resize: "none", opacity: selectedRepo && indexStatus !== "indexing" ? 1 : 0.5 }}
         />
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <button
             onClick={() => send(input)}
-            disabled={streaming || !input.trim() || !selectedRepo}
-            style={{ padding: "8px 16px", background: input.trim() && selectedRepo ? "var(--purple)" : "rgba(83,74,183,0.3)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-body)", fontSize: 13, cursor: input.trim() && selectedRepo && !streaming ? "pointer" : "default" }}
+            disabled={streaming || !input.trim() || !selectedRepo || indexStatus === "indexing"}
+            style={{ padding: "8px 16px", background: input.trim() && selectedRepo && indexStatus !== "indexing" ? "var(--purple)" : "rgba(83,74,183,0.3)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-body)", fontSize: 13, cursor: input.trim() && selectedRepo && !streaming && indexStatus !== "indexing" ? "pointer" : "default" }}
           >
             {streaming ? "…" : "Send →"}
           </button>

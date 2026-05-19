@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import os
 import re
 import shutil
@@ -11,6 +13,55 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from api.auth import verify_api_key
+
+_logger = logging.getLogger("wright.repos")
+
+# Tracks repos currently being indexed so we don't double-index
+_indexing: set[str] = set()
+
+
+def _chroma_for(repo_root: str):
+    from core.embeddings.chroma_store import ChromaStore
+
+    chroma_path = os.getenv("CHROMA_PATH", os.path.join(repo_root, ".wright", "chroma"))
+    return ChromaStore(persist_path=chroma_path, repo_root=repo_root)
+
+
+async def _index_repo(repo_root: str) -> None:
+    """Parse the repo, generate embeddings, and store in ChromaDB. Fire-and-forget."""
+    if repo_root in _indexing:
+        return
+    _indexing.add(repo_root)
+    try:
+        from core.embeddings.voyage_embeddings import VoyageEmbedder
+        from core.parser.ast_chunker import ASTChunker
+        from core.parser.tree_sitter_parser import CodeParser
+
+        voyage_key = os.getenv("VOYAGE_API_KEY", "")
+        if not voyage_key:
+            _logger.warning("VOYAGE_API_KEY not set — skipping repo indexing for %s", repo_root)
+            return
+
+        _logger.info("Indexing repo: %s", repo_root)
+        loop = asyncio.get_event_loop()
+
+        # Run CPU-bound parsing in a thread pool to avoid blocking the event loop
+        parsed = await loop.run_in_executor(None, CodeParser().parse_directory, repo_root)
+        chunks = await loop.run_in_executor(None, ASTChunker().chunk_directory, parsed)
+        if not chunks:
+            _logger.info("No chunks to index for %s", repo_root)
+            return
+
+        embedder = VoyageEmbedder(api_key=voyage_key)
+        embeddings = await loop.run_in_executor(None, embedder.embed_chunks, chunks)
+
+        chroma = _chroma_for(repo_root)
+        await loop.run_in_executor(None, chroma.upsert_chunks, chunks, embeddings)
+        _logger.info("Indexed %d chunks for %s", len(chunks), repo_root)
+    except Exception as e:
+        _logger.error("Indexing failed for %s: %s", repo_root, e)
+    finally:
+        _indexing.discard(repo_root)
 
 
 def _save_token(user_dir: Path, repo_slug: str, token: str) -> None:
@@ -196,6 +247,10 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
     if github_token:
         _save_token(user_dir, repo_slug, github_token)
 
+    # Kick off indexing in the background — chat will be ready by the time
+    # the user navigates there. Does nothing if VOYAGE_API_KEY is not set.
+    asyncio.create_task(_index_repo(str(repo_path)))
+
     repo_id = f"{user_id}/{repo_slug}"
     return RepoInfo(
         id=repo_id,
@@ -286,3 +341,39 @@ async def delete_repo(repo_name: str, request: Request) -> dict:
         raise HTTPException(status_code=404, detail="Repo not found")
     shutil.rmtree(repo_path)
     return {"deleted": repo_name}
+
+
+@router.get("/{repo_name}/index-status")
+async def index_status(repo_name: str, request: Request) -> dict:
+    """Return whether the repo has been indexed and whether indexing is in progress."""
+    user_id = _user_id_from_request(request)
+    repo_path = _REPOS_BASE / user_id / repo_name
+    if not repo_path.exists():
+        raise HTTPException(status_code=404, detail="Repo not found")
+
+    repo_root = str(repo_path)
+    indexing = repo_root in _indexing
+
+    try:
+        chroma = _chroma_for(repo_root)
+        count = chroma.count()
+    except Exception:
+        count = 0
+
+    return {"indexed": count > 0, "chunk_count": count, "indexing": indexing}
+
+
+@router.post("/{repo_name}/index")
+async def trigger_index(repo_name: str, request: Request) -> dict:
+    """Trigger background indexing for a repo. Idempotent — safe to call if already indexing."""
+    user_id = _user_id_from_request(request)
+    repo_path = _REPOS_BASE / user_id / repo_name
+    if not repo_path.exists():
+        raise HTTPException(status_code=404, detail="Repo not found")
+
+    repo_root = str(repo_path)
+    already = repo_root in _indexing
+    if not already:
+        asyncio.create_task(_index_repo(repo_root))
+
+    return {"started": not already, "indexing": True}
