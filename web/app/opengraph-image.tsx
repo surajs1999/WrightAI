@@ -2,9 +2,19 @@ import { ImageResponse } from "next/og";
 
 export const runtime = "edge";
 export const alt = "Wright AI — AI-Powered Code Documentation";
-export const size = { width: 1200, height: 630 };
+export const size = { width: 1000, height: 420 };
 export const contentType = "image/png";
 
+/**
+ * Generates and returns a static OpenGraph image response for the Wright AI application using an inline JSX layout.
+ *
+ * Constructs a branded Open Graph image for the Wright AI web app by rendering a structured JSX layout into an `ImageResponse`. The image includes a gradient accent bar, the Wright AI logo, a live MCP server status badge, a headline block, a row of supported language tags, and a free-tier call-to-action. It is intended to be used as the `opengraph-image` route export in a Next.js App Router project.
+ * @returns {ImageResponse} An `ImageResponse` instance containing the rendered Open Graph image at the dimensions specified by the exported `size` constant.
+ * @example
+ * // In Next.js App Router (app/opengraph-image.tsx)
+ * export default Image;
+ * // Next.js automatically serves the result at /opengraph-image
+ */
 export default function Image() {
   return new ImageResponse(
     (
@@ -16,70 +26,46 @@ export default function Image() {
           flexDirection: "column",
           justifyContent: "space-between",
           backgroundColor: "#07051A",
-          padding: "64px 72px",
+          padding: "40px 56px",
           fontFamily: "sans-serif",
-          position: "relative",
         }}
       >
-        {/* Background grid dots */}
+        {/* Top accent bar */}
         <div
           style={{
+            display: "flex",
             position: "absolute",
-            inset: 0,
-            backgroundImage:
-              "radial-gradient(circle, rgba(175,169,236,0.15) 1.5px, transparent 1.5px)",
-            backgroundSize: "40px 40px",
-          }}
-        />
-        {/* Purple glow orb */}
-        <div
-          style={{
-            position: "absolute",
-            top: -120,
-            right: -80,
-            width: 500,
-            height: 500,
-            borderRadius: "50%",
-            background: "rgba(83,74,183,0.35)",
-            filter: "blur(90px)",
-          }}
-        />
-        {/* Cyan glow orb */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: -60,
-            left: 80,
-            width: 320,
-            height: 320,
-            borderRadius: "50%",
-            background: "rgba(0,212,255,0.18)",
-            filter: "blur(80px)",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: 3,
+            background: "linear-gradient(90deg, #534AB7 0%, #00D4FF 100%)",
           }}
         />
 
-        {/* Top: logo + badge */}
-        <div style={{ display: "flex", alignItems: "center", gap: 16, position: "relative" }}>
-          {/* W logomark */}
-          <div
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 12,
-              background: "linear-gradient(135deg, #534AB7 0%, #00D4FF 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 26,
-              fontWeight: 800,
-              color: "#fff",
-            }}
+        {/* Logo row */}
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          {/* Actual Wright logo (SVG inlined) */}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 512 512"
+            width="44"
+            height="44"
           >
-            W
-          </div>
+            <circle cx="256" cy="256" r="256" fill="#26215C" />
+            <path
+              d="M 86 154 L 163 358 L 256 194 L 349 358 L 426 154"
+              stroke="#FFFFFF"
+              strokeWidth="46"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+            />
+          </svg>
           <span
             style={{
-              fontSize: 24,
+              display: "flex",
+              fontSize: 22,
               fontWeight: 700,
               color: "#F0EEF8",
               letterSpacing: "-0.02em",
@@ -87,87 +73,79 @@ export default function Image() {
           >
             Wright AI
           </span>
-          {/* Live MCP badge */}
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 8,
+              gap: 7,
               marginLeft: 16,
-              padding: "6px 14px",
+              padding: "5px 14px",
               borderRadius: 999,
-              background: "rgba(0,212,255,0.08)",
+              backgroundColor: "rgba(0,212,255,0.1)",
               border: "1px solid rgba(0,212,255,0.3)",
             }}
           >
             <div
               style={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: "#1D9E75",
+                display: "flex",
+                width: 7,
+                height: 7,
+                borderRadius: 999,
+                backgroundColor: "#1D9E75",
               }}
             />
-            <span style={{ fontSize: 14, color: "#00D4FF", fontWeight: 500 }}>
+            <span style={{ display: "flex", fontSize: 13, color: "#00D4FF", fontWeight: 500 }}>
               Live MCP Server
             </span>
           </div>
         </div>
 
-        {/* Middle: headline */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 20, position: "relative" }}>
+        {/* Headline block */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div
             style={{
-              fontSize: 64,
+              display: "flex",
+              fontSize: 52,
               fontWeight: 800,
               color: "#F0EEF8",
               lineHeight: 1.0,
               letterSpacing: "-0.04em",
             }}
           >
-            Your codebase,{" "}
-            <span
-              style={{
-                background: "linear-gradient(135deg, #7F77DD 0%, #00D4FF 100%)",
-                WebkitBackgroundClip: "text",
-                color: "transparent",
-              }}
-            >
-              written.
-            </span>
+            Your codebase, written.
           </div>
           <div
             style={{
-              fontSize: 24,
+              display: "flex",
+              fontSize: 20,
               color: "rgba(175,169,236,0.75)",
-              lineHeight: 1.5,
               fontWeight: 400,
-              maxWidth: 720,
+              lineHeight: 1.4,
             }}
           >
             Auto-generate docstrings · Detect drift · Feed Claude Code &amp; Cursor via MCP
           </div>
         </div>
 
-        {/* Bottom: language pills + free badge */}
+        {/* Bottom row */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            position: "relative",
           }}
         >
-          <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ display: "flex", gap: 8 }}>
             {["Python", "TypeScript", "JavaScript", "Go", "Rust"].map((lang) => (
               <div
                 key={lang}
                 style={{
-                  padding: "8px 18px",
-                  borderRadius: 8,
-                  background: "rgba(175,169,236,0.08)",
-                  border: "1px solid rgba(175,169,236,0.18)",
-                  fontSize: 16,
+                  display: "flex",
+                  padding: "6px 14px",
+                  borderRadius: 7,
+                  backgroundColor: "rgba(175,169,236,0.08)",
+                  border: "1px solid rgba(175,169,236,0.2)",
+                  fontSize: 14,
                   color: "#AFA9EC",
                   fontWeight: 500,
                 }}
@@ -176,13 +154,15 @@ export default function Image() {
               </div>
             ))}
           </div>
+
           <div
             style={{
-              padding: "10px 24px",
-              borderRadius: 10,
-              background: "rgba(29,158,117,0.12)",
+              display: "flex",
+              padding: "8px 20px",
+              borderRadius: 8,
+              backgroundColor: "rgba(29,158,117,0.12)",
               border: "1px solid rgba(29,158,117,0.3)",
-              fontSize: 18,
+              fontSize: 15,
               color: "#1D9E75",
               fontWeight: 600,
             }}

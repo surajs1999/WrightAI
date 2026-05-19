@@ -12,6 +12,14 @@ export const metadata: Metadata = {
   },
 };
 
+/**
+ * Renders a layout wrapper for the documentation section by passing children through a React fragment.
+ *
+ * @param {React.ReactNode} children - The child elements or components to be rendered inside the documentation layout.
+ * @returns {JSX.Element} A React fragment containing the provided children, serving as the layout shell for documentation pages.
+ * @example
+ * <DocsLayout><DocsPage title="Getting Started" /></DocsLayout>
+ */
 export default function DocsLayout({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }

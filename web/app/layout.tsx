@@ -118,6 +118,20 @@ const jsonLd = {
   },
 };
 
+/**
+ * Renders the root HTML layout for the Next.js application, injecting JSON-LD structured data and applying global font variables.
+ *
+ * Serves as the top-level layout component for the Next.js App Router, wrapping all page content in a standard HTML document shell. It applies three custom font CSS variables (bricolage, dmMono, poppins) to the html element, embeds a JSON-LD structured data script in the document head for SEO purposes, and renders child components inside the body tag.
+ *
+ * @param {React.ReactNode} children - The nested page or layout content to be rendered inside the document body, provided automatically by the Next.js App Router.
+ * @returns {JSX.Element} A full HTML document element containing a head with JSON-LD structured data and a body wrapping the provided children.
+ * @example
+ * // Used automatically by Next.js App Router as app/layout.tsx
+ * // All pages are implicitly wrapped:
+ * <RootLayout>
+ *   <HomePage />
+ * </RootLayout>
+ */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${bricolage.variable} ${dmMono.variable} ${poppins.variable}`}>

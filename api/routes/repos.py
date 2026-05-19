@@ -21,6 +21,22 @@ _indexing: set[str] = set()
 
 
 def _chroma_for(repo_root: str):
+    """
+    Creates and returns a ChromaStore instance configured for the given repository root.
+
+    Resolves the Chroma persistence path from the CHROMA_PATH environment variable, falling back to a default path of '<repo_root>/.wright/chroma', then instantiates and returns a ChromaStore with that path and the provided repository root. This factory helper is used by both _index_repo() and index_status() to obtain a consistent ChromaStore for a given repository.
+
+    Args:
+        repo_root (str): Absolute or relative path to the root directory of the repository for which the ChromaStore should be created.
+
+    Returns:
+        ChromaStore: A ChromaStore instance persisted at the resolved Chroma path and scoped to the given repository root.
+
+    Example:
+        ```
+        store = _chroma_for('/home/user/my_project')
+        ```
+    """
     from core.embeddings.chroma_store import ChromaStore
 
     chroma_path = os.getenv("CHROMA_PATH", os.path.join(repo_root, ".wright", "chroma"))
