@@ -2,7 +2,6 @@ import * as vscode from "vscode";
 import * as fs from "fs";
 import * as path from "path";
 import * as cp from "child_process";
-import { hasDocstring } from "./gutter";
 
 interface CoverageItem {
   label: string;
@@ -10,53 +9,59 @@ interface CoverageItem {
   description?: string;
 }
 
-/** Find the Python executable that has the project's packages installed. */
-function findPython(repoRoot: string): string {
-  const candidates = [
+/** Resolve candidates for the wright CLI, venv Python, and system Python. */
+function findWrightCli(repoRoot: string): { cmd: string; args: string[] } | null {
+  // 1. wright in the project's venv
+  const venvCandidates = [
+    path.join(repoRoot, ".venv", "bin", "wright"),
+    path.join(repoRoot, "venv",  "bin", "wright"),
+  ];
+  for (const p of venvCandidates) {
+    if (fs.existsSync(p)) return { cmd: p, args: [] };
+  }
+  // 2. python -m cli.main (source checkout with venv Python)
+  const pyVenv = [
     path.join(repoRoot, ".venv", "bin", "python3"),
     path.join(repoRoot, ".venv", "bin", "python"),
     path.join(repoRoot, "venv",  "bin", "python3"),
     path.join(repoRoot, "venv",  "bin", "python"),
-  ];
-  for (const p of candidates) {
-    if (fs.existsSync(p)) return p;
+  ].find(p => fs.existsSync(p));
+  if (pyVenv) return { cmd: pyVenv, args: ["-m", "cli.main"] };
+  // 3. system wright / python as last resort
+  if (cp.spawnSync("wright", ["--version"], { stdio: "ignore" }).status === 0) {
+    return { cmd: "wright", args: [] };
   }
-  return "python3"; // system fallback
+  return null;
 }
 
 /**
- * Run the exact same tree-sitter scan used by `wright init`.
- * Uses the project's .venv Python so tree-sitter packages are always available.
+ * Run `wright coverage <repoRoot> --output <tmpFile>` and parse the JSON result.
+ * Falls back to a self-contained Python script for source-checkout installations
+ * where the module path can be resolved from the venv.
  */
-function runPythonScan(
+function runScan(
   repoRoot: string,
 ): Promise<{ total: number; documented: number; files: number } | null> {
   const os = require("os") as typeof import("os");
-  const tmpOut    = path.join(os.tmpdir(), `wright-cov-${Date.now()}.json`);
-  const tmpScript = path.join(os.tmpdir(), `wright-scan-${Date.now()}.py`);
+  const tmpOut = path.join(os.tmpdir(), `wright-cov-${Date.now()}.json`);
 
-  const script = [
-    "import json, sys",
-    `sys.path.insert(0, ${JSON.stringify(repoRoot)})`,
-    "from core.parser.tree_sitter_parser import CodeParser",
-    "parser = CodeParser()",
-    `parsed = parser.parse_directory(${JSON.stringify(repoRoot)})`,
-    "all_funcs  = [f for pf in parsed for f in pf.functions if f.name != '<anonymous>']",
-    "total      = len(all_funcs)",
-    "documented = sum(1 for f in all_funcs if f.existing_docstring)",
-    `open(${JSON.stringify(tmpOut)}, 'w').write(`,
-    `  json.dumps({'total': total, 'documented': documented, 'files': len(parsed)}))`,
-  ].join("\n");
+  const cli = findWrightCli(repoRoot);
+  if (!cli) {
+    vscode.window.showWarningMessage(
+      "Wright: could not find wright CLI or Python. Install wright (`pip install wright`) to enable coverage scanning."
+    );
+    return Promise.resolve(null);
+  }
 
-  try { fs.writeFileSync(tmpScript, script, "utf8"); } catch { return Promise.resolve(null); }
-
-  const python = findPython(repoRoot);
+  const { cmd, args } = cli;
+  const fullArgs = [...args, "coverage", repoRoot, "--output", tmpOut];
 
   return new Promise(resolve => {
-    cp.exec(`"${python}" "${tmpScript}"`, { cwd: repoRoot, timeout: 60_000 }, (err, _out, stderr) => {
-      try { fs.unlinkSync(tmpScript); } catch { /* ignore */ }
-      if (err) {
+    cp.execFile(cmd, fullArgs, { cwd: repoRoot, timeout: 90_000 }, (err, _out, stderr) => {
+      // exit code 1 is expected when coverage < threshold — not a fatal error
+      if (err && err.code !== 1) {
         console.error("[Wright coverage]", stderr || err.message);
+        try { fs.unlinkSync(tmpOut); } catch { /* ignore */ }
         resolve(null);
         return;
       }
@@ -66,7 +71,9 @@ function runPythonScan(
         };
         try { fs.unlinkSync(tmpOut); } catch { /* ignore */ }
         resolve({ total: data.total ?? 0, documented: data.documented ?? 0, files: data.files ?? 0 });
-      } catch { resolve(null); }
+      } catch {
+        resolve(null);
+      }
     });
   });
 }
@@ -97,8 +104,7 @@ export class CoverageTreeProvider implements vscode.TreeDataProvider<CoverageIte
 
     await new Promise<void>(resolve => setImmediate(resolve));
 
-    // Use the same tree-sitter scanner as `wright init` / `wright coverage`
-    const result = await runPythonScan(repoRoot);
+    const result = await runScan(repoRoot);
 
     if (result) {
       const { total, documented, files } = result;
@@ -113,7 +119,7 @@ export class CoverageTreeProvider implements vscode.TreeDataProvider<CoverageIte
         { label: `Undocumented: ${total - documented}`,  pct: total - documented === 0 ? 100 : 0, description: "functions" },
       ];
     } else {
-      this._items = [{ label: "Could not scan workspace", pct: 0, description: "ensure Python + wright are installed" }];
+      this._items = [{ label: "Could not scan workspace", pct: 0, description: "run: pip install wright" }];
     }
 
     this.refresh();
