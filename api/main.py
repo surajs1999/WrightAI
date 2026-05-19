@@ -83,7 +83,7 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-from api.routes import auth, chat, coverage, drift, fix_pr, generate, llms_txt, repos  # noqa: E402
+from api.routes import auth, chat, coverage, drift, fix_pr, generate, llms_txt, repos, usage  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(generate.router)
@@ -93,6 +93,7 @@ app.include_router(chat.router)
 app.include_router(repos.router)
 app.include_router(fix_pr.router)
 app.include_router(llms_txt.router)
+app.include_router(usage.router)
 
 
 @app.get("/health")
@@ -116,6 +117,19 @@ async def health() -> dict:
 
 from fastapi import Depends  # noqa: E402
 from api.auth import verify_api_key  # noqa: E402
+
+
+@app.post("/user/key/rotate", dependencies=[Depends(verify_api_key)])
+async def rotate_key(request: Request) -> dict:
+    """Generate a new API key, invalidate the old one, and return the new key."""
+    from api.user_store import rotate_api_key
+    from fastapi import HTTPException
+
+    old_key = request.headers.get("X-Wright-API-Key", "")
+    user = rotate_api_key(old_key)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"api_key": user.api_key}
 
 
 @app.get("/user/me", dependencies=[Depends(verify_api_key)])

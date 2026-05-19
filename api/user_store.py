@@ -88,6 +88,20 @@ def get_or_create_user(workos_user_id: str, email: str) -> User:
     return User(**{k: row[k] for k in User.__dataclass_fields__})
 
 
+def rotate_api_key(old_api_key: str) -> User | None:
+    """Generate a new API key for the user with the given key and return the updated user."""
+    db = _db()
+    result = db.table("users").select("*").eq("api_key", old_api_key).execute()
+    if not result.data:
+        return None
+    new_key = f"wai_{secrets.token_urlsafe(32)}"
+    updated = db.table("users").update({"api_key": new_key}).eq("api_key", old_api_key).execute()
+    if not updated.data:
+        return None
+    row = updated.data[0]
+    return User(**{k: row[k] for k in User.__dataclass_fields__})
+
+
 def get_user_by_api_key(api_key: str) -> User | None:
     """
     Retrieves a user from the database by their API key and updates their last used timestamp.

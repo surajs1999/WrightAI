@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import tempfile
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from api.auth import verify_api_key
@@ -41,7 +41,7 @@ class JobStatusResponse(BaseModel):
 
 
 @router.post("", response_model=GenerateResponse)
-async def generate_docstring(request: GenerateRequest) -> GenerateResponse:
+async def generate_docstring(request: GenerateRequest, http_request: Request) -> GenerateResponse:
     """
     Generates a docstring for a specified function in a Python file using AI and contextual code analysis.
 
@@ -156,6 +156,11 @@ async def generate_docstring(request: GenerateRequest) -> GenerateResponse:
 
     if _tmp_path:
         os.unlink(_tmp_path)
+
+    if result.success:
+        from api.usage_store import record_event
+
+        record_event(http_request.headers.get("X-Wright-API-Key", ""), "docs_generated")
 
     return GenerateResponse(
         success=result.success,

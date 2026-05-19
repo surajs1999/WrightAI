@@ -29,6 +29,7 @@ export default function KeysPage() {
   const [newName, setNewName] = useState("");
   const [expiry, setExpiry] = useState("never");
   const [revealed, setRevealed] = useState<string | null>(null);
+  const [rotating, setRotating] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/key")
@@ -59,9 +60,21 @@ export default function KeysPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const revokeKey = (id: string) => {
-    setKeys(prev => prev.filter(k => k.id !== id));
+  const revokeKey = async (id: string) => {
+    setRotating(true);
     setRevokeConfirm(null);
+    try {
+      const res = await fetch("/api/auth/key", { method: "POST" });
+      if (res.ok) {
+        const { key, masked } = await res.json();
+        setKeys(prev => prev.map(k => k.id === id ? { ...k, key, masked } : k));
+        setRevealed(null);
+      }
+    } catch {
+      // silently fail — user still sees old key
+    } finally {
+      setRotating(false);
+    }
   };
 
   const closeModal = () => {
@@ -210,9 +223,11 @@ export default function KeysPage() {
 
               {/* Actions — Copy + Revoke */}
               <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 8 }}>
-                {revokeConfirm === k.id ? (
+                {rotating ? (
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)" }}>Rotating…</span>
+                ) : revokeConfirm === k.id ? (
                   <>
-                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" }}>Revoke?</span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" }}>Rotate key?</span>
                     <button onClick={() => revokeKey(k.id)} style={{ padding: "5px 10px", background: "rgba(226,75,74,0.15)", border: "1px solid rgba(226,75,74,0.4)", borderRadius: 5, fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--red)", cursor: "pointer" }}>Yes</button>
                     <button onClick={() => setRevokeConfirm(null)} style={{ padding: "5px 10px", background: "transparent", border: "1px solid var(--border)", borderRadius: 5, fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)", cursor: "pointer" }}>No</button>
                   </>
@@ -245,7 +260,7 @@ export default function KeysPage() {
                       onMouseEnter={e => { const el = e.currentTarget; el.style.background = "rgba(226,75,74,0.08)"; el.style.borderColor = "rgba(226,75,74,0.5)"; }}
                       onMouseLeave={e => { const el = e.currentTarget; el.style.background = "transparent"; el.style.borderColor = "rgba(226,75,74,0.25)"; }}
                     >
-                      Revoke
+                      Rotate
                     </button>
                   </>
                 )}

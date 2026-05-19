@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
 from api.auth import verify_api_key
@@ -35,7 +35,7 @@ class DriftCheckResponse(BaseModel):
 
 
 @router.post("", response_model=DriftCheckResponse)
-async def check_drift(request: DriftCheckRequest) -> DriftCheckResponse:
+async def check_drift(request: DriftCheckRequest, http_request: Request) -> DriftCheckResponse:
     """
     Checks for documentation drift in a Python codebase by comparing function signatures with their docstrings.
 
@@ -90,6 +90,10 @@ async def check_drift(request: DriftCheckRequest) -> DriftCheckResponse:
     drifted_count = sum(1 for r in raw_results if r.status == "drifted")
     undoc_count = sum(1 for r in raw_results if r.status == "undocumented")
     up_to_date_count = sum(1 for r in raw_results if r.status == "up_to_date")
+
+    from api.usage_store import record_event
+
+    record_event(http_request.headers.get("X-Wright-API-Key", ""), "drift_checks_run")
 
     return DriftCheckResponse(
         total_checked=len(raw_results),

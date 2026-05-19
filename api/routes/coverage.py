@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 
 from api.auth import verify_api_key
@@ -28,6 +28,7 @@ class CoverageResponse(BaseModel):
 @router.get("", response_model=CoverageResponse)
 async def get_coverage(
     repo_root: str = Query(..., description="Repository root path"),
+    http_request: Request = None,
 ) -> CoverageResponse:
     """
     Analyzes a repository to calculate documentation coverage statistics for all Python functions.
@@ -85,6 +86,11 @@ async def get_coverage(
 
     overall_pct = (documented / total * 100) if total else 100.0
     folder_pct = {folder: (d / t * 100 if t > 0 else 100.0) for folder, (t, d) in by_folder.items()}
+
+    if http_request:
+        from api.usage_store import record_event
+
+        record_event(http_request.headers.get("X-Wright-API-Key", ""), "coverage_scans")
 
     return CoverageResponse(
         overall_pct=overall_pct,
