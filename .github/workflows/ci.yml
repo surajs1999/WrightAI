@@ -42,4 +42,5 @@ jobs:
         run: pip install --upgrade pip && pip install -e ".[dev]" pip-audit
 
       - name: Audit dependencies for CVEs
-        run: pip-audit --skip-editable
+        # PYSEC-2025-183 (pyjwt) and PYSEC-2025-185 (python-jose) have no fix versions yet
+        run: pip-audit --skip-editable --ignore-vuln PYSEC-2025-183 --ignore-vuln PYSEC-2025-185
