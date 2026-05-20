@@ -31,7 +31,7 @@ _ALLOWED_ORIGINS = [
     o.strip()
     for o in os.getenv(
         "CORS_ORIGINS",
-        "http://localhost:3000,https://wrightai.vercel.app,https://wright.ai,https://wrightai-web.fly.dev",
+        "http://localhost:3000,https://www.wrightai.live,https://wrightai.live,https://wrightai-web.fly.dev,https://wrightai.vercel.app",
     ).split(",")
     if o.strip()
 ]

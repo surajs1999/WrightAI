@@ -225,8 +225,8 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
                 timeout=120,
                 env=git_env,
             )
-        except subprocess.CalledProcessError:
-            # Fast-forward failed (e.g. force-push or shallow history diverged).
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            # Fast-forward failed (e.g. force-push, shallow history diverged, or timeout).
             # Re-sync by fetching the latest shallow tip and hard-resetting to it.
             try:
                 subprocess.run(
@@ -243,6 +243,8 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
                     timeout=30,
                     env=git_env,
                 )
+            except subprocess.TimeoutExpired:
+                raise HTTPException(status_code=400, detail="git fetch timed out — try again.")
             except subprocess.CalledProcessError as e2:
                 raise HTTPException(status_code=400, detail=f"Could not sync repo: {e2.stderr.decode()}")
     else:
@@ -255,6 +257,8 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
                 timeout=180,
                 env=git_env,
             )
+        except subprocess.TimeoutExpired:
+            raise HTTPException(status_code=400, detail="git clone timed out — check the URL and try again.")
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode()
             if (
