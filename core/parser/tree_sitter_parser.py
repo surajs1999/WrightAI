@@ -1070,7 +1070,7 @@ class CodeParser:
     }
 
     def parse_directory(self, dir_path: str, exclude: list[str] | None = None) -> list[ParsedFile]:
-        exclude_set = set(exclude) if exclude is not None else self._DEFAULT_EXCLUDE
+        exclude_set = self._DEFAULT_EXCLUDE | (set(exclude) if exclude else set())
         parsed: list[ParsedFile] = []
 
         for root, dirs, files in os.walk(dir_path):

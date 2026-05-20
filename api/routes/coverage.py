@@ -62,8 +62,9 @@ async def get_coverage(
     by_folder: dict[str, tuple[int, int]] = {}
 
     for pf in parsed_files:
-        file_total = len(pf.functions)
-        file_doc = sum(1 for f in pf.functions if f.existing_docstring)
+        funcs = [f for f in pf.functions if f.name != "<anonymous>"]
+        file_total = len(funcs)
+        file_doc = sum(1 for f in funcs if f.existing_docstring)
         total += file_total
         documented += file_doc
 
@@ -74,7 +75,7 @@ async def get_coverage(
         t, d = by_folder.get(folder, (0, 0))
         by_folder[folder] = (t + file_total, d + file_doc)
 
-        for func in pf.functions:
+        for func in funcs:
             if not func.existing_docstring:
                 undoc_list.append(
                     UndocumentedFunction(

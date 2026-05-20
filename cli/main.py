@@ -355,7 +355,7 @@ def coverage(
     path_abs = _resolve_workspace(os.path.abspath(path))
     config = load_config(path_abs)
     parser = CodeParser()
-    parsed_files = parser.parse_directory(path_abs)
+    parsed_files = parser.parse_directory(path_abs, exclude=config.exclude)
 
     total_funcs = 0
     documented_funcs = 0

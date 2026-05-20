@@ -78,6 +78,16 @@ const faqSchema = {
   ],
 };
 
+/**
+ * Renders a documentation layout wrapper that injects a FAQ JSON-LD structured data script tag alongside the provided child content.
+ *
+ * This React layout component is used as the top-level wrapper for the docs section. It embeds a JSON-LD script (type='application/ld+json') containing FAQ schema markup for SEO purposes, and then renders the passed children beneath it using a React Fragment.
+ *
+ * @param {React.ReactNode} children - The child React nodes to render within the documentation layout, typically page-level content from nested routes.
+ * @returns {JSX.Element} A React Fragment containing a JSON-LD script tag with FAQ structured data followed by the rendered children.
+ * @example
+ * <DocsLayout><DocsPage title="Getting Started" /></DocsLayout>
+ */
 export default function DocsLayout({ children }: { children: React.ReactNode }) {
   return (
     <>

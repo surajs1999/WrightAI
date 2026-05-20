@@ -347,10 +347,34 @@ pub fn parse_connection_string(s: &str) -> Result<ConnectionConfig, ConfigError>
 
 type LangKey = keyof typeof LANGUAGES;
 
+/**
+ * Generates an array of static route parameter objects for all supported languages.
+ *
+ * This is a Next.js framework function used to statically generate route segments at build time. It iterates over the keys of the LANGUAGES constant and maps each language code into a parameter object, enabling Next.js to pre-render a page for each supported language under the dynamic [language] route segment.
+ * @returns {Promise<Array<{ language: string }>>} A promise that resolves to an array of objects, each containing a 'language' key corresponding to a supported language code from the LANGUAGES constant (e.g., [{ language: 'en' }, { language: 'fr' }]).
+ * @example
+ * // Called automatically by Next.js during static site generation
+ * const params = await generateStaticParams();
+ * // Returns: [{ language: 'en' }, { language: 'fr' }, { language: 'de' }, ...]
+ */
 export async function generateStaticParams() {
   return Object.keys(LANGUAGES).map((language) => ({ language }));
 }
 
+/**
+ * Generates Next.js page metadata for a given language route by resolving the language parameter and mapping it to localized SEO fields.
+ *
+ * Asynchronously resolves the dynamic route `language` parameter, looks it up in the `LANGUAGES` configuration map, and returns a populated `Metadata` object containing title, description, keywords, canonical URL, and OpenGraph data. Returns an empty object if the language key is not recognized.
+ *
+ * @param {Promise<{ language: string }>} params - A promise resolving to an object containing the `language` route segment string (e.g., 'en', 'fr'), used to look up localized metadata from the LANGUAGES map.
+ * @returns {Promise<Metadata>} A promise that resolves to a Next.js `Metadata` object containing localized title, description, keywords, canonical alternate URL, and OpenGraph fields, or an empty object if the language key is not found.
+ * @example
+ * // Used automatically by Next.js for the /[language] route
+ * // e.g., visiting https://www.wrightai.live/en triggers:
+ * const metadata = await generateMetadata({ params: Promise.resolve({ language: 'en' }) });
+ * // metadata.title => 'Wright AI - English'
+ * // metadata.alternates.canonical => 'https://www.wrightai.live/en'
+ */
 export async function generateMetadata({
   params,
 }: {
@@ -372,6 +396,19 @@ export async function generateMetadata({
   };
 }
 
+/**
+ * Renders a language-specific marketing page for Wright AI, displaying a hero section, before/after code examples, feature highlights, comparisons, and a call-to-action.
+ *
+ * An async Next.js server component that resolves a dynamic route segment containing a language key, looks it up in the LANGUAGES configuration map, and returns a full-page React element. If the language key is not found, it invokes Next.js's notFound() to render a 404 response. The page includes a sticky navigation header, a hero with install CTA, a before/after docstring diff panel, a feature grid explaining call-graph context, coverage tracking, drift detection, and MCP integration, a competitor comparison table, and a final CTA section.
+ *
+ * @param {Promise<{ language: string }>} params - A promise that resolves to an object containing the dynamic route parameter 'language', which is used as a key into the LANGUAGES configuration map to retrieve language-specific content.
+ * @returns {Promise<JSX.Element>} A promise that resolves to a React JSX element representing the full language-specific marketing page, or triggers a Next.js 404 response if the language key is not found.
+ * @throws {NotFoundError} When the resolved language parameter does not match any key in the LANGUAGES configuration map, causing Next.js notFound() to be called and a 404 page to be rendered.
+ * @example
+ * // Next.js automatically calls this component for routes like /python or /typescript
+ * // e.g. navigating to /python renders the Python-specific Wright AI landing page
+ * <LanguagePage params={Promise.resolve({ language: 'python' })} />
+ */
 export default async function LanguagePage({
   params,
 }: {
