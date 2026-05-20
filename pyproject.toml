@@ -10,38 +10,6 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "AGPL-3.0-or-later"}
 authors = [{name = "Wright AI", email = "surajsahoo19991012@gmail.com"}]
-keywords = [
-  "docstring",
-  "documentation",
-  "ai",
-  "code-documentation",
-  "docstring-generator",
-  "documentation-generator",
-  "mcp",
-  "claude",
-  "drift-detection",
-  "llms-txt",
-  "vscode-extension",
-]
-classifiers = [
-  "Development Status :: 4 - Beta",
-  "Intended Audience :: Developers",
-  "Topic :: Software Development :: Documentation",
-  "Topic :: Scientific/Engineering :: Artificial Intelligence",
-  "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-  "License :: OSI Approved :: GNU Affero General Public License v3",
-  "Operating System :: OS Independent",
-]
-
-[project.urls]
-Homepage = "https://wrightai-web.fly.dev"
-Repository = "https://github.com/surajs1999/WrightAI"
-Documentation = "https://wrightai-web.fly.dev/docs"
-"Bug Tracker" = "https://github.com/surajs1999/WrightAI/issues"
-Changelog = "https://github.com/surajs1999/WrightAI/blob/main/CHANGELOG.md"
-
 dependencies = [
     "anthropic>=0.40.0",
     "tree-sitter>=0.23.0",
@@ -73,6 +41,37 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "supabase>=2.0.0",
 ]
+keywords = [
+  "docstring",
+  "documentation",
+  "ai",
+  "code-documentation",
+  "docstring-generator",
+  "documentation-generator",
+  "mcp",
+  "claude",
+  "drift-detection",
+  "llms-txt",
+  "vscode-extension",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Documentation",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "License :: OSI Approved :: GNU Affero General Public License v3",
+  "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://wrightai-web.fly.dev"
+Repository = "https://github.com/surajs1999/WrightAI"
+Documentation = "https://wrightai-web.fly.dev/docs"
+"Bug Tracker" = "https://github.com/surajs1999/WrightAI/issues"
+Changelog = "https://github.com/surajs1999/WrightAI/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [

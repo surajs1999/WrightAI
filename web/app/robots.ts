@@ -9,7 +9,7 @@ import { MetadataRoute } from "next";
  * // In Next.js app/robots.ts
  * import { robots } from './robots';
  * const robotsConfig = robots();
- * // robotsConfig.sitemap === 'https://wrightai-web.fly.dev/sitemap.xml'
+ * // robotsConfig.sitemap === 'https://www.wrightai.live/sitemap.xml'
  */
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -18,6 +18,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/dashboard/", "/auth/", "/api/"],
     },
-    sitemap: "https://wrightai-web.fly.dev/sitemap.xml",
+    sitemap: "https://www.wrightai.live/sitemap.xml",
   };
 }

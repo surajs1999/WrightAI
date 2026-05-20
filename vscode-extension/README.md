@@ -9,7 +9,7 @@ Powered by Claude (Anthropic). No local server or Python installation required â
 ## Getting Started
 
 1. Install this extension from the VS Code Marketplace
-2. Sign in at **[wrightai-web.fly.dev](https://wrightai-web.fly.dev)** with GitHub or Google
+2. Sign in at **[www.wrightai.live](https://www.wrightai.live)** with GitHub or Google
 3. Copy your personal API key (starts with `wai_`)
 4. Open VS Code Settings (`Cmd+,` / `Ctrl+,`), search for `WrightAI`, and paste the key into **Wright: Api Key**
 5. Open any supported file â€” a **Generate Docs** CodeLens button appears above each function

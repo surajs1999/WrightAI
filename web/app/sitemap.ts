@@ -1,6 +1,6 @@
 import { MetadataRoute } from "next";
 
-const BASE = "https://wrightai-web.fly.dev";
+const BASE = "https://www.wrightai.live";
 
 /**
  * Generates a static sitemap array defining the crawlable URLs, their update frequency, and priority for the application.
@@ -13,6 +13,8 @@ const BASE = "https://wrightai-web.fly.dev";
  * // sitemapEntries[0] => { url: 'https://example.com', lastModified: Date, changeFrequency: 'weekly', priority: 1 }
  */
 export default function sitemap(): MetadataRoute.Sitemap {
+  const languages = ["python", "typescript", "javascript", "go", "rust"];
+
   return [
     {
       url: BASE,
@@ -26,6 +28,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "weekly",
       priority: 0.8,
     },
+    ...languages.map((lang) => ({
+      url: `${BASE}/${lang}`,
+      lastModified: new Date(),
+      changeFrequency: "monthly" as const,
+      priority: 0.9,
+    })),
     {
       url: `${BASE}/login`,
       lastModified: new Date(),

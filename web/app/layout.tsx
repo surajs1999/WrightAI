@@ -23,16 +23,19 @@ const poppins = Poppins({
   display: "swap",
 });
 
-const SITE_URL = "https://wrightai-web.fly.dev";
+const SITE_URL = "https://www.wrightai.live";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
+  alternates: {
+    canonical: SITE_URL,
+  },
   title: {
     default: "Wright AI — AI Docstring Generator for VS Code, CLI & CI",
     template: "%s | Wright AI",
   },
   description:
-    "Wright AI auto-generates docstrings for Python, TypeScript, JavaScript, Go, and Rust — detects documentation drift, and exposes your codebase to Claude Code, Cursor, and Copilot via MCP. Free to start.",
+    "Auto-generate docstrings for Python, TypeScript, Go & Rust. Detect doc drift. Serve live docs to Claude Code & Cursor via MCP. Free to start.",
   keywords: [
     "ai docstring generator",
     "auto generate docstrings",
@@ -60,8 +63,8 @@ export const metadata: Metadata = {
     images: [
       {
         url: "/opengraph-image",
-        width: 1200,
-        height: 630,
+        width: 1000,
+        height: 420,
         alt: "Wright AI — AI-Powered Code Documentation",
       },
     ],

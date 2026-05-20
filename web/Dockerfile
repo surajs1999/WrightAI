@@ -9,14 +9,14 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_PUBLIC_API_URL=https://wrightai-api.fly.dev
-ENV NEXT_PUBLIC_APP_URL=https://wrightai-web.fly.dev
+ENV NEXT_PUBLIC_APP_URL=https://www.wrightai.live
 RUN npm run build
 
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV APP_URL=https://wrightai-web.fly.dev
+ENV APP_URL=https://www.wrightai.live
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./

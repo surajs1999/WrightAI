@@ -14,7 +14,7 @@ const LINKS = {
     { label: "Documentation", href: "/docs" },
     { label: "GitHub", href: "https://github.com/surajs1999/WrightAI", ext: true },
     { label: "VS Code Extension", href: "https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai", ext: true },
-    { label: "MCP Server", href: "/docs/mcp" },
+    { label: "MCP Server", href: "/docs#mcp-reference" },
   ],
 };
 

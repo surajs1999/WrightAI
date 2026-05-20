@@ -736,7 +736,7 @@ export default function DocsPage() {
           <SubHeading id="cli" title="Command Line" />
           <P>The CLI gives you full control: batch generation, coverage reports, drift checks, and codebase chat — all from your terminal.</P>
 
-          <CodeBlock lang="bash" code={`pip install wright-ai`} />
+          <CodeBlock lang="bash" code={`pip install wright`} />
 
           <P>Initialize Wright in your project:</P>
           <CodeBlock lang="bash" code={`wright init .`} />

@@ -225,8 +225,26 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
                 timeout=120,
                 env=git_env,
             )
-        except subprocess.CalledProcessError as e:
-            raise HTTPException(status_code=500, detail=f"git pull failed: {e.stderr.decode()}")
+        except subprocess.CalledProcessError:
+            # Fast-forward failed (e.g. force-push or shallow history diverged).
+            # Re-sync by fetching the latest shallow tip and hard-resetting to it.
+            try:
+                subprocess.run(
+                    ["git", "-C", str(repo_path), "fetch", "--depth=1", "origin"],
+                    check=True,
+                    capture_output=True,
+                    timeout=120,
+                    env=git_env,
+                )
+                subprocess.run(
+                    ["git", "-C", str(repo_path), "reset", "--hard", "FETCH_HEAD"],
+                    check=True,
+                    capture_output=True,
+                    timeout=30,
+                    env=git_env,
+                )
+            except subprocess.CalledProcessError as e2:
+                raise HTTPException(status_code=400, detail=f"Could not sync repo: {e2.stderr.decode()}")
     else:
         # Clone without --branch so git uses the remote HEAD (works for main/master/any default)
         try:

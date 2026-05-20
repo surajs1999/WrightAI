@@ -1,6 +1,6 @@
 # WrightAI Web Dashboard
 
-The WrightAI web dashboard — hosted at [wrightai-web.fly.dev](https://wrightai-web.fly.dev) — is the sign-in portal and user-facing control panel for the hosted WrightAI service.
+The WrightAI web dashboard — hosted at [wrightai-web.fly.dev](https://www.wrightai.live) — is the sign-in portal and user-facing control panel for the hosted WrightAI service.
 
 Built with Next.js (App Router). TypeScript throughout.
 
