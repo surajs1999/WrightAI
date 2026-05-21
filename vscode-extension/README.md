@@ -21,7 +21,7 @@ Powered by Claude (Anthropic). No local server or Python installation required �
 ### Generate Docstrings
 Click the **Generate Docs** CodeLens button above any function, or press `Cmd+Shift+D` / `Ctrl+Shift+D` with your cursor inside a function.
 
-A **side-by-side diff preview** shows the generated docstring before anything is written — accept or discard with one click. After your first injection, Wright reminds you that saving the file will automatically check for documentation drift.
+A **side-by-side diff preview** shows the generated docstring before anything is written — accept or discard with one click. Accepting applies the docstring directly to your file and saves it, automatically refreshing the coverage panel.
 
 You can also:
 - Right-click anywhere in a file → **Wright: Generate docs for this function**
@@ -38,9 +38,29 @@ Wright documents every undocumented function in the file with a live progress ba
 Every function line shows a real-time status icon in the editor gutter:
 - **✓** (green) — documented and up to date
 - **○** (grey) — no documentation yet
-- **⚠** (amber) — documentation is out of date (drifted)
+- **⚠** (amber) — documentation has drifted (signature changed since docs were written)
 
 Hover over a gutter icon to see the function name and a quick-action link.
+
+### Coverage Panel
+The **Wright Coverage** panel in the Explorer sidebar shows live documentation metrics:
+- Overall coverage percentage
+- Documented / total function counts
+- **Undocumented** count
+- **Drifted** count — functions whose signatures changed since their docstring was written
+
+The panel refreshes automatically every time you save a file or accept a docstring injection.
+
+Run **Wright: Show coverage** from the Command Palette to refresh it manually.
+
+### Drift Detection
+Wright detects drift when:
+- **Parameter names** are added, removed, or renamed
+- **Return type** changes between two concrete types (e.g. `str → dict`, `list → list[str]`)
+
+Run **Wright: Check for doc drift** to scan the current file. Stale functions are highlighted with an **⚠ Docs outdated — regenerate** CodeLens.
+
+Drift is also checked automatically every time you save a file.
 
 ### Chat with Your Codebase
 Run **Wright: Chat with codebase** from the Command Palette to open an interactive chat panel. Ask anything:
@@ -49,19 +69,6 @@ Run **Wright: Chat with codebase** from the Command Palette to open an interacti
 - "What does the `process_batch` function do?"
 
 Answers stream in real time, include **clickable file:line citations** that jump straight to the source, and suggest follow-up questions. Full conversation history is maintained across turns.
-
-### Coverage Dashboard
-The **Wright Coverage** panel in the Explorer sidebar shows live documentation coverage:
-- Overall percentage and function counts
-- Workspace path and file count
-- Color-coded icons (green ≥ 80%, yellow ≥ 50%, red < 50%)
-
-Run **Wright: Show coverage** from the Command Palette to refresh it manually.
-
-### Drift Detection
-Run **Wright: Check for doc drift** to find functions whose implementation has changed since their docstring was written. Stale functions are highlighted with an **⚠ Docs outdated — regenerate** CodeLens.
-
-Drift is also checked automatically every time you save a file.
 
 ---
 

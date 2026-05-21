@@ -886,19 +886,20 @@ wright generate src/ --dry-run`} />
 
           <SubHeading id="coverage" title="Coverage" />
           <P>
-            Coverage tracks what percentage of your public functions have documentation. Run a report at any time, or let the GitHub Action enforce a minimum threshold in CI.
+            Coverage tracks what percentage of your functions have documentation. Run a report at any time, or let the GitHub Action enforce a minimum threshold in CI.
           </P>
 
           <CodeBlock lang="bash" code={`# Full coverage report
-wright coverage --report
-
-# Report for a specific path
-wright coverage src/payments/ --report
+wright coverage .
 
 # Output as JSON (useful for CI scripts)
-wright coverage --report --json`} />
+wright coverage . --output coverage.json`} />
 
-          <P>The report shows coverage by folder, file, and individual function — so you know exactly where the gaps are, not just that they exist.</P>
+          <P>The report shows total functions, documented count, and undocumented count — broken down by folder and file so you know exactly where the gaps are.</P>
+
+          <P>
+            In VS Code, the <strong style={{ color: "var(--text)" }}>Wright Coverage</strong> panel in the Explorer sidebar shows live metrics including coverage %, documented count, undocumented count, and <strong style={{ color: "var(--text)" }}>drifted count</strong>. The panel refreshes automatically every time you save a file or accept a docstring injection.
+          </P>
 
           <Callout type="info">
             Coverage counts functions, methods, and exported constants. Private helpers (prefixed with <Code>_</Code> in Python, or declared with no <Code>export</Code> in TS) are tracked but not required by default. Configure this via <Code>requirePrivate: true</Code> in your config.
@@ -906,28 +907,35 @@ wright coverage --report --json`} />
 
           <SubHeading id="drift" title="Drift Detection" />
           <P>
-            Drift happens when you change a function&apos;s signature — add a parameter, rename a return type — but forget to update the docstring. Wright catches this automatically on every commit.
+            Drift happens when your code changes but the docstring doesn&apos;t — leaving readers with documentation that contradicts the actual implementation. Wright detects this automatically by comparing the current function signature against the last cached baseline.
           </P>
 
-          <P>Wright detects drift when:</P>
+          <P>Wright flags drift when:</P>
           <UL items={[
-            "A parameter is added or removed from a function signature",
-            "A parameter is renamed",
-            "The return type changes in a way that contradicts the documented return",
-            "A documented throws clause no longer applies",
+            "A parameter is added, removed, or renamed",
+            "The return type changes between two concrete types (e.g. str → dict, list → list[str])",
           ]} />
 
+          <P>
+            Vague type changes (e.g. <Code>None → str</Code> or adding a return type where there was none) are intentionally ignored — they rarely invalidate existing docs.
+          </P>
+
           <CodeBlock lang="bash" code={`# Check for drift across the whole project
-wright drift
+wright drift .
 
-# Check a specific file
-wright drift src/auth/middleware.ts
+# Output summary:
+# Checked: 222  Drifted: 3  Undocumented: 1  Up to date: 218
 
-# Fix all drift automatically (re-generates stale docstrings)
-wright drift --fix`} />
+# Re-generate stale docstrings only (skips undocumented functions)
+wright drift . --fix
+
+# Write a JSON report
+wright drift . --output report.json`} />
+
+          <Callout type="info"><><Code>--fix</Code> only updates functions whose signatures drifted. To add docs to undocumented functions, use <Code>wright generate</Code>.</></Callout>
 
           <P>
-            In VS Code, drift appears as a gutter warning (<Code>⚠</Code>) next to the function. Hover to see exactly what changed. In CI, drift causes the Wright Action to fail and posts a summary on the PR.
+            In VS Code, drift appears as a gutter <Code>⚠</Code> icon next to the function and as an inline CodeLens. The <strong style={{ color: "var(--text)" }}>Coverage panel</strong> in the Explorer sidebar shows a live drifted count that refreshes automatically on every file save.
           </P>
 
           <SubHeading id="chat" title="Chat" />

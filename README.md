@@ -32,7 +32,7 @@ pip install -e ".[dev]"
 
 ### VS Code (no setup required)
 1. Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai)
-2. Sign in at [wrightai-web.fly.dev](https://wrightai-web.fly.dev) with GitHub or Google
+2. Sign in at [www.wrightai.live](https://www.wrightai.live) with GitHub or Google
 3. Copy your personal API key (starts with `wai_`)
 4. Open VS Code Settings → search **WrightAI** → paste the key into **Wright: Api Key**
 5. Click **Generate Docs** above any function — done
@@ -95,13 +95,23 @@ wright coverage . --output coverage.json   # Write JSON report
 ```
 
 ### `wright drift [PATH]`
-Detect functions whose code has changed since their docstring was written.
+Detect functions whose documentation is out of sync with the current code. Drift is triggered when:
+- **Parameter names** are added, removed, or renamed
+- **Return type** changes between two concrete types (e.g. `str → dict`, `list → list[str]`)
 
 ```bash
 wright drift .
-wright drift . --since HEAD~5
+wright drift . --fix                       # Re-generate stale docstrings (drifted only)
+wright drift . --output report.json        # Write JSON report
 wright drift . --auto-pr                   # Open a GitHub PR with fixes
 ```
+
+Output summary:
+```
+Checked: 222  Drifted: 3  Undocumented: 1  Up to date: 218
+```
+
+> **Note:** `--fix` only regenerates functions whose signatures drifted. Use `wright generate` to add docs to undocumented functions.
 
 ### `wright chat [PATH]`
 Interactive codebase Q&A. Each answer includes `file:line` citations.
@@ -124,7 +134,7 @@ wright llms-txt .
 ## VS Code Extension
 
 1. Install `WrightAI` from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai)
-2. Sign in at [wrightai-web.fly.dev](https://wrightai-web.fly.dev) with GitHub or Google
+2. Sign in at [www.wrightai.live](https://www.wrightai.live) with GitHub or Google
 3. Copy your personal API key (starts with `wai_`)
 4. Open VS Code Settings (`Cmd+,`) → search `WrightAI` → paste into **Wright: Api Key**
 5. Open any supported file — a **Generate Docs** CodeLens button appears above each function
@@ -134,8 +144,8 @@ wright llms-txt .
 - **Gutter icons** — ✓ (documented), ○ (undocumented), ⚠ (drifted) on every function line
 - **Diff preview** — side-by-side preview before any change is written
 - **Hover** — shows the existing docstring and a regenerate link on hover
-- **Coverage panel** — live doc coverage % in the Explorer sidebar
-- **Drift detection** — checked automatically on every file save
+- **Coverage panel** — live doc coverage %, undocumented count, and drifted count in the Explorer sidebar; auto-refreshes after every injection
+- **Drift detection** — checked automatically on every file save; flags parameter renames and return type changes
 - **Codebase chat** — ask questions, get answers with clickable file citations
 
 **Settings** (`settings.json`):
@@ -290,7 +300,7 @@ wright/
 ```
 
 **Hosted infrastructure:**
-- **Fly.io** — FastAPI backend at `https://wrightai-api.fly.dev`; Next.js dashboard at `https://wrightai-web.fly.dev`
+- **Fly.io** — FastAPI backend at `https://wrightai-api.fly.dev`; Next.js dashboard at `https://www.wrightai.live`
 - **WorkOS** — OAuth login (GitHub / Google)
 - **Supabase** — Per-user API key storage and usage tracking
 
