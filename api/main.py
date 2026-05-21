@@ -83,7 +83,18 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-from api.routes import auth, chat, coverage, drift, fix_pr, generate, llms_txt, repos, usage, webhooks  # noqa: E402
+from api.routes import (
+    auth,
+    chat,
+    coverage,
+    drift,
+    fix_pr,
+    generate,
+    llms_txt,
+    repos,
+    usage,
+    webhooks,
+)  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(generate.router)
@@ -141,7 +152,7 @@ async def rotate_key(request: Request) -> dict:
         ```
         # Using httpx or requests in an async context:
         import httpx
-        
+
         response = httpx.post(
             'http://localhost:8000/user/key/rotate',
             headers={'X-Wright-API-Key': 'existing-api-key-abc123'}

@@ -200,12 +200,14 @@ def _register_github_webhook(github_token: str, git_url: str, api_key: str) -> N
     owner, repo = match.group(1), match.group(2)
 
     webhook_url = f"{_API_URL}/webhooks/github?token={api_key}"
-    payload = _json.dumps({
-        "name": "web",
-        "active": True,
-        "events": ["push"],
-        "config": {"url": webhook_url, "content_type": "json", "insecure_ssl": "0"},
-    }).encode()
+    payload = _json.dumps(
+        {
+            "name": "web",
+            "active": True,
+            "events": ["push"],
+            "config": {"url": webhook_url, "content_type": "json", "insecure_ssl": "0"},
+        }
+    ).encode()
 
     # Check if our webhook already exists to avoid duplicates
     list_req = urllib.request.Request(
@@ -215,7 +217,10 @@ def _register_github_webhook(github_token: str, git_url: str, api_key: str) -> N
     try:
         with urllib.request.urlopen(list_req, timeout=10) as resp:
             existing = _json.loads(resp.read())
-        if any(h.get("config", {}).get("url", "").startswith(f"{_API_URL}/webhooks/github") for h in existing):
+        if any(
+            h.get("config", {}).get("url", "").startswith(f"{_API_URL}/webhooks/github")
+            for h in existing
+        ):
             return  # already registered
     except Exception:
         pass  # can't list — try to create anyway
@@ -360,7 +365,9 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
             except subprocess.TimeoutExpired:
                 raise HTTPException(status_code=400, detail="git fetch timed out — try again.")
             except subprocess.CalledProcessError as e2:
-                raise HTTPException(status_code=400, detail=f"Could not sync repo: {e2.stderr.decode()}")
+                raise HTTPException(
+                    status_code=400, detail=f"Could not sync repo: {e2.stderr.decode()}"
+                )
     else:
         # Clone without --branch so git uses the remote HEAD (works for main/master/any default)
         try:
@@ -372,7 +379,9 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
                 env=git_env,
             )
         except subprocess.TimeoutExpired:
-            raise HTTPException(status_code=400, detail="git clone timed out — check the URL and try again.")
+            raise HTTPException(
+                status_code=400, detail="git clone timed out — check the URL and try again."
+            )
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode()
             if (
@@ -566,7 +575,7 @@ async def sync_repo(repo_name: str, request: Request) -> dict:
         # Via HTTP client:
         # POST /my-project/sync
         # Response: {"synced": true, "repo": "my-project"}
-        
+
         response = await client.post("/my-project/sync", headers={"Authorization": "Bearer <token>"})
         assert response.json() == {"synced": True, "repo": "my-project"}
         ```
@@ -585,7 +594,9 @@ async def sync_repo(repo_name: str, request: Request) -> dict:
             env=git_env,
         )
         if result.returncode != 0:
-            raise HTTPException(status_code=500, detail=f"git pull failed: {result.stderr.decode()}")
+            raise HTTPException(
+                status_code=500, detail=f"git pull failed: {result.stderr.decode()}"
+            )
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="git pull timed out")
 

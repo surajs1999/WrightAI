@@ -206,7 +206,7 @@ def init(repo: str = typer.Argument(".", help="Repository root")) -> None:
         ```
         # From the command line:
         # $ wright init /path/to/my_project
-        
+
         # Programmatically (e.g. in tests):
         from cli.main import init
         init(repo='/path/to/my_project')
@@ -293,7 +293,7 @@ def generate(
         ```
         # Generate Google-style docstrings for all undocumented functions in ./src with detailed verbosity
         $ wright generate ./src --style google --verbosity detailed
-        
+
         # Preview generated docstrings without writing to disk
         $ wright generate ./src/utils.py --dry-run
         ```
@@ -441,11 +441,11 @@ def coverage(
         ```
         # From the command line:
         # $ wright coverage ./my_project --output coverage_report.json
-        
+
         # Programmatic equivalent using Typer's test runner:
         from typer.testing import CliRunner
         from cli.main import app
-        
+
         runner = CliRunner()
         result = runner.invoke(app, ['coverage', './my_project', '--output', 'coverage_report.json'])
         print(result.output)
@@ -524,7 +524,11 @@ def coverage(
 @app.command()
 def drift(
     path: str = typer.Argument(".", help="Repository root"),
-    fix: bool = typer.Option(False, "--fix", help="Auto-regenerate drifted docstrings (does not add docs to undocumented functions)"),
+    fix: bool = typer.Option(
+        False,
+        "--fix",
+        help="Auto-regenerate drifted docstrings (does not add docs to undocumented functions)",
+    ),
     output: Optional[str] = typer.Option(None, "--output", help="Write JSON report to file"),
     auto_pr: bool = typer.Option(False, "--auto-pr", help="Open GitHub PR with fixes"),
 ) -> None:
@@ -546,7 +550,7 @@ def drift(
         ```
         # Check for drift and write a JSON report, then auto-fix all issues:
         # $ wright drift ./my_project --fix --output report.json
-        
+
         # Programmatic invocation via Typer test runner:
         from typer.testing import CliRunner
         from cli.main import app
@@ -566,10 +570,10 @@ def drift(
         results = detector.check_directory(path_abs, cache)
         progress.update(t, completed=True)
 
-    total       = len(results)
+    total = len(results)
     drifted_res = [r for r in results if r.status == "drifted"]
-    undoc_res   = [r for r in results if r.status == "undocumented"]
-    up_to_date  = total - len(drifted_res) - len(undoc_res)
+    undoc_res = [r for r in results if r.status == "undocumented"]
+    up_to_date = total - len(drifted_res) - len(undoc_res)
 
     console.print(
         f"[bold]Checked:[/bold] {total}  "
@@ -580,13 +584,17 @@ def drift(
 
     if output:
         import json as _json
+
         with open(output, "w") as _f:
-            _json.dump({
-                "total": total,
-                "drifted": len(drifted_res),
-                "undocumented": len(undoc_res),
-                "up_to_date": up_to_date,
-            }, _f)
+            _json.dump(
+                {
+                    "total": total,
+                    "drifted": len(drifted_res),
+                    "undocumented": len(undoc_res),
+                    "up_to_date": up_to_date,
+                },
+                _f,
+            )
 
     needs_attention = drifted_res + undoc_res
     if not needs_attention:
@@ -597,7 +605,9 @@ def drift(
         # Only fix drifted functions — undocumented functions are left for the user to generate
         fix_targets = drifted_res
         if not fix_targets:
-            console.print("[green]No drifted functions to fix. Use [bold]wright generate[/bold] to document undocumented functions.[/green]")
+            console.print(
+                "[green]No drifted functions to fix. Use [bold]wright generate[/bold] to document undocumented functions.[/green]"
+            )
             return
 
         from core.config import load_config
@@ -614,6 +624,7 @@ def drift(
 
         # Group by file
         from collections import defaultdict
+
         by_file: dict = defaultdict(list)
         for r in fix_targets:
             by_file[r.file_path].append(r.function_name)
@@ -656,10 +667,13 @@ def drift(
                     if func.name in func_names:
                         work.append((file_path, func))
 
-            console.print(f"Regenerating docs for [bold]{len(work)}[/bold] drifted functions (max 5 concurrent LLM calls)…")
+            console.print(
+                f"Regenerating docs for [bold]{len(work)}[/bold] drifted functions (max 5 concurrent LLM calls)…"
+            )
 
             # Generate concurrently with rate-limit cap
             sem = asyncio.Semaphore(5)
+
             async def _guarded(fp, fn):
                 async with sem:
                     return await _generate_one(fp, fn)
@@ -668,6 +682,7 @@ def drift(
 
             # Group results by file and inject sequentially per file to avoid write conflicts
             from collections import defaultdict
+
             by_file_results: dict = defaultdict(list)
             for item in generated:
                 if item[2] is not None:  # doc is not None
@@ -700,12 +715,16 @@ def drift(
     table.add_column("Reason")
 
     for r in needs_attention:
-        status_str = "[red]drifted[/red]" if r.status == "drifted" else "[yellow]undocumented[/yellow]"
+        status_str = (
+            "[red]drifted[/red]" if r.status == "drifted" else "[yellow]undocumented[/yellow]"
+        )
         table.add_row(r.function_name, os.path.basename(r.file_path), status_str, r.reason or "")
 
     console.print(table)
     if drifted_res:
-        console.print(f"\n[dim]Run with [bold]--fix[/bold] to auto-regenerate {len(drifted_res)} drifted function(s). Use [bold]wright generate[/bold] to document undocumented ones.[/dim]")
+        console.print(
+            f"\n[dim]Run with [bold]--fix[/bold] to auto-regenerate {len(drifted_res)} drifted function(s). Use [bold]wright generate[/bold] to document undocumented ones.[/dim]"
+        )
 
     if auto_pr:
         _open_drift_pr(path_abs, needs_attention)
@@ -758,11 +777,11 @@ def chat(path: str = typer.Argument(".", help="Repository root")) -> None:
         ```
         # From the terminal:
         # wright chat /home/user/my_project
-        
+
         # Or programmatically via Typer test runner:
         from typer.testing import CliRunner
         from cli.main import app
-        
+
         runner = CliRunner()
         result = runner.invoke(app, ['chat', '/home/user/my_project'], input='What does main.py do?\nexit\n')
         print(result.output)
@@ -834,10 +853,10 @@ def llms_txt(path: str = typer.Argument(".", help="Repository root")) -> None:
         ```
         # From the command line:
         # wright llms-txt /path/to/my-repo
-        
+
         # Or using the default current directory:
         # wright llms-txt
-        
+
         # Programmatically (if invoking directly):
         llms_txt(path="/home/user/projects/my-repo")
         ```

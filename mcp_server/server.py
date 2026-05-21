@@ -273,7 +273,7 @@ async def _list_undocumented(args: dict[str, Any]) -> dict:
         ```
         result = await _list_undocumented({'repo_root': '/home/user/my_project', 'folder': 'src'})
         # result => {'total': 42, 'documented': 30, 'undocumented_count': 12, 'undocumented': [{'function_name': 'helper', 'file_path': '/home/user/my_project/src/utils.py', 'line': 17}, ...]}
-        
+
         # Without a subdirectory restriction
         result = await _list_undocumented({'repo_root': '/home/user/my_project'})
         ```

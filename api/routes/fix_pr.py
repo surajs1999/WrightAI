@@ -44,7 +44,7 @@ def _extract_token_from_url(remote_url: str) -> str | None:
         ```
         token = _extract_token_from_url('https://ghp_abc123XYZ@github.com/owner/repo.git')
         # token == 'ghp_abc123XYZ'
-        
+
         token = _extract_token_from_url('https://github.com/owner/repo.git')
         # token is None
         ```
@@ -77,10 +77,10 @@ def _parse_github_owner_repo(remote_url: str) -> tuple[str, str]:
         ```
         owner, repo = _parse_github_owner_repo('git@github.com:octocat/Hello-World.git')
         # owner == 'octocat', repo == 'Hello-World'
-        
+
         owner, repo = _parse_github_owner_repo('https://github.com/octocat/Hello-World.git')
         # owner == 'octocat', repo == 'Hello-World'
-        
+
         owner, repo = _parse_github_owner_repo('https://ghp_token123@github.com/octocat/Hello-World.git')
         # owner == 'octocat', repo == 'Hello-World'
         ```

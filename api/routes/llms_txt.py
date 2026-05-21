@@ -304,7 +304,7 @@ def _should_skip(func) -> bool:
         ```
         # Assuming func.name == '__init__' and '__init__' is in _KEEP_DUNDERS
         should_skip = _should_skip(func)  # Returns False
-        
+
         # Assuming func.name == '__repr__' and '__repr__' is NOT in _KEEP_DUNDERS
         should_skip = _should_skip(func)  # Returns True
         ```

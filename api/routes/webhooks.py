@@ -5,7 +5,6 @@ import hashlib
 import hmac
 import logging
 import os
-import re
 import subprocess
 from pathlib import Path
 
@@ -95,6 +94,7 @@ async def github_webhook(
 
     # Validate the API key token
     from api.user_store import get_user_by_api_key
+
     user = get_user_by_api_key(token)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid API key")
@@ -133,6 +133,7 @@ async def github_webhook(
     _logger.info("Synced %s for user %s via webhook", repo_name, user_id)
 
     from api.routes.repos import _index_repo
+
     asyncio.create_task(_index_repo(str(repo_path)))
 
     return JSONResponse({"synced": True, "repo": repo_name})

@@ -19,6 +19,7 @@ def _db():
         ```
     """
     from api.user_store import _db as _get_db
+
     return _get_db()
 
 
@@ -89,13 +90,15 @@ def record_event(
         user_id = _resolve_user_id(api_key)
         if not user_id:
             return
-        _db().table("usage_events").insert({
-            "user_id": user_id,
-            "event_type": event_type,
-            "tokens": tokens,
-            "repo_name": repo_name,
-            "language": language,
-        }).execute()
+        _db().table("usage_events").insert(
+            {
+                "user_id": user_id,
+                "event_type": event_type,
+                "tokens": tokens,
+                "repo_name": repo_name,
+                "language": language,
+            }
+        ).execute()
     except Exception:
         pass
 
@@ -139,26 +142,29 @@ def get_stats(api_key: str) -> dict:
         today_start = now.strftime("%Y-%m-%d") + "T00:00:00+00:00"
         month_start = now.strftime("%Y-%m") + "-01T00:00:00+00:00"
 
-        rows = _db().table("usage_events") \
-            .select("event_type, tokens, created_at") \
-            .eq("user_id", user_id) \
+        rows = (
+            _db()
+            .table("usage_events")
+            .select("event_type, tokens, created_at")
+            .eq("user_id", user_id)
             .execute()
+        )
         events = rows.data or []
 
-        docs_generated   = sum(1 for e in events if e["event_type"] == "docs_generated")
+        docs_generated = sum(1 for e in events if e["event_type"] == "docs_generated")
         drift_checks_run = sum(1 for e in events if e["event_type"] == "drift_checks_run")
-        coverage_scans   = sum(1 for e in events if e["event_type"] == "coverage_scans")
-        tokens_used      = sum(e.get("tokens") or 0 for e in events)
-        api_calls_today  = sum(1 for e in events if (e.get("created_at") or "") >= today_start)
-        api_calls_month  = sum(1 for e in events if (e.get("created_at") or "") >= month_start)
+        coverage_scans = sum(1 for e in events if e["event_type"] == "coverage_scans")
+        tokens_used = sum(e.get("tokens") or 0 for e in events)
+        api_calls_today = sum(1 for e in events if (e.get("created_at") or "") >= today_start)
+        api_calls_month = sum(1 for e in events if (e.get("created_at") or "") >= month_start)
 
         return {
-            "api_calls_today":  api_calls_today,
-            "api_calls_month":  api_calls_month,
-            "docs_generated":   docs_generated,
+            "api_calls_today": api_calls_today,
+            "api_calls_month": api_calls_month,
+            "docs_generated": docs_generated,
             "drift_checks_run": drift_checks_run,
-            "coverage_scans":   coverage_scans,
-            "tokens_used":      tokens_used,
+            "coverage_scans": coverage_scans,
+            "tokens_used": tokens_used,
         }
     except Exception:
         return _empty_stats()
@@ -180,10 +186,10 @@ def _empty_stats() -> dict:
         ```
     """
     return {
-        "api_calls_today":  0,
-        "api_calls_month":  0,
-        "docs_generated":   0,
+        "api_calls_today": 0,
+        "api_calls_month": 0,
+        "docs_generated": 0,
         "drift_checks_run": 0,
-        "coverage_scans":   0,
-        "tokens_used":      0,
+        "coverage_scans": 0,
+        "tokens_used": 0,
     }

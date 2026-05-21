@@ -174,6 +174,7 @@ class DriftDetector:
             try:
                 from core.parser.cache import ASTCache
                 import os as _os
+
                 cache_path = _os.path.join(repo_path, ".wright", "ast_cache.db")
                 cache = ASTCache(cache_path)
             except Exception:
@@ -194,43 +195,63 @@ class DriftDetector:
                                     if func.name == "<anonymous>":
                                         continue
                                     if func.existing_docstring is None:
-                                        results.append(DriftResult(
-                                            function_name=func.name,
-                                            file_path=file_path,
-                                            status="undocumented",
-                                            reason="Modified file has undocumented function",
-                                            old_signature=None,
-                                            new_signature=_signature_str(func),
-                                        ))
+                                        results.append(
+                                            DriftResult(
+                                                function_name=func.name,
+                                                file_path=file_path,
+                                                status="undocumented",
+                                                reason="Modified file has undocumented function",
+                                                old_signature=None,
+                                                new_signature=_signature_str(func),
+                                            )
+                                        )
                                     else:
-                                        results.append(DriftResult(
-                                            function_name=func.name,
-                                            file_path=file_path,
-                                            status="up_to_date",
-                                            reason=None,
-                                            old_signature=None,
-                                            new_signature=_signature_str(func),
-                                        ))
+                                        results.append(
+                                            DriftResult(
+                                                function_name=func.name,
+                                                file_path=file_path,
+                                                status="up_to_date",
+                                                reason=None,
+                                                old_signature=None,
+                                                new_signature=_signature_str(func),
+                                            )
+                                        )
                         except Exception:
                             pass
             return results
         except Exception as e:
             raise RuntimeError(f"Git diff failed: {e}") from e
 
+    # Return types that are too vague to signal a meaningful doc change
+    _VAGUE_RETURN_TYPES = {"None", "none", "", "Any", "object"}
+
     def _signature_changed(self, old_func: ParsedFunction, new_func: ParsedFunction) -> bool:
-        # Only flag parameter changes — return type and async changes are minor
-        # and don't require docstring rewrites.
+        # Parameter names changed (added, removed, or renamed)
         old_params = [p["name"] for p in old_func.parameters]
         new_params = [p["name"] for p in new_func.parameters]
-        return old_params != new_params
+        if old_params != new_params:
+            return True
+
+        # Return type changed between two concrete types — docstring "Returns:" is now wrong.
+        # Ignore changes from/to vague types (None, Any, "") since those rarely invalidate docs.
+        old_ret = (old_func.return_type or "").strip()
+        new_ret = (new_func.return_type or "").strip()
+        if (
+            old_ret != new_ret
+            and old_ret not in self._VAGUE_RETURN_TYPES
+            and new_ret not in self._VAGUE_RETURN_TYPES
+        ):
+            return True
+
+        return False
 
     _SKIP_PARAMS = {"self", "cls", "args", "kwargs"}
 
     def _docstring_covers_params(self, func: ParsedFunction) -> bool:
         meaningful = [
-            p for p in func.parameters
-            if p["name"] not in self._SKIP_PARAMS
-            and not p["name"].startswith("*")
+            p
+            for p in func.parameters
+            if p["name"] not in self._SKIP_PARAMS and not p["name"].startswith("*")
         ]
         if not meaningful:
             return True

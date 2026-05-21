@@ -59,10 +59,10 @@ def write_file(path: Path, data: bytes | str) -> None:
     Example:
         ```
         from pathlib import Path
-        
+
         # Writing text data
         write_file(Path('output/logo.svg'), '<svg>...</svg>')
-        
+
         # Writing binary data
         write_file(Path('output/logo.png'), b'\x89PNG\r\n\x1a\n...')
         ```
