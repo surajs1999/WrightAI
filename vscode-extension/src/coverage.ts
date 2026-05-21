@@ -9,7 +9,23 @@ interface CoverageItem {
   description?: string;
 }
 
-/** Resolve candidates for the wright CLI, venv Python, and system Python. */
+/**
+ * Resolves the Wright CLI command and arguments by searching virtual environments and the system PATH in priority order.
+ *
+ * Attempts to locate a usable Wright CLI executable using a three-tier fallback strategy: (1) a compiled `wright` binary inside the project's `.venv` or `venv` directory, (2) a virtual-environment Python interpreter invoked with `-m cli.main` for source-checkout setups, and (3) a system-wide `wright` executable on PATH as a last resort. Returns null if none of the candidates are found or functional.
+ *
+ * @param {string} repoRoot - Absolute path to the root of the repository being analysed; used as the base directory when constructing paths to virtual-environment binaries.
+ * @returns {{ cmd: string; args: string[] } | null} An object containing `cmd` (the executable path or name to spawn) and `args` (any additional CLI arguments required to invoke Wright, e.g. `["-m", "cli.main"]`), or `null` if no viable Wright CLI could be located.
+ * @example
+ * const cli = findWrightCli('/home/user/projects/my-repo');
+ * if (cli) {
+ *   cp.spawn(cli.cmd, [...cli.args, 'scan'], { stdio: 'inherit' });
+ * } else {
+ *   vscode.window.showErrorMessage('Wright CLI not found.');
+ * }
+ */
+
+
 function findWrightCli(repoRoot: string): { cmd: string; args: string[] } | null {
   // 1. wright in the project's venv
   const venvCandidates = [
@@ -34,6 +50,30 @@ function findWrightCli(repoRoot: string): { cmd: string; args: string[] } | null
   return null;
 }
 
+/**
+ * Executes a CLI command as a child process and resolves with the output file path on success or null on failure.
+ *
+ * Spawns the given CLI command with its base arguments, any extra arguments, and an '--output' flag pointing to a temporary file path. The process runs within the repository root directory with a 90-second timeout. If the process exits with an error (unless allowExitOne is true and the exit code is 1), it logs the error to stderr, attempts to remove the temporary output file, and resolves with null. On success, it resolves with the path to the temporary output file.
+ *
+ * @param {{ cmd: string; args: string[] }} cli - An object containing the CLI command name (cmd) and its base argument list (args) to be passed to the child process.
+ * @param {string} repoRoot - The absolute path to the repository root, used as the working directory for the spawned process.
+ * @param {string[]} extraArgs - Additional arguments appended to the CLI's base args before the '--output' flag.
+ * @param {string} tmpOut - The temporary file path passed as the value of the '--output' argument and returned on success.
+ * @param {boolean} allowExitOne - If true, an exit code of 1 from the child process is not treated as an error. Defaults to false.
+ * @returns {Promise<string | null>} Resolves with the tmpOut file path if the command succeeds (or exits with code 1 when allowExitOne is true), or null if the command fails.
+ * @example
+ * const outputPath = await runCli(
+ *   { cmd: 'wright-cli', args: ['scan', '--format', 'json'] },
+ *   '/home/user/my-repo',
+ *   ['--include', 'src/* *'],
+ *   '/tmp/wright-output-12345.json',
+ *   true
+ * );
+ * if (outputPath) {
+ *   console.log('Output written to:', outputPath);
+ * }
+ */
+
 function runCli(
   cli: { cmd: string; args: string[] },
   repoRoot: string,
@@ -54,6 +94,20 @@ function runCli(
     });
   });
 }
+
+/**
+ * Runs a Wright coverage scan on the given repository root and returns documentation coverage statistics.
+ *
+ * Locates the Wright CLI using `findWrightCli`, then invokes it with the `coverage` subcommand via `runCli`, writing results to a temporary JSON file. If the CLI cannot be found, a VS Code warning is shown and `null` is returned. On success, the temporary file is read, parsed, and cleaned up before returning the coverage data.
+ *
+ * @param {string} repoRoot - Absolute path to the root of the repository to scan for documentation coverage.
+ * @returns {Promise<{ total: number; documented: number; files: number } | null>} A promise that resolves to an object containing `total` (total symbols), `documented` (documented symbols), and `files` (number of files scanned), or `null` if the CLI is unavailable, the scan fails, or the output cannot be parsed.
+ * @example
+ * const stats = await runScan('/home/user/my-project');
+ * if (stats) {
+ *   console.log(`Documented ${stats.documented} of ${stats.total} symbols across ${stats.files} files`);
+ * }
+ */
 
 function runScan(
   repoRoot: string,
@@ -76,6 +130,20 @@ function runScan(
     } catch { return null; }
   });
 }
+
+/**
+ * Runs a drift scan on the given repository root using the Wright CLI and returns counts of drifted and undocumented items.
+ *
+ * Locates the Wright CLI within the repository, invokes it with the 'drift' subcommand, writes the results to a temporary JSON file, reads and parses that file, then cleans it up before returning the drifted and undocumented counts. Returns null if the CLI cannot be found, if the CLI invocation fails, or if the output cannot be parsed.
+ *
+ * @param {string} repoRoot - The absolute path to the root of the repository to scan for documentation drift.
+ * @returns {Promise<{ drifted: number; undocumented: number } | null>} A promise that resolves to an object containing the number of drifted and undocumented items, or null if the scan could not be completed.
+ * @example
+ * const result = await runDriftScan('/home/user/my-project');
+ * if (result) {
+ *   console.log(`Drifted: ${result.drifted}, Undocumented: ${result.undocumented}`);
+ * }
+ */
 
 function runDriftScan(repoRoot: string): Promise<{ drifted: number; undocumented: number } | null> {
   const os = require("os") as typeof import("os");

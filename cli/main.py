@@ -28,7 +28,25 @@ console = Console()
 
 
 def _resolve_workspace(path: str) -> str:
-    """Walk up from path to find the directory containing .wright.json."""
+    """
+    Walks up the directory tree from the given path to find and return the nearest ancestor directory containing a '.wright.json' configuration file.
+
+    Starting from the absolute path of the provided file or directory, this function traverses parent directories upward until it locates a directory containing '.wright.json'. If found, it returns that directory as the resolved workspace root. If no such file is found before reaching the filesystem root, the function falls back to returning the absolute path of the original input. Used internally by CLI commands such as generate(), coverage(), drift(), chat(), and llms_txt() to determine the active workspace context.
+
+    Args:
+        path (str): A file path or directory path to start searching from. Can be relative or absolute; resolved to an absolute path internally before traversal begins.
+
+    Returns:
+        str: The absolute path of the nearest ancestor directory (inclusive of the starting directory) that contains a '.wright.json' file, or the absolute path of the original input if no such directory is found.
+
+    Example:
+        ```
+        workspace = _resolve_workspace('/home/user/projects/myapp/src/module.py')
+        # Returns '/home/user/projects/myapp' if '.wright.json' exists there
+        ```
+
+    Complexity: O(d) time, O(1) space, where d is the depth of the directory tree from the starting path to the filesystem root
+    """
     start = os.path.abspath(path)
     check = start if os.path.isdir(start) else os.path.dirname(start)
     while True:
@@ -43,18 +61,18 @@ def _resolve_workspace(path: str) -> str:
 
 def _require_env(key: str) -> str:
     """
-    Retrieves a required environment variable value or exits the application if it is not set.
+    Retrieves a required environment variable by key, terminating the application with an error message if the variable is not set or empty.
 
-    This function attempts to read an environment variable by key. If the variable is not set or empty, it prints a red error message to the console instructing the user to add it to their .env file and exits the application with code 1.
+    Used internally by `_build_gateway()` to enforce that critical environment variables are present before proceeding. If the specified variable is missing or empty, prints a formatted red error message to the console instructing the user to add the variable to their `.env` file, then raises `typer.Exit` with exit code 1 to terminate the application.
 
     Args:
-        key (str): The name of the environment variable to retrieve.
+        key (str): The name of the environment variable to retrieve (e.g., 'OPENAI_API_KEY').
 
     Returns:
-        str: The value of the environment variable.
+        str: The non-empty string value of the requested environment variable.
 
     Raises:
-        typer.Exit: When the environment variable is not set or is empty.
+        typer.Exit: When the environment variable specified by `key` is not set or is an empty string; exits with code 1.
 
     Example:
         ```
@@ -70,19 +88,20 @@ def _require_env(key: str) -> str:
 
 def _build_gateway() -> "LLMGateway":
     """
-    Builds and returns an LLMGateway instance configured with API keys from environment variables.
+    Builds and returns a configured LLMGateway instance using API keys read from environment variables.
 
-    Creates an LLMGateway object by reading the Anthropic API key (required) and OpenAI API key (optional) from environment variables. The Anthropic key must be present or an exception will be raised.
+    Reads the Anthropic API key (required) and OpenAI API key (optional) from environment variables and uses them to instantiate an LLMGateway object. If the ANTHROPIC_API_KEY environment variable is not set, a KeyError is raised before the gateway is created. This function is used internally by CLI commands such as generate, drift, chat, and llms_txt.
 
     Returns:
-        LLMGateway: A configured LLMGateway instance with Anthropic and OpenAI API keys.
+        LLMGateway: A fully configured LLMGateway instance initialised with the Anthropic API key and, if available, the OpenAI API key.
 
     Raises:
-        KeyError: When the ANTHROPIC_API_KEY environment variable is not set.
+        KeyError: When the ANTHROPIC_API_KEY environment variable is not set in the current environment.
 
     Example:
         ```
         gateway = _build_gateway()
+        response = gateway.complete(prompt='Explain dependency injection.')
         ```
     """
     from core.llm.gateway import LLMGateway
@@ -95,16 +114,19 @@ def _build_gateway() -> "LLMGateway":
 
 def _build_embedder() -> "VoyageEmbedder":
     """
-    Builds and returns a VoyageEmbedder instance configured with the API key from environment variables.
+    Builds and returns a VoyageEmbedder instance configured with the API key retrieved from the VOYAGE_API_KEY environment variable.
 
-    Creates a VoyageEmbedder object by retrieving the VOYAGE_API_KEY from the environment. If the environment variable is not set, an empty string is used as the API key.
+    This factory function reads the VOYAGE_API_KEY environment variable to initialize a VoyageEmbedder instance. If the environment variable is not set, an empty string is used as the fallback API key. It is called internally by the generate(), drift(), and chat() CLI commands to provide a consistent embedder object.
 
     Returns:
-        VoyageEmbedder: A configured VoyageEmbedder instance initialized with the API key from the VOYAGE_API_KEY environment variable.
+        VoyageEmbedder: A VoyageEmbedder instance initialized with the API key from the VOYAGE_API_KEY environment variable, or an empty string if the variable is not set.
 
     Example:
         ```
+        import os
+        os.environ['VOYAGE_API_KEY'] = 'your-voyage-api-key'
         embedder = _build_embedder()
+        # embedder is now a VoyageEmbedder configured with 'your-voyage-api-key'
         ```
     """
     from core.embeddings.voyage_embeddings import VoyageEmbedder
@@ -115,22 +137,22 @@ def _build_embedder() -> "VoyageEmbedder":
 
 def _get_cache(repo_root: str) -> "ASTCache":
     """
-    Retrieves or initializes an ASTCache instance for the specified repository root.
+    Retrieves or initializes an ASTCache instance for the specified repository root directory.
 
-    Creates an ASTCache instance using a cache database path determined by the SQLITE_CACHE_PATH environment variable or a default path within the .wright directory. Ensures the cache directory exists before instantiating the cache.
+    Determines the cache database path from the SQLITE_CACHE_PATH environment variable, falling back to a default path at <repo_root>/.wright/ast_cache.db. Ensures the target directory exists before constructing and returning the ASTCache instance. Called internally by generate() and drift() to provide a shared caching layer for parsed AST data.
 
     Args:
-        repo_root (str): The root directory path of the repository where the cache should be stored.
+        repo_root (str): The root directory path of the repository where the AST cache database should be stored.
 
     Returns:
-        ASTCache: An initialized ASTCache instance configured with the determined cache database path.
+        ASTCache: An initialized ASTCache instance configured with the resolved cache database file path.
 
     Raises:
-        OSError: When the cache directory cannot be created due to permission issues or invalid path.
+        OSError: When the cache directory cannot be created due to permission issues or an invalid path.
 
     Example:
         ```
-        cache = _get_cache('/path/to/repo')
+        cache = _get_cache('/home/user/projects/my_repo')
         ```
     """
     from core.parser.cache import ASTCache
@@ -142,19 +164,19 @@ def _get_cache(repo_root: str) -> "ASTCache":
 
 def _get_chroma(repo_root: str) -> "ChromaStore":
     """
-    Initializes and returns a ChromaStore instance for vector embeddings storage.
+    Initializes and returns a configured ChromaStore instance for vector embeddings storage using the repository root path.
 
-    Creates a ChromaStore object using either the CHROMA_PATH environment variable or a default path within the repository's .wright directory. This function serves as a factory method for obtaining a configured ChromaStore instance.
+    Acts as a factory method that constructs a ChromaStore object with a persistence path resolved from the CHROMA_PATH environment variable, falling back to the default '.wright/chroma' directory within the given repository root. This instance is used by generate(), drift(), and chat() to interact with the Chroma vector database.
 
     Args:
-        repo_root (str): The root directory path of the repository where the Chroma database will be stored.
+        repo_root (str): The absolute or relative root directory path of the repository where the Chroma database will be persisted if CHROMA_PATH is not set.
 
     Returns:
-        ChromaStore: A configured ChromaStore instance with the persistence path set to either the environment variable CHROMA_PATH or the default .wright/chroma directory.
+        ChromaStore: A ChromaStore instance configured with persist_path set to either the CHROMA_PATH environment variable value or the default path '<repo_root>/.wright/chroma', and repo_root set to the provided repository root.
 
     Example:
         ```
-        chroma_store = _get_chroma('/path/to/repo')
+        chroma_store = _get_chroma('/home/user/my_project')
         ```
     """
     from core.embeddings.chroma_store import ChromaStore
@@ -165,7 +187,33 @@ def _get_chroma(repo_root: str) -> "ChromaStore":
 
 @app.command()
 def init(repo: str = typer.Argument(".", help="Repository root")) -> None:
-    """Initialize Wright for a repository."""
+    """
+    Initializes Wright for a repository by scanning source files, reporting documentation coverage, and writing a .wright.json configuration file.
+
+    Scans the specified repository root directory for source files using a tree-sitter-based code parser, computes documentation coverage statistics (file count, total named functions, and percentage already documented), detects the dominant programming language by function count, displays up to three sample undocumented functions, and then prompts the user to confirm creation of a .wright.json configuration file.
+
+    Args:
+        repo (str): Filesystem path to the repository root to initialize. Defaults to '.' (current working directory). Resolved to an absolute path before processing.
+
+    Returns:
+        None: This function does not return a value; all output is written to the console and optionally to a .wright.json file on disk.
+
+    Raises:
+        SystemExit: Raised implicitly by Typer if required CLI arguments are malformed or if the user aborts the confirmation prompt.
+        FileNotFoundError: Raised if the provided repo path does not exist or is not accessible by the parser.
+
+    Example:
+        ```
+        # From the command line:
+        # $ wright init /path/to/my_project
+        
+        # Programmatically (e.g. in tests):
+        from cli.main import init
+        init(repo='/path/to/my_project')
+        ```
+
+    Complexity: O(F) time where F is the total number of source files in the repository, driven by the directory scan and parse step.
+    """
     from core.config import WrightConfig, save_config
     from core.parser.tree_sitter_parser import CodeParser
 
@@ -223,7 +271,33 @@ def generate(
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview without writing"),
     watch: bool = typer.Option(False, "--watch", help="Watch for changes"),
 ) -> None:
-    """Generate docstrings for all undocumented functions."""
+    """
+    Generates and injects docstrings for all undocumented functions in a specified file or directory using an LLM-backed pipeline.
+
+    Scans the specified path (file or directory) for undocumented functions, builds a dependency graph and hybrid retriever for context, then concurrently generates docstrings via a configured LLM gateway and injects them into source files. Files within the same path are processed serially to maintain correct byte offsets after each injection, while different files are processed concurrently with a semaphore limit of 3. Supports multiple documentation styles, verbosity levels, dry-run preview mode, and an experimental watch mode.
+
+    Args:
+        path (str): Filesystem path to a single source file or a directory to recursively scan for undocumented functions. Defaults to the current working directory ('.').
+        style (Optional[str]): Documentation style to use for generated docstrings. Accepted values are 'google', 'numpy', 'jsdoc', 'epytext', or 'rust'. If omitted, the style is inferred from the project configuration or the detected language of each function.
+        verbosity (str): Controls the level of detail in generated docstrings. Accepted values are 'concise', 'standard', or 'detailed'. Defaults to 'standard'.
+        dry_run (bool): When True, previews the generated docstrings in the results table without writing any changes to disk. Defaults to False.
+        watch (bool): When True, intended to watch the target path for file changes and re-generate docstrings automatically. Watch mode is not yet implemented and will display a notice if enabled. Defaults to False.
+
+    Returns:
+        None: Does not return a value. Outputs a Rich-formatted results table to the console summarising the generation status of each function.
+
+    Raises:
+        Exception: Any exception raised during docstring generation or injection for a specific function is caught per-function, logged in the results table with an error message, and does not abort processing of remaining functions.
+
+    Example:
+        ```
+        # Generate Google-style docstrings for all undocumented functions in ./src with detailed verbosity
+        $ wright generate ./src --style google --verbosity detailed
+        
+        # Preview generated docstrings without writing to disk
+        $ wright generate ./src/utils.py --dry-run
+        ```
+    """
     from core.config import load_config
     from core.llm.prompts import DocStyle, LANGUAGE_DEFAULT_STYLE
     from core.output.injector import DocstringInjector
@@ -348,7 +422,38 @@ def coverage(
     path: str = typer.Argument(".", help="Repository root"),
     output: Optional[str] = typer.Option(None, "--output", help="Write JSON report to file"),
 ) -> None:
-    """Show documentation coverage."""
+    """
+    Scans a repository root for Python documentation coverage and prints a per-folder breakdown table, optionally writing a JSON report and exiting with a non-zero code if coverage falls below the configured threshold.
+
+    Traverses all Python files under the given repository root using CodeParser, counts total and documented functions (excluding anonymous ones), and computes per-folder and overall coverage percentages. Results are rendered as a Rich table in the console. If an output path is supplied, a JSON report containing overall percentage, total counts, and per-folder breakdowns is written to disk. If the overall coverage percentage falls below the threshold defined in the project configuration, a red warning is printed and the CLI exits with code 1.
+
+    Args:
+        path (str): Filesystem path to the repository root to scan. Defaults to '.' (the current working directory).
+        output (Optional[str]): If provided, writes a JSON summary report containing overall_pct, total, documented, files, and by_folder breakdowns to the specified file path. Defaults to None.
+
+    Returns:
+        None: Does not return a value; all output is written to the console, an optional JSON file, and/or triggers a typer.Exit(1) if coverage is below threshold.
+
+    Raises:
+        typer.Exit: Raised with exit code 1 when the overall documentation coverage percentage falls below the threshold defined in the project configuration (config.coverage_threshold * 100).
+
+    Example:
+        ```
+        # From the command line:
+        # $ wright coverage ./my_project --output coverage_report.json
+        
+        # Programmatic equivalent using Typer's test runner:
+        from typer.testing import CliRunner
+        from cli.main import app
+        
+        runner = CliRunner()
+        result = runner.invoke(app, ['coverage', './my_project', '--output', 'coverage_report.json'])
+        print(result.output)
+        # Console prints a Rich table with per-folder coverage and writes coverage_report.json
+        ```
+
+    Complexity: O(F + N) where F is the number of Python files parsed and N is the total number of functions across all files.
+    """
     from core.config import load_config
     from core.parser.tree_sitter_parser import CodeParser
 
@@ -419,11 +524,37 @@ def coverage(
 @app.command()
 def drift(
     path: str = typer.Argument(".", help="Repository root"),
-    fix: bool = typer.Option(False, "--fix", help="Auto-regenerate drifted and undocumented docstrings"),
+    fix: bool = typer.Option(False, "--fix", help="Auto-regenerate drifted docstrings (does not add docs to undocumented functions)"),
     output: Optional[str] = typer.Option(None, "--output", help="Write JSON report to file"),
     auto_pr: bool = typer.Option(False, "--auto-pr", help="Open GitHub PR with fixes"),
 ) -> None:
-    """Check all functions for documentation drift."""
+    """
+    Checks all functions in a repository for documentation drift and optionally auto-fixes or reports issues.
+
+    Scans the given repository root for Python functions whose docstrings are missing or have drifted out of sync with the current implementation. Results are summarised in the console and optionally written to a JSON report file. When --fix is provided, drifted and undocumented functions are regenerated concurrently via an LLM gateway and injected back into their source files. When --auto-pr is provided (without --fix), a GitHub Pull Request is opened with the list of functions that need attention.
+
+    Args:
+        path (str): Filesystem path to the repository root to scan. Defaults to the current working directory ('.').
+        fix (bool): When True, automatically regenerates docstrings for all drifted and undocumented functions using an LLM gateway and injects them into the source files. Defaults to False.
+        output (Optional[str]): Optional file path to write a JSON report containing counts of total, drifted, undocumented, and up-to-date functions. If None, no file is written.
+        auto_pr (bool): When True, opens a GitHub Pull Request containing the list of functions with documentation drift. Only has an effect when --fix is not used. Defaults to False.
+
+    Returns:
+        None: This function does not return a value; all output is written to the console, optionally to a JSON file, or committed via a GitHub PR.
+
+    Example:
+        ```
+        # Check for drift and write a JSON report, then auto-fix all issues:
+        # $ wright drift ./my_project --fix --output report.json
+        
+        # Programmatic invocation via Typer test runner:
+        from typer.testing import CliRunner
+        from cli.main import app
+        runner = CliRunner()
+        result = runner.invoke(app, ['drift', './my_project', '--output', 'drift_report.json'])
+        print(result.output)
+        ```
+    """
     from core.drift.drift_detector import DriftDetector
 
     path_abs = _resolve_workspace(os.path.abspath(path))
@@ -463,6 +594,12 @@ def drift(
         return
 
     if fix:
+        # Only fix drifted functions — undocumented functions are left for the user to generate
+        fix_targets = drifted_res
+        if not fix_targets:
+            console.print("[green]No drifted functions to fix. Use [bold]wright generate[/bold] to document undocumented functions.[/green]")
+            return
+
         from core.config import load_config
         from core.llm.prompts import LANGUAGE_DEFAULT_STYLE
         from core.output.injector import DocstringInjector
@@ -472,43 +609,88 @@ def drift(
 
         config = load_config(path_abs)
         gateway = _build_gateway()
-        embedder = _build_embedder()
-        chroma = _get_chroma(path_abs)
         parser = CodeParser()
         injector = DocstringInjector()
 
-        # Group by file for efficient re-parsing
+        # Group by file
         from collections import defaultdict
         by_file: dict = defaultdict(list)
-        for r in needs_attention:
+        for r in fix_targets:
             by_file[r.file_path].append(r.function_name)
 
-        dep_graph = DependencyGraph()
-        dep_graph.build(parser.parse_directory(path_abs))
-        retriever = HybridRetriever(chroma, dep_graph, embedder)
+        # Build retriever for context — best-effort, skip if embeddings unavailable
+        retriever = None
+        with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as prog:
+            t = prog.add_task("Building context index…", total=None)
+            try:
+                embedder = _build_embedder()
+                chroma = _get_chroma(path_abs)
+                dep_graph = DependencyGraph()
+                dep_graph.build(parser.parse_directory(path_abs))
+                retriever = HybridRetriever(chroma, dep_graph, embedder)
+            except Exception:
+                pass  # proceed without retrieval context
+            prog.update(t, completed=True)
 
-        fixed = 0
-        with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as progress:
-            task = progress.add_task(f"Fixing {len(needs_attention)} functions…", total=len(needs_attention))
+        import asyncio
+
+        async def _fix_all() -> int:
+            # Generate all docstrings concurrently (LLM calls are independent)
+            # but inject them file-by-file sequentially to avoid write conflicts.
+
+            async def _generate_one(file_path: str, func) -> tuple:
+                lang = func.language if hasattr(func, "language") else None
+                doc_style = LANGUAGE_DEFAULT_STYLE.get(lang, config.style) if lang else config.style
+                try:
+                    context = retriever.retrieve_for_function(func) if retriever else []
+                    doc = await gateway.generate_docstring(func, context, doc_style)
+                    return (file_path, func, doc, doc_style, None)
+                except Exception as e:
+                    return (file_path, func, None, doc_style, str(e))
+
+            # Collect all (file_path, func) pairs
+            work = []
             for file_path, func_names in by_file.items():
                 pf = parser.parse_file(file_path)
                 for func in pf.functions:
-                    if func.name not in func_names:
-                        continue
-                    lang = pf.language if hasattr(pf, "language") else None
-                    doc_style = LANGUAGE_DEFAULT_STYLE.get(lang, config.style) if lang else config.style
-                    try:
-                        import asyncio
-                        context = retriever.retrieve_for_function(func)
-                        doc = asyncio.run(gateway.generate_docstring(func, context, doc_style))
-                        result = injector.inject(file_path, func, doc, doc_style, dry_run=False)
-                        if result.success:
-                            fixed += 1
-                    except Exception as e:
-                        console.print(f"[red]✕[/red] {func.name}: {e}")
-                    progress.advance(task)
+                    if func.name in func_names:
+                        work.append((file_path, func))
 
-        console.print(f"[green]Fixed {fixed} / {len(needs_attention)} functions.[/green]")
+            console.print(f"Regenerating docs for [bold]{len(work)}[/bold] drifted functions (max 5 concurrent LLM calls)…")
+
+            # Generate concurrently with rate-limit cap
+            sem = asyncio.Semaphore(5)
+            async def _guarded(fp, fn):
+                async with sem:
+                    return await _generate_one(fp, fn)
+
+            generated = await asyncio.gather(*[_guarded(fp, fn) for fp, fn in work])
+
+            # Group results by file and inject sequentially per file to avoid write conflicts
+            from collections import defaultdict
+            by_file_results: dict = defaultdict(list)
+            for item in generated:
+                if item[2] is not None:  # doc is not None
+                    by_file_results[item[0]].append(item)
+                else:
+                    console.print(f"[red]✕[/red] {item[1].name}: {item[4]}")
+
+            fixed = 0
+            for file_path, items in by_file_results.items():
+                # Inject bottom-to-top so earlier insertions don't shift byte
+                # offsets for functions that appear later in the file.
+                sorted_items = sorted(items, key=lambda x: x[1].start_byte, reverse=True)
+                for _, func, doc, doc_style, _ in sorted_items:
+                    result = injector.inject(file_path, func, doc, doc_style, dry_run=False)
+                    if result.success:
+                        fixed += 1
+                    else:
+                        console.print(f"[red]✕[/red] {func.name}: inject failed")
+
+            return fixed
+
+        fixed = asyncio.run(_fix_all())
+        console.print(f"[green]Fixed {fixed} / {len(fix_targets)} drifted functions.[/green]")
         return
 
     table = Table(title="Documentation Drift")
@@ -522,7 +704,8 @@ def drift(
         table.add_row(r.function_name, os.path.basename(r.file_path), status_str, r.reason or "")
 
     console.print(table)
-    console.print(f"\n[dim]Run with [bold]--fix[/bold] to auto-regenerate all {len(needs_attention)} functions.[/dim]")
+    if drifted_res:
+        console.print(f"\n[dim]Run with [bold]--fix[/bold] to auto-regenerate {len(drifted_res)} drifted function(s). Use [bold]wright generate[/bold] to document undocumented ones.[/dim]")
 
     if auto_pr:
         _open_drift_pr(path_abs, needs_attention)
@@ -530,20 +713,20 @@ def drift(
 
 def _open_drift_pr(repo_root: str, drifted: list) -> None:
     """
-    Attempts to open a GitHub pull request for drifted infrastructure resources, currently a placeholder feature.
+    Attempts to open a GitHub pull request for drifted infrastructure resources, currently a placeholder that checks for a GITHUB_TOKEN and notifies the user the feature is not yet implemented.
 
-    Checks for the presence of a GITHUB_TOKEN environment variable and notifies the user that automatic PR creation functionality is not yet implemented. This function is intended to automate the process of creating pull requests when infrastructure drift is detected.
+    Called by the drift() function when infrastructure drift is detected, this helper checks for the presence of the GITHUB_TOKEN environment variable and prints an appropriate message. If the token is absent, it prints an error and returns early. If the token is present, it informs the user that the automatic PR creation feature is coming soon. No actual PR is opened at this time.
 
     Args:
-        repo_root (str): The root directory path of the repository where the PR would be created.
-        drifted (list): A list of drifted resources or configurations that would be included in the PR description.
+        repo_root (str): The root directory path of the repository where the pull request would be created once the feature is fully implemented.
+        drifted (list): A list of drifted resources or configurations detected during infrastructure drift analysis that would be included in the pull request description.
 
     Returns:
         None: This function does not return a value.
 
     Example:
         ```
-        _open_drift_pr('/path/to/repo', ['resource1', 'resource2'])
+        _open_drift_pr('/home/user/projects/my-infra-repo', ['aws_s3_bucket.my_bucket', 'aws_iam_role.app_role'])
         ```
     """
     token = os.getenv("GITHUB_TOKEN")
@@ -556,7 +739,35 @@ def _open_drift_pr(repo_root: str, drifted: list) -> None:
 
 @app.command()
 def chat(path: str = typer.Argument(".", help="Repository root")) -> None:
-    """Start an interactive codebase chat session."""
+    """
+    Starts an interactive command-line chat session that answers natural-language questions about a codebase using hybrid retrieval and an LLM gateway.
+
+    Resolves the repository root, builds the dependency graph via CodeParser and DependencyGraph, connects to the ChromaDB vector store, and enters a read-eval-print loop where the user can ask questions about the codebase. Each question is answered by retrieving the top-5 relevant code contexts through HybridRetriever (combining vector similarity and PageRank scores) and then querying the configured LLM gateway. If the vector index is empty, a tip is printed advising the user to run `wright init` first. The loop exits on 'exit', 'quit', 'q', EOF, or KeyboardInterrupt.
+
+    Args:
+        path (str): Filesystem path to the repository root. Defaults to the current working directory ('.'). Resolved to an absolute path before use.
+
+    Returns:
+        None: This function does not return a value; it drives an interactive REPL loop until the user exits.
+
+    Raises:
+        SystemExit: Raised by Typer if invalid CLI arguments are provided.
+        FileNotFoundError: Raised by _resolve_workspace if the provided path does not exist or cannot be resolved.
+
+    Example:
+        ```
+        # From the terminal:
+        # wright chat /home/user/my_project
+        
+        # Or programmatically via Typer test runner:
+        from typer.testing import CliRunner
+        from cli.main import app
+        
+        runner = CliRunner()
+        result = runner.invoke(app, ['chat', '/home/user/my_project'], input='What does main.py do?\nexit\n')
+        print(result.output)
+        ```
+    """
     from core.parser.dep_graph import DependencyGraph
     from core.parser.tree_sitter_parser import CodeParser
     from core.retrieval.hybrid_retriever import HybridRetriever
@@ -608,7 +819,29 @@ def chat(path: str = typer.Argument(".", help="Repository root")) -> None:
 
 @app.command()
 def llms_txt(path: str = typer.Argument(".", help="Repository root")) -> None:
-    """Generate or update llms.txt in the repository root."""
+    """
+    Generates or updates an llms.txt file in the specified repository root by parsing the codebase and writing structured LLM-friendly content.
+
+    This CLI command resolves the target repository path, parses all source files using a tree-sitter-based code parser, and asynchronously generates an llms.txt file via LLMSTxtWriter. Progress is displayed in the terminal using a spinner. The resulting file is written directly to the repository root directory.
+
+    Args:
+        path (str): Path to the repository root directory. Defaults to the current working directory ('.'). Resolved to an absolute path before processing.
+
+    Returns:
+        None: This function does not return a value. It writes the generated llms.txt file to disk as a side effect.
+
+    Example:
+        ```
+        # From the command line:
+        # wright llms-txt /path/to/my-repo
+        
+        # Or using the default current directory:
+        # wright llms-txt
+        
+        # Programmatically (if invoking directly):
+        llms_txt(path="/home/user/projects/my-repo")
+        ```
+    """
     from core.output.llms_txt import LLMSTxtWriter
     from core.parser.tree_sitter_parser import CodeParser
 

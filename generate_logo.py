@@ -42,11 +42,30 @@ DARK_SVG = MASTER_SVG.replace("#534AB7", "#26215C")
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def write_file(path: Path, data: bytes | str) -> None:
     """
-    Writes data to a file, handling both text and binary data appropriately.
+    Writes text or binary data to a file, automatically selecting the appropriate write method based on the data type.
+
+    Determines whether the provided data is a string or bytes and uses the corresponding write method. String data is written using UTF-8 encoding via `path.write_text()`, while binary data is written directly via `path.write_bytes()`. The file is created if it does not exist, or overwritten if it does.
 
     Args:
-        path (Path): The file system path where the data will be written.
-        data (bytes | str): The content to write to the file, either as a string or bytes.
+        path (Path): The file system path where the data will be written. The file will be created or overwritten if it already exists.
+        data (bytes | str): The content to write to the file. If a string, it is encoded as UTF-8 text; if bytes, it is written as raw binary data.
+
+    Returns:
+        None: This function does not return a value.
+
+    Raises:
+        OSError: When the file cannot be written due to permission issues, an invalid path, or other I/O errors.
+
+    Example:
+        ```
+        from pathlib import Path
+        
+        # Writing text data
+        write_file(Path('output/logo.svg'), '<svg>...</svg>')
+        
+        # Writing binary data
+        write_file(Path('output/logo.png'), b'\x89PNG\r\n\x1a\n...')
+        ```
     """
     if isinstance(data, str):
         path.write_text(data, encoding="utf-8")
@@ -56,20 +75,20 @@ def write_file(path: Path, data: bytes | str) -> None:
 
 def assert_png(path: Path, expected_size: tuple[int, int]) -> None:
     """
-    Validates that a PNG image file exists, has content, matches expected dimensions, and has valid image integrity.
+    Validates that a PNG file exists, is non-empty, matches expected dimensions, and passes Pillow integrity verification.
 
-    Performs multiple assertions to verify a PNG file: checks file existence and non-zero size, validates image dimensions match expected size, and verifies the image file integrity by opening and validating it.
+    Performs multiple sequential assertions on a PNG file: verifies the file exists and has a non-zero size, checks that the image dimensions match the provided (width, height) tuple, and confirms image integrity by opening a fresh file handle and calling Pillow's verify() method.
 
     Args:
         path (Path): Path object pointing to the PNG file to validate.
         expected_size (tuple[int, int]): Expected image dimensions as (width, height) in pixels.
 
     Returns:
-        None: This function returns nothing; it raises AssertionError if validation fails.
+        None: Returns nothing; raises an exception if any validation check fails.
 
     Raises:
-        AssertionError: When the file does not exist, is empty, has incorrect dimensions, or fails integrity verification.
-        PIL.UnidentifiedImageError: When the file cannot be opened as a valid image.
+        AssertionError: When the file does not exist, is empty, or has dimensions that do not match expected_size.
+        PIL.UnidentifiedImageError: When the file cannot be opened or recognized as a valid image by Pillow.
 
     Example:
         ```
@@ -88,14 +107,14 @@ def assert_svg(path: Path, bg_color: str = "#534AB7") -> None:
     """
     Validates that an SVG file contains exactly one circle element, exactly one path element, and includes a specified background color.
 
-    Reads the content of an SVG file and performs three assertions: verifies the presence of exactly one <circle> tag, exactly one <path> tag, and confirms that the specified background color string appears in the content. This function is typically used in testing to ensure SVG files are generated with the correct structure and styling.
+    Reads the content of an SVG file and performs three assertions: verifies the presence of exactly one <circle> tag, exactly one <path> tag, and confirms that the specified background color string appears in the content. Typically used in testing to ensure SVG files are generated with the correct structure and styling.
 
     Args:
         path (Path): The filesystem path to the SVG file to validate.
         bg_color (str): The expected background color hex code that should appear in the SVG content. Defaults to '#534AB7'.
 
     Returns:
-        None: This function does not return a value; it either completes successfully or raises an AssertionError.
+        None: Does not return a value; completes successfully or raises an AssertionError if any validation fails.
 
     Raises:
         AssertionError: When the SVG file does not contain exactly one <circle> element.
@@ -117,19 +136,19 @@ def assert_svg(path: Path, bg_color: str = "#534AB7") -> None:
 
 def render_png(svg: str, size: int) -> bytes:
     """
-    Renders an SVG string to a PNG image with the specified dimensions.
+    Renders an SVG string to a square PNG image with the specified pixel dimensions using CairoSVG.
 
-    Converts an SVG string into PNG format using CairoSVG library, encoding the SVG as bytes and rendering it to the specified square dimensions.
+    Converts an SVG string into PNG format by encoding the SVG content as bytes and delegating rendering to the CairoSVG library, producing a square output image where width equals height.
 
     Args:
-        svg (str): The SVG content as a string to be rendered.
-        size (int): The width and height in pixels for the output PNG image (creates a square image).
+        svg (str): The SVG content as a string to be rendered into a PNG image.
+        size (int): The width and height in pixels for the output PNG image, producing a square image.
 
     Returns:
         bytes: The rendered PNG image as a bytes object.
 
     Raises:
-        cairosvg.surface.cairo.CairoError: When the SVG content is malformed or cannot be parsed.
+        cairosvg.surface.cairo.CairoError: When the SVG content is malformed or cannot be parsed by CairoSVG.
         ValueError: When the size parameter is invalid or negative.
 
     Example:

@@ -38,15 +38,22 @@ const NAV = [
 ];
 
 /**
- * Renders a fixed-width sidebar navigation component with logo, navigation groups, and active route highlighting.
+ * Renders a fixed-width navigation sidebar with grouped links, active-route highlighting, and an optional close callback for mobile overlays.
  *
- * A React component that displays a vertical sidebar with the Wright AI logo, a free plan badge, and grouped navigation links. The sidebar uses the current pathname to highlight active routes, supports hover states, and provides an optional close callback for mobile/responsive use cases.
+ * The Sidebar component displays the Wright AI logo and plan badge at the top, followed by a scrollable navigation area built from a NAV configuration. It uses Next.js `usePathname` to determine the currently active route: the `/dashboard` path requires an exact match, while all other paths use a `startsWith` check. Active links receive a purple accent background and left border. Hover styles are applied via inline mouse-event handlers. The optional `onClose` callback is invoked when any navigation link is clicked, making the component suitable for dismissible mobile drawer patterns.
  *
- * @param {(() => void) | undefined} onClose - Optional callback function invoked when a navigation link is clicked, typically used to close the sidebar on mobile devices.
- * @returns {JSX.Element} A React element representing the sidebar with navigation links, logo, and styling.
+ * @param {(() => void) | undefined} onClose - Optional callback invoked when a navigation link is clicked; typically used to close a mobile drawer or overlay containing the sidebar.
+ * @returns {JSX.Element} An <aside> element containing the Wright AI logo section and a grouped navigation menu with styled, active-aware links.
  * @example
- * <Sidebar onClose={() => setMobileMenuOpen(false)} />
+ * // Basic usage inside a layout
+ * <Sidebar />
+ * 
+ * // With a close handler for a mobile drawer
+ * <Sidebar onClose={() => setDrawerOpen(false)} />
  */
+
+
+
 export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const isActive = (href: string) =>

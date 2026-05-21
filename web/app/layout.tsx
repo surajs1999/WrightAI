@@ -122,19 +122,25 @@ const jsonLd = {
 };
 
 /**
- * Renders the root HTML layout for the Next.js application, injecting JSON-LD structured data and applying global font variables.
+ * Renders the root HTML layout shell for the Next.js application, injecting global font class names and JSON-LD structured data into the document head.
  *
- * Serves as the top-level layout component for the Next.js App Router, wrapping all page content in a standard HTML document shell. It applies three custom font CSS variables (bricolage, dmMono, poppins) to the html element, embeds a JSON-LD structured data script in the document head for SEO purposes, and renders child components inside the body tag.
+ * Acts as the top-level layout component for the Next.js App Router. It wraps all page content in an `<html>` element with the language set to English and CSS variable class names applied for the Bricolage, DM Mono, and Poppins fonts. A JSON-LD structured data script is injected into `<head>` for SEO purposes, and the provided child components are rendered inside `<body>`.
  *
- * @param {React.ReactNode} children - The nested page or layout content to be rendered inside the document body, provided automatically by the Next.js App Router.
- * @returns {JSX.Element} A full HTML document element containing a head with JSON-LD structured data and a body wrapping the provided children.
+ * @param {React.ReactNode} children - The child React nodes to be rendered inside the document body, typically representing the active page and its nested layouts.
+ * @returns {JSX.Element} A JSX element representing the full HTML document structure including the `<html>`, `<head>` with JSON-LD script, and `<body>` wrapping the provided children.
  * @example
- * // Used automatically by Next.js App Router as app/layout.tsx
- * // All pages are implicitly wrapped:
+ * // Used automatically by Next.js App Router via app/layout.tsx
+ * // Manual usage example:
  * <RootLayout>
- *   <HomePage />
+ *   <main>
+ *     <h1>Hello World</h1>
+ *   </main>
  * </RootLayout>
  */
+
+
+
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${bricolage.variable} ${dmMono.variable} ${poppins.variable}`}>

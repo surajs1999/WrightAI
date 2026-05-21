@@ -29,22 +29,30 @@ LANGUAGE_DEFAULT_STYLE: dict[str, DocStyle] = {
 
 def _format_context_snippet(contexts: list[RetrievedContext]) -> str:
     """
-    Formats a list of retrieved code contexts into a human-readable string with source snippets, file locations, and caller/callee information.
+    Formats a list of retrieved code contexts into a single human-readable string of fenced source snippets with file locations and optional caller/callee metadata.
 
-    Creates formatted documentation snippets for each context by combining the source code (truncated to 800 characters), file path with line number, and lists of up to 3 callers and callees. Each snippet is separated by horizontal dividers for readability.
+    Iterates over each RetrievedContext object and constructs a fenced code block prefixed with the file path and start line, truncating the source code to 800 characters. Optionally appends up to 3 callers and callees in 'function (path)' format. All individual snippets are joined with '\n\n---\n\n' horizontal dividers. Called internally by build_docstring_prompt() and build_chat_prompt() to assemble the context section of LLM prompts.
 
     Args:
-        contexts (list[RetrievedContext]): A list of RetrievedContext objects containing code chunks with associated caller and callee metadata to be formatted.
+        contexts (list[RetrievedContext]): A list of RetrievedContext objects, each containing a code chunk with file_path, start_line, and source attributes, along with callers and callees metadata lists of (path, function_name) tuples.
 
     Returns:
-        str: A formatted string containing all context snippets separated by '\n\n---\n\n' delimiters, with each snippet including file location, source code, and optional caller/callee lists.
+        str: A single formatted string of all context snippets separated by '\n\n---\n\n', where each snippet includes a file location header, a fenced source code block truncated to 800 characters, and optional Callers/Callees lines listing up to 3 entries each in 'function (path)' format.
 
     Example:
         ```
-        formatted_text = _format_context_snippet(retrieved_contexts)
+        formatted = _format_context_snippet(retrieved_contexts)
+        # Output example:
+        # File: core/utils/parser.py:42
+        # ```
+        # def parse_node(node):
+        #     ...
+        # ```
+        # Callers: build_graph (core/graph.py)
+        # Callees: extract_token (core/tokenizer.py)
         ```
 
-    Complexity: O(n*m) time where n is the number of contexts and m is the average number of callers/callees (capped at 3), O(n) space
+    Complexity: O(n*m) time where n is the number of contexts and m is the average number of callers/callees per context (capped at 3); O(n) space for the list of formatted snippets.
     """
     snippets = []
     for ctx in contexts:
@@ -67,22 +75,30 @@ def build_docstring_prompt(
     verbosity: str = "standard",
 ) -> str:
     """
-    Builds a prompt string for generating documentation for a parsed function using LLM.
+    Builds a formatted prompt string for LLM-based documentation generation from a parsed function and its codebase context.
 
-    Constructs a comprehensive prompt that includes function metadata, parameters, context from the codebase, and formatting instructions based on the specified documentation style. The prompt is designed to guide an LLM to generate structured documentation in JSON format.
+    Constructs a comprehensive prompt by combining function metadata (source code, parameters, return type, decorators, async status), caller/callee relationships from the retrieved context, style-specific formatting instructions, and a verbosity directive. The resulting prompt instructs the LLM to return a strictly structured JSON object conforming to a predefined documentation schema. Style instructions are resolved from an internal mapping keyed by DocStyle enum values, falling back to Google style if unrecognized. Verbosity is similarly resolved, defaulting to 'standard' behavior.
 
     Args:
-        func (ParsedFunction): The parsed function object containing source code, parameters, return type, decorators, and async status.
-        context (RetrievedContext): The retrieved context containing information about callers and callees of the function.
-        style (DocStyle): The documentation style enum specifying the format (e.g., GOOGLE, NUMPY, JSDOC).
-        language (str): The programming language of the code being documented (e.g., 'python').
+        func (ParsedFunction): The parsed function object containing source code, parameters, return type annotation, decorators, and async status to be documented.
+        context (RetrievedContext): The retrieved codebase context holding caller and callee relationships used to enrich the prompt with usage information.
+        style (DocStyle): The documentation style enum value specifying the output format, such as DocStyle.GOOGLE, DocStyle.NUMPY, or DocStyle.JSDOC.
+        language (str): The programming language of the function being documented, used to label fenced code blocks and tailor LLM instructions (e.g., 'python', 'typescript').
+        verbosity (str): Controls the level of detail requested in the generated documentation; accepts 'concise', 'standard' (default), or 'detailed'.
 
     Returns:
-        str: A formatted prompt string containing instructions, function details, and JSON schema for LLM-based documentation generation.
+        str: A fully formatted prompt string ready to be submitted to an LLM, containing function details, style and verbosity instructions, codebase context snippets, and a JSON schema example.
 
     Example:
         ```
-        prompt = build_docstring_prompt(parsed_func, context_data, DocStyle.GOOGLE, 'python')
+        prompt = build_docstring_prompt(
+            func=parsed_func,
+            context=retrieved_context,
+            style=DocStyle.GOOGLE,
+            language='python',
+            verbosity='detailed',
+        )
+        response = llm_client.complete(prompt)
         ```
     """
     style_guide = {
@@ -158,23 +174,24 @@ Rules:
 
 def build_readme_prompt(parsed_files: list[ParsedFile], repo_name: str) -> str:
     """
-    Builds a prompt string for an LLM to generate a comprehensive README.md file for a repository.
+    Builds a formatted prompt string instructing an LLM to generate a comprehensive README.md for a given repository.
 
-    Constructs a formatted prompt that instructs an LLM to act as a technical writer and create a README.md with specific sections (title, overview, installation, quick start, architecture, and contributing). The prompt includes a summary of the first 30 parsed files showing their paths, function counts, class counts, and programming language.
+    Constructs a structured prompt that directs an LLM to act as a technical writer and produce a README.md with six required sections: title, overview, installation, quick start, architecture, and contributing. The prompt embeds a concise summary of up to the first 30 parsed files, listing each file's path, function count, class count, and detected programming language to provide the LLM with repository context.
 
     Args:
-        parsed_files (list[ParsedFile]): List of ParsedFile objects containing analyzed code files with their functions, classes, paths, and language information. Only the first 30 files are included in the prompt summary.
-        repo_name (str): Name of the repository for which the README.md is being generated. Used in the title and throughout the prompt.
+        parsed_files (list[ParsedFile]): List of ParsedFile objects representing analyzed source files, each containing path, functions, classes, and language attributes. Only the first 30 entries are included in the prompt summary.
+        repo_name (str): Name of the repository for which the README.md is being generated; used in the prompt title and section headings.
 
     Returns:
-        str: A formatted prompt string containing instructions for the LLM to generate a README.md, including repository structure summary and required sections.
+        str: A fully formatted multi-line prompt string containing LLM instructions, a repository file summary, and the required README.md section specifications.
 
     Example:
         ```
         prompt = build_readme_prompt(parsed_files, 'my-awesome-project')
+        readme_text = llm_client.complete(prompt)
         ```
 
-    Complexity: O(n) time where n is min(len(parsed_files), 30), O(n) space for building the file summary string
+    Complexity: O(n) time and space where n is min(len(parsed_files), 30), due to iterating over and joining the file summary strings.
     """
     file_summary = "\n".join(
         f"- {pf.path}: {len(pf.functions)} functions, {len(pf.classes)} classes, language={pf.language}"
@@ -200,23 +217,24 @@ Return only the Markdown content, no extra commentary.
 
 def build_module_doc_prompt(parsed_file: ParsedFile, functions: list[ParsedFunction]) -> str:
     """
-    Builds a prompt string for generating module-level documentation by combining file metadata, function signatures, and imports.
+    Builds a formatted prompt string for an LLM to generate module-level documentation by combining file metadata, function signatures, and imports.
 
-    Constructs a formatted prompt that instructs an LLM to write module-level documentation. The prompt includes up to 20 function signatures with their parameters, up to 10 imports, and specific instructions for creating a concise 2-4 sentence docstring that explains the module's purpose, responsibilities, and role in the larger system.
+    Constructs a structured prompt that instructs an LLM to write a concise 2-4 sentence module-level docstring. The prompt includes up to 20 function signatures with their parameters and up to 10 imports from the parsed file. This function is called by generate_module_doc() in the LLM gateway layer.
 
     Args:
-        parsed_file (ParsedFile): The parsed file object containing metadata such as file path, language, and imports for the module being documented.
-        functions (list[ParsedFunction]): A list of parsed function objects from the module, each containing name and parameters; limited to first 20 functions in the output.
+        parsed_file (ParsedFile): The parsed file object containing metadata such as file path, programming language, and import statements for the module being documented.
+        functions (list[ParsedFunction]): A list of parsed function objects from the module, each containing a name and parameters list; only the first 20 functions are included in the prompt output.
 
     Returns:
-        str: A formatted prompt string containing instructions and context for generating module-level documentation.
+        str: A formatted multi-line prompt string containing file context, function signatures, imports, and instructions for generating module-level documentation.
 
     Example:
         ```
         prompt = build_module_doc_prompt(parsed_file, [func1, func2, func3])
+        response = llm.complete(prompt)
         ```
 
-    Complexity: O(n + m) time where n is the number of functions (up to 20) and m is the number of parameters per function, O(1) space for the output string
+    Complexity: O(n + m) time where n is the number of functions (capped at 20) and m is the total number of parameters across those functions; O(1) additional space
     """
     func_names = "\n".join(
         f"- {f.name}({', '.join(p['name'] for p in f.parameters)})" for f in functions[:20]
@@ -239,23 +257,23 @@ Return only the docstring text (no quotes, no extra formatting).
 
 def build_openapi_prompt(func: ParsedFunction, route_info: dict) -> str:
     """
-    Builds a prompt string for generating OpenAPI 3.0 documentation for an API endpoint.
+    Builds a formatted prompt string instructing an LLM to generate OpenAPI 3.0 documentation for a given API endpoint.
 
-    Constructs a formatted prompt that includes route information and the handler function's source code, instructing an LLM to generate OpenAPI documentation with specific fields including summary, description, parameters, request body, and responses.
+    Constructs a multi-line f-string prompt that embeds serialized route information (as indented JSON) and the handler function's source code, directing a language model to produce a structured JSON response with OpenAPI fields including summary, description, parameters, requestBody, and responses.
 
     Args:
-        func (ParsedFunction): A parsed function object containing the source code and metadata of the API handler function to document.
-        route_info (dict): A dictionary containing route information such as HTTP method, path, and other endpoint details that will be serialized to JSON in the prompt.
+        func (ParsedFunction): A parsed function object containing the source code and metadata of the API handler function to be documented.
+        route_info (dict): A dictionary containing route details such as HTTP method, path, and other endpoint metadata that will be serialized to indented JSON within the prompt.
 
     Returns:
-        str: A formatted prompt string containing instructions, route information, and function source code for OpenAPI documentation generation.
+        str: A formatted prompt string containing instructions, serialized route information, and the handler function source code for OpenAPI documentation generation.
 
     Example:
         ```
-        prompt = build_openapi_prompt(parsed_func, {'method': 'GET', 'path': '/users/{id}'})
+        prompt = build_openapi_prompt(parsed_func, {'method': 'GET', 'path': '/users/{id}', 'tags': ['users']})
         ```
 
-    Complexity: O(n) time where n is the size of route_info dict for JSON serialization, O(n) space for string concatenation
+    Complexity: O(n) time and space where n is the size of the route_info dict due to JSON serialization and string construction
     """
     return f"""Generate OpenAPI 3.0 documentation for this API endpoint.
 
@@ -276,24 +294,24 @@ def build_llms_txt_prompt(
     top_functions: list[tuple[str, float]],
 ) -> str:
     """
-    Builds a prompt string for an LLM to generate an llms.txt file documenting a code repository.
+    Builds a formatted prompt string instructing an LLM to generate a structured llms.txt documentation file for a given code repository.
 
-    Constructs a formatted prompt that includes repository name, a list of up to 20 parsed files, and up to 10 top-ranked functions by PageRank score. The prompt instructs the LLM to generate documentation following a specific structure with sections for overview, architecture, entry points, key functions, and files to avoid modifying.
+    Constructs a prompt that includes the repository name, up to 20 parsed files with their paths and detected languages, and up to 10 top-ranked functions by PageRank score. The resulting prompt directs the LLM to produce an llms.txt file with standardized sections: Overview, Architecture, Entry points, Key functions, and Do not modify.
 
     Args:
-        repo_name (str): The name of the repository to document.
-        parsed_files (list[ParsedFile]): List of parsed file objects containing path and language information; only the first 20 are included in the prompt.
-        top_functions (list[tuple[str, float]]): List of tuples containing function node IDs and their PageRank scores; only the top 10 are included in the prompt.
+        repo_name (str): The name of the repository to be documented, used as the title in the generated llms.txt content.
+        parsed_files (list[ParsedFile]): List of parsed file objects each containing a path and language attribute; only the first 20 entries are included in the prompt.
+        top_functions (list[tuple[str, float]]): List of tuples pairing a function node ID (str) with its PageRank score (float); only the top 10 entries are included in the prompt.
 
     Returns:
-        str: A formatted prompt string instructing an LLM to generate an llms.txt file with specific sections and structure.
+        str: A formatted multi-line prompt string that instructs an LLM to generate an llms.txt file with sections for overview, architecture, entry points, key functions, and files to avoid modifying.
 
     Example:
         ```
         prompt = build_llms_txt_prompt('my-project', parsed_files, [('main.process_data', 0.1234), ('utils.helper', 0.0987)])
         ```
 
-    Complexity: O(n + m) time where n is min(20, len(parsed_files)) and m is min(10, len(top_functions)), O(n + m) space
+    Complexity: O(n + m) time and space, where n is min(20, len(parsed_files)) and m is min(10, len(top_functions))
     """
     file_list = "\n".join(f"- {pf.path} ({pf.language})" for pf in parsed_files[:20])
     top_funcs = "\n".join(
@@ -331,20 +349,21 @@ Return only the llms.txt content.
 
 def build_chat_prompt(question: str, retrieved_contexts: list[RetrievedContext]) -> str:
     """
-    Constructs a formatted prompt string for a chatbot to answer questions about a codebase using retrieved code context.
+    Constructs a formatted prompt string that combines a user's codebase question, retrieved code context snippets, and LLM response rules into a single string ready for submission to a language model.
 
-    Builds a comprehensive prompt that includes the user's question, relevant code snippets from the codebase (or a placeholder if none exist), and instructions for the LLM on how to format its response with inline citations and code examples.
+    Builds a comprehensive prompt by formatting the user's question alongside relevant code chunks retrieved from the repository. If no contexts are available, a placeholder string is used instead. The resulting prompt includes inline citation instructions, guidance on inferring answers from code structure, and rules for using code blocks, ensuring consistent and grounded LLM responses. Called by `chat_stream()` and `chat()` in `core/llm/gateway.py`.
 
     Args:
-        question (str): The user's question about the codebase to be answered.
-        retrieved_contexts (list[RetrievedContext]): A list of RetrievedContext objects containing code snippets and metadata relevant to the question, or an empty list if no contexts were retrieved.
+        question (str): The user's natural language question about the codebase to be answered by the LLM.
+        retrieved_contexts (list[RetrievedContext]): A list of RetrievedContext objects containing code snippets and associated metadata (e.g., filename, line numbers) relevant to the question. Pass an empty list if no contexts were retrieved; a placeholder will be used in the prompt.
 
     Returns:
-        str: A formatted prompt string containing the question, code context, and response rules for the LLM.
+        str: A formatted multi-line prompt string containing the user's question, code context (or a placeholder), and LLM response rules including inline citation format and code block usage.
 
     Example:
         ```
-        prompt = build_chat_prompt("What does the main function do?", [context1, context2])
+        prompt = build_chat_prompt("What does the authenticate function do?", [context1, context2])
+        response = llm.complete(prompt)
         ```
     """
     context_str = (
@@ -370,20 +389,20 @@ Rules:
 
 def build_drift_check_prompt(func: ParsedFunction, old_docstring: str) -> str:
     """
-    Builds a prompt string for checking if existing documentation has drifted from the current function implementation.
+    Builds a formatted prompt string instructing an LLM to check whether existing documentation has drifted from the current function implementation.
 
-    Constructs a detailed prompt that instructs an LLM to compare a function's current code against its existing documentation. The prompt includes specific criteria for validation (parameter accuracy, return type, exceptions, and functionality) and requests a structured JSON response indicating whether documentation drift has occurred.
+    Constructs a detailed multi-line prompt that embeds the function's source code (formatted as a language-specific code block) and its existing docstring, along with four validation criteria: parameter name and type accuracy, return type accuracy, exception coverage, and overall functional accuracy. The prompt instructs the LLM to respond with a structured JSON object containing an `is_drifted` boolean and an optional `reason` string. This function is called by `check_drift()` in the LLM gateway module.
 
     Args:
-        func (ParsedFunction): A parsed function object containing the function's source code and language.
-        old_docstring (str): The existing documentation string to be validated against the current function implementation.
+        func (ParsedFunction): A parsed function object whose `source` attribute provides the raw function source code and `language` attribute provides the programming language used to format the fenced code block in the prompt.
+        old_docstring (str): The existing documentation string to be validated against the current function implementation for potential drift.
 
     Returns:
-        str: A formatted prompt string containing the function code, existing documentation, validation criteria, and instructions for returning a JSON response with drift status and reason.
+        str: A formatted multi-line prompt string containing the function source code, existing documentation, four drift-validation criteria, and instructions for the LLM to return a JSON object with `is_drifted` (bool) and `reason` (str or null) fields.
 
     Example:
         ```
-        prompt = build_drift_check_prompt(parsed_func, \"\"\"Calculates sum of two numbers.\"\"\")
+        prompt = build_drift_check_prompt(parsed_func, \"\"\"Calculates the sum of two numbers.\n\nArgs:\n    a (int): First number.\n    b (int): Second number.\n\nReturns:\n    int: The sum.\"\"\")
         ```
     """
     return f"""Determine if the existing documentation is still accurate for this function.

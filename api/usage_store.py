@@ -23,7 +23,26 @@ def _db():
 
 
 def _resolve_user_id(api_key: str) -> str | None:
-    """Return the users.id UUID for the given API key, or None if not found."""
+    """
+    Resolves and returns the UUID of a user record matching the given API key, or None if no match is found.
+
+    Queries the 'users' table in the database for a row whose 'api_key' column matches the provided key. If a matching record exists, its 'id' UUID string is returned. If no record is found or any exception occurs during the database call, None is returned silently. This function is used internally by record_event() and get_stats() to map an API key to a user identity before performing usage-related operations.
+
+    Args:
+        api_key (str): The API key string used to look up the corresponding user record in the database.
+
+    Returns:
+        str | None: The UUID string of the matching user's 'id' field if a record is found, or None if no matching user exists or a database error occurs.
+
+    Example:
+        ```
+        user_id = _resolve_user_id('sk-abc123xyz456')
+        if user_id:
+            print(f'Resolved user ID: {user_id}')
+        else:
+            print('API key not found or invalid.')
+        ```
+    """
     try:
         result = _db().table("users").select("id").eq("api_key", api_key).execute()
         return result.data[0]["id"] if result.data else None
@@ -38,7 +57,32 @@ def record_event(
     repo_name: str | None = None,
     language: str | None = None,
 ) -> None:
-    """Insert one usage event for the user identified by api_key. Never raises."""
+    """
+    Records a single usage event for the user identified by the given API key, silently ignoring all errors.
+
+    Resolves the user ID associated with the provided API key and inserts a usage event record into the 'usage_events' database table. If the API key is empty, the user ID cannot be resolved, or any exception occurs during the database operation, the function exits silently without raising. This makes it safe to call as a fire-and-forget side effect from any route handler.
+
+    Args:
+        api_key (str): The API key identifying the user on whose behalf the event is being recorded. If empty or unresolvable, the function returns without inserting any record.
+        event_type (str): A string label categorising the type of event being recorded (e.g., 'generate_docstring', 'check_drift', 'get_coverage').
+        tokens (int): The number of tokens consumed by the event. Defaults to 0 if not applicable or unknown.
+        repo_name (str | None): Optional name of the repository associated with the event. Pass None if not applicable.
+        language (str | None): Optional programming language associated with the event (e.g., 'python', 'javascript'). Pass None if not applicable.
+
+    Returns:
+        None: This function does not return a value.
+
+    Example:
+        ```
+        record_event(
+            api_key='sk-abc123',
+            event_type='generate_docstring',
+            tokens=512,
+            repo_name='my-org/my-repo',
+            language='python'
+        )
+        ```
+    """
     if not api_key:
         return
     try:
@@ -57,7 +101,33 @@ def record_event(
 
 
 def get_stats(api_key: str) -> dict:
-    """Return usage stats shaped for the /usage API response."""
+    """
+    Retrieves and aggregates usage statistics for a given API key, shaped for the /usage API response.
+
+    Resolves the provided API key to an internal user ID, then queries all usage events for that user from the database. Aggregates counts for documentation generations, drift checks, coverage scans, total tokens consumed, and API calls within the current day and current calendar month. Returns an empty stats dictionary if the API key is missing, cannot be resolved, or if any exception occurs during processing.
+
+    Args:
+        api_key (str): The API key used to identify and authenticate the user whose usage statistics are to be retrieved. An empty or falsy value causes an empty stats dict to be returned immediately.
+
+    Returns:
+        dict: A dictionary containing aggregated usage metrics with keys: 'api_calls_today' (int), 'api_calls_month' (int), 'docs_generated' (int), 'drift_checks_run' (int), 'coverage_scans' (int), and 'tokens_used' (int). Returns an empty stats dictionary (all values zeroed) if the API key is invalid, the user cannot be resolved, or an error occurs.
+
+    Example:
+        ```
+        stats = get_stats('sk-abc123xyz')
+        print(stats)
+        # {
+        #   'api_calls_today': 5,
+        #   'api_calls_month': 42,
+        #   'docs_generated': 10,
+        #   'drift_checks_run': 8,
+        #   'coverage_scans': 3,
+        #   'tokens_used': 18500
+        # }
+        ```
+
+    Complexity: O(n) time where n is the total number of usage events for the user, due to linear scans over the events list for each aggregation.
+    """
     if not api_key:
         return _empty_stats()
     try:
@@ -96,9 +166,9 @@ def get_stats(api_key: str) -> dict:
 
 def _empty_stats() -> dict:
     """
-    Returns a dictionary with all usage statistics fields initialized to zero.
+    Constructs and returns a fresh dictionary with all usage statistics fields initialized to zero.
 
-    Constructs and returns a fresh statistics dictionary containing six keys that track API usage, document generation, drift checks, coverage scans, and token consumption. This function serves as the canonical zero-state factory for usage statistics and is called by get_stats() when no existing stats record is found.
+    Serves as the canonical zero-state factory for usage statistics, providing a consistent baseline structure with six keys tracking API calls, document generation, drift checks, coverage scans, and token consumption. Called by get_stats() when no existing statistics record is found in the store.
 
     Returns:
         dict: A dictionary with keys 'api_calls_today', 'api_calls_month', 'docs_generated', 'drift_checks_run', 'coverage_scans', and 'tokens_used', all set to integer value 0.

@@ -8,15 +8,19 @@ const TABS = ["Overview", "Generate", "Coverage", "Drift", "Chat", "API Keys"] a
 type Tab = (typeof TABS)[number];
 
 /**
- * Renders an animated horizontal progress bar with a percentage value that changes color based on thresholds.
+ * Renders an animated horizontal progress bar with a color-coded fill and percentage label based on the provided numeric value.
  *
- * A React component that displays a percentage-based progress bar with color-coded visual feedback (red for <50%, orange for 50-79%, green for 80%+). The bar animates from 0 to the specified percentage over 0.7 seconds using an ease-out transition. The component includes both a filled bar with a glow effect and a right-aligned percentage label.
+ * Displays a pill-shaped progress bar using Framer Motion to animate the fill width from 0 to the given percentage. The bar color transitions between red (#E24B4A) for values below 50, orange (#EF9F27) for values between 50 and 79, and green (#1D9E75) for values 80 and above. A monospace percentage label is rendered to the right of the bar, styled in the same color as the fill.
  *
- * @param {number} v - The percentage value to display (0-100), which determines both the bar width and color.
- * @returns {JSX.Element} A JSX element containing a flex container with an animated progress bar and percentage label.
+ * @param {number} v - A numeric value between 0 and 100 representing the percentage to display in the progress bar.
+ * @returns {JSX.Element} A React element containing an animated progress bar and a percentage label.
  * @example
  * <Bar v={75} />
  */
+
+
+
+
 function Bar({ v }: { v: number }) {
   const color = v >= 80 ? "#1D9E75" : v >= 50 ? "#EF9F27" : "#E24B4A";
   return (
@@ -34,19 +38,23 @@ function Bar({ v }: { v: number }) {
   );
 }
 
-/**
- * Renders a styled statistics card component with a label, value, color accent, and optional subtitle.
+   /**
+ * Renders a styled statistic card UI component displaying a labeled metric value with an optional subtitle and accent color.
  *
- * A React functional component that displays a statistic in a dark, bordered card with a gradient top border accent. The card includes a label in uppercase monospace font, a large value in heading font with custom color, and an optional subtitle in muted monospace font.
+ * A React functional component used in dashboard and landing preview contexts to display a single key metric. The card features a semi-transparent dark background, rounded corners, a subtle top gradient accent line derived from the provided color, an uppercase monospace label, a large bold heading-font value, and an optional muted subtitle line.
  *
- * @param {string} label - The uppercase label text displayed at the top of the card in monospace font
- * @param {string} value - The main statistic value displayed prominently in large heading font with the specified color
- * @param {string} color - The CSS color value used for the value text and the gradient top border accent
- * @param {string | undefined} sub - Optional subtitle text displayed below the value in muted monospace font
- * @returns {JSX.Element} A JSX element representing a styled div container with nested divs for the gradient border, label, value, and optional subtitle
+ * @param {string} label - The uppercase descriptive label displayed above the metric value, identifying what the stat represents (e.g., 'Total Requests').
+ * @param {string} value - The primary metric value displayed prominently in large bold text (e.g., '1,240').
+ * @param {string} color - A CSS color string used to style the value text and the top gradient accent line of the card (e.g., '#7C3AED').
+ * @param {string | undefined} sub - An optional subtitle string rendered beneath the value in small muted monospace text, typically used for context or units (e.g., 'last 30 days').
+ * @returns {JSX.Element} A styled React div element representing the stat card with label, value, optional subtitle, and color-accented decorative elements.
  * @example
- * <StatCard label="Total Users" value="1,234" color="#8B5CF6" sub="+12% from last month" />
+ * <StatCard label="Total Requests" value="1,240" color="#7C3AED" sub="last 30 days" />
  */
+
+
+
+
 function StatCard({ label, value, color, sub }: { label: string; value: string; color: string; sub?: string }) {
   return (
     <div style={{

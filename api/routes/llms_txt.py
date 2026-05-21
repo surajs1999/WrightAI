@@ -52,7 +52,23 @@ class LlmsTxtRequest(BaseModel):
 
 
 def _clean_python_doc(raw: str) -> str:
-    """Strip quote delimiters and normalise indentation."""
+    """
+    Strips surrounding quote delimiters and normalises indentation from a raw Python docstring string.
+
+    Removes leading and trailing triple-quote or single-quote delimiters (in priority order: \"\"\", \'\'\', ", ') from the provided raw string, then applies textwrap.dedent to remove common leading whitespace, and finally strips any remaining surrounding whitespace. Intended to clean raw docstring literals extracted from source code before further processing. Called by _get_doc() and generate_llms_txt().
+
+    Args:
+        raw (str): The raw docstring text, potentially including surrounding triple-quote or single-quote delimiters and inconsistent indentation.
+
+    Returns:
+        str: A cleaned, dedented string with surrounding quote delimiters and extraneous whitespace removed.
+
+    Example:
+        ```
+        cleaned = _clean_python_doc('\"\"\"\n    Fetches data from the API.\n    Retries on failure.\n    \"\"\"')
+        # cleaned => 'Fetches data from the API.\nRetries on failure.'
+        ```
+    """
     s = raw.strip()
     for delim in ('"""', "'''", '"', "'"):
         if s.startswith(delim):
@@ -66,7 +82,26 @@ def _clean_python_doc(raw: str) -> str:
 
 
 def _clean_jsdoc(raw: str) -> str:
-    """Parse a JSDoc block into a clean summary + structured tags."""
+    """
+    Parses a raw JSDoc block string into a clean summary and structured tag lines.
+
+    Strips JSDoc comment delimiters ('/**', '*/', and leading '* '), separates free-text summary content from tag lines (those beginning with '@'), and normalises '@param', '@returns'/'@return', and '@throws'/'@exception' tags by removing inline type annotations wrapped in curly braces. The processed result is returned as a single newline-joined string suitable for plain-text documentation output.
+
+    Args:
+        raw (str): The raw JSDoc comment block string, including delimiters such as '/**', '*/', and leading asterisks on each line.
+
+    Returns:
+        str: A cleaned, newline-joined string containing the joined summary text on the first line followed by normalised '@param', '@returns', and '@throws' tag lines with type annotations stripped.
+
+    Example:
+        ```
+        raw = '/**\n * Adds two numbers.\n * @param {number} a - First operand.\n * @param {number} b - Second operand.\n * @returns {number} The sum.\n */'
+        result = _clean_jsdoc(raw)
+        # result == 'Adds two numbers.\n  @param a - First operand.\n  @param b - Second operand.\n  @returns The sum.'
+        ```
+
+    Complexity: O(n) time where n is the number of lines in the input, O(n) space for the collected lines and result list.
+    """
     lines = []
     for line in raw.strip().splitlines():
         line = line.strip()
@@ -123,7 +158,24 @@ def _clean_jsdoc(raw: str) -> str:
 
 
 def _clean_line_comment_doc(raw: str) -> str:
-    """Strip // and /// prefixes from Go/Rust doc comments. Stops at doc section headers."""
+    """
+    Cleans a raw line-comment docstring by stripping comment prefixes and truncating at Rust doc section headers.
+
+    Iterates over each line of the raw string, removes leading comment markers (`///`, `// `, `//`), and stops processing when a Rust-style section header (e.g., `# Examples`, `# Panics`) is encountered. The resulting lines are joined and stripped to produce a clean, human-readable docstring.
+
+    Args:
+        raw (str): The raw docstring text containing line-comment prefixes such as `///`, `// `, or `//` to be cleaned.
+
+    Returns:
+        str: A cleaned docstring with comment prefixes removed and content after any Rust section header (`# ...`) truncated, joined as a single newline-separated string.
+
+    Example:
+        ```
+        cleaned = _clean_line_comment_doc('/// Computes the sum.\n/// # Examples\n/// x + y')  # returns 'Computes the sum.'
+        ```
+
+    Complexity: O(n) time, O(n) space where n is the number of lines in the raw string.
+    """
     result = []
     for line in raw.strip().splitlines():
         line = line.strip()
@@ -143,7 +195,22 @@ def _clean_line_comment_doc(raw: str) -> str:
 
 
 def _get_doc(func) -> str:
-    """Return a cleaned docstring for the given function, language-aware."""
+    """
+    Extracts and cleans the docstring from a function object in a language-aware manner.
+
+    Inspects the language attribute of the given function object and delegates to the appropriate cleaning helper. Python docstrings are processed by `_clean_python_doc`, JavaScript and TypeScript JSDoc comments by `_clean_jsdoc`, and Go or Rust line-comment docs by `_clean_line_comment_doc`. For any other language, the raw docstring is returned stripped of leading/trailing whitespace. Returns an empty string if no existing docstring is found.
+
+    Args:
+        func (Any): A function-like object that exposes an `existing_docstring` attribute (the raw docstring text) and a `language` attribute (e.g., 'python', 'javascript', 'typescript', 'go', 'rust').
+
+    Returns:
+        str: A cleaned, human-readable docstring string appropriate for the function's programming language, or an empty string if no docstring exists.
+
+    Example:
+        ```
+        cleaned = _get_doc(func_obj)  # where func_obj.language == 'python' and func_obj.existing_docstring == '\"\"\"  Compute sum.  \"\"\"'
+        ```
+    """
     raw = func.existing_docstring
     if not raw:
         return ""
@@ -161,7 +228,24 @@ def _get_doc(func) -> str:
 
 
 def _build_sig(func) -> str:
-    """Typed, compact function signature."""
+    """
+    Builds a human-readable function signature string from a parsed function object, including parameters, type annotations, return type, and async prefix.
+
+    Iterates over the function's parameters to construct a comma-separated argument list, appending type annotations where available. Handles void return types by omitting them, prepends 'async ' for asynchronous functions, and produces a final signature string in the format `[async ]name(params)[ -> return_type]`.
+
+    Args:
+        func (Any): A parsed function object (e.g., an AST node representation) with attributes: `parameters` (list of dicts with 'name' and optional 'type_annotation'), `return_type` (str or None), `is_async` (bool), and `name` (str).
+
+    Returns:
+        str: A formatted function signature string such as 'async fetch_data(url: str, timeout: int) -> dict' or 'process(items)' depending on the function's metadata.
+
+    Example:
+        ```
+        sig = _build_sig(func_node)  # Returns 'async fetch_user(user_id: int, active: bool) -> UserModel'
+        ```
+
+    Complexity: O(n) time where n is the number of parameters, O(n) space for the parts list.
+    """
     parts: list[str] = []
     for p in func.parameters or []:
         name = p.get("name", "")
@@ -178,22 +262,23 @@ def _build_sig(func) -> str:
 
 def _relevant_decorators(decorators: list[str]) -> list[str]:
     """
-    Filters a list of decorator strings to keep only those starting with signal decorator prefixes.
+    Filters a list of decorator strings to retain only those whose first line starts with a predefined signal decorator prefix.
 
-    Iterates through the provided decorator strings, extracts the first line of each, and retains only those decorators whose first line starts with any of the predefined signal decorator prefixes from _SIGNAL_DECORATOR_PREFIXES.
+    Iterates through each decorator string, extracts its first line, and checks whether it begins with any prefix defined in `_SIGNAL_DECORATOR_PREFIXES`. Only matching first lines are collected and returned. This is used by `_emit_func()` to isolate signal-related decorators from a broader set of decorators found on a function.
 
     Args:
-        decorators (list[str]): A list of decorator strings, potentially containing multiline decorator definitions.
+        decorators (list[str]): A list of decorator strings to filter, each potentially spanning multiple lines.
 
     Returns:
-        list[str]: A filtered list containing only the first lines of decorators that match signal decorator prefixes.
+        list[str]: A filtered list containing only the first lines of decorators that match one of the signal decorator prefixes defined in `_SIGNAL_DECORATOR_PREFIXES`.
 
     Example:
         ```
         filtered = _relevant_decorators(['@app.route("/api")', '@signal.emit("user_created")', '@other_decorator'])
+        # filtered -> ['@signal.emit("user_created")']
         ```
 
-    Complexity: O(n*m) time where n is the number of decorators and m is the number of signal decorator prefixes, O(k) space where k is the number of matching decorators
+    Complexity: O(n*m) time where n is the number of decorators and m is the number of signal decorator prefixes, O(k) space where k is the number of matching decorators.
     """
     kept = []
     for d in decorators:
@@ -204,7 +289,28 @@ def _relevant_decorators(decorators: list[str]) -> list[str]:
 
 
 def _should_skip(func) -> bool:
-    """True for dunder methods that add no useful signal."""
+    """
+    Determines whether a function should be skipped based on its name being a dunder method not in the kept dunders list.
+
+    Checks if a function's name starts and ends with double underscores (i.e., is a dunder/magic method) and is not present in the `_KEEP_DUNDERS` set. This is used as a filter in `_build_sig()` and `_emit_func()` to exclude unwanted dunder methods from documentation or signature generation.
+
+    Args:
+        func (Any): A function or method object with a `name` attribute, typically a tree-sitter node or similar parsed representation of a function.
+
+    Returns:
+        bool: Returns True if the function is a dunder method not present in `_KEEP_DUNDERS`, indicating it should be skipped; False otherwise.
+
+    Example:
+        ```
+        # Assuming func.name == '__init__' and '__init__' is in _KEEP_DUNDERS
+        should_skip = _should_skip(func)  # Returns False
+        
+        # Assuming func.name == '__repr__' and '__repr__' is NOT in _KEEP_DUNDERS
+        should_skip = _should_skip(func)  # Returns True
+        ```
+
+    Complexity: O(1) time, O(1) space
+    """
     n = func.name
     return n.startswith("__") and n.endswith("__") and n not in _KEEP_DUNDERS
 
@@ -214,25 +320,21 @@ def _should_skip(func) -> bool:
 
 def _emit_func(lines: list[str], func, indent: str = "") -> None:
     """
-    Generates an llms.txt file containing structured documentation of functions and classes from a repository.
+    Emits a formatted markdown entry for a single function or method into the provided lines list.
 
-    Walks through a repository directory, parses all supported code files using tree-sitter, extracts functions and classes with their signatures and docstrings, and formats them into a markdown-style llms.txt document. The output includes metadata such as generation timestamp, file count, and function count, along with a token estimate for LLM context usage.
+    Checks whether the given function node should be skipped, then builds its signature and appends a markdown heading with an optional line reference. Relevant decorators are appended, followed by the function's docstring if one exists. A blank line is added at the end to separate entries.
 
     Args:
-        body (LlmsTxtRequest): Request object containing the repository root path to generate documentation from.
-
-    Returns:
-        dict: Dictionary containing 'content' (the generated llms.txt markdown string), 'file_count' (number of parsed files), 'function_count' (total functions and methods), and 'token_estimate' (estimated tokens for LLM context).
-
-    Raises:
-        HTTPException: When the repository path specified in body.repo_root does not exist (status_code=404).
+        lines (list[str]): Accumulator list of markdown-formatted strings that the function appends output lines to.
+        func (None): A parsed function or method node object exposing attributes such as start_line, decorators, and a docstring accessible via _get_doc().
+        indent (str): Optional indentation prefix string prepended to each emitted line, used to reflect nesting level (e.g., methods inside a class).
 
     Example:
         ```
-        result = await generate_llms_txt(LlmsTxtRequest(repo_root='/path/to/repo'))
+        lines = []
+        _emit_func(lines, func_node, indent='  ')
+        print('\n'.join(lines))
         ```
-
-    Complexity: O(n*m) time where n is the number of files and m is average file size for parsing, O(n) space for storing parsed results
     """
     if _should_skip(func):
         return
@@ -257,25 +359,28 @@ def _emit_func(lines: list[str], func, indent: str = "") -> None:
 @router.post("")
 async def generate_llms_txt(body: LlmsTxtRequest) -> dict:
     """
-    Generates an llms.txt documentation file for a given repository by parsing code files and extracting functions and classes.
+    Generates a markdown-style llms.txt documentation file for a given repository by walking its directory tree, parsing code files with tree-sitter, and extracting functions and classes with their signatures and docstrings.
 
-    Walks through the repository directory tree, parses supported code files using tree-sitter, extracts functions and classes with their signatures and docstrings, and formats them into a markdown-style llms.txt document. The output includes metadata such as file count, function count, and a token estimate for LLM context usage.
+    Walks through the repository directory tree while skipping configured directories, detects supported languages using tree-sitter, and parses each file to extract functions, classes, and methods. The results are sorted by file path and formatted into a structured markdown document with metadata including generation timestamp, file count, function count, and an estimated LLM token usage count derived from content length.
 
     Args:
-        body (LlmsTxtRequest): Request object containing the repository root path to generate documentation for.
+        body (LlmsTxtRequest): Request object containing the repository root path (repo_root) to generate documentation for.
 
     Returns:
-        dict: Dictionary containing 'content' (the generated llms.txt markdown string), 'file_count' (number of parsed files), 'function_count' (total number of functions and methods), and 'token_estimate' (estimated token count for LLM usage).
+        dict: Dictionary with four keys: 'content' (the generated llms.txt markdown string), 'file_count' (number of successfully parsed files containing at least one function or class), 'function_count' (total number of top-level functions plus all class methods across all parsed files), and 'token_estimate' (estimated LLM token count approximated as content length divided by 4).
 
     Raises:
-        HTTPException: When the repository path specified in body.repo_root does not exist on the server (status_code=404).
+        HTTPException: Raised with status_code=404 when the repository path specified in body.repo_root does not exist on the server.
 
     Example:
         ```
-        result = await generate_llms_txt(LlmsTxtRequest(repo_root='/path/to/repo'))
+        result = await generate_llms_txt(LlmsTxtRequest(repo_root='/home/user/projects/my_repo'))
+        print(result['file_count'])  # e.g. 42
+        print(result['token_estimate'])  # e.g. 18500
+        print(result['content'][:200])  # Prints the beginning of the generated llms.txt markdown
         ```
 
-    Complexity: O(n * m) time where n is the number of files and m is the average file size, O(n) space for storing parsed file results
+    Complexity: O(n * m) time where n is the number of files in the repository and m is the average file size; O(n) space for storing parsed file results.
     """
     from core.parser.tree_sitter_parser import CodeParser
 

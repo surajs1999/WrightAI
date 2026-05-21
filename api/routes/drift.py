@@ -36,22 +36,30 @@ class DriftCheckResponse(BaseModel):
 @router.post("", response_model=DriftCheckResponse)
 async def check_drift(request: DriftCheckRequest, http_request: Request) -> DriftCheckResponse:
     """
-    Checks for documentation drift in a Python codebase by comparing function signatures with their docstrings.
+    Analyzes a Python codebase for documentation drift by comparing function signatures against their docstrings and returns a structured summary of drifted, undocumented, and up-to-date functions.
 
-    Analyzes a Git repository to detect functions whose signatures have changed without corresponding docstring updates. First attempts to check only modified files via git diff, falling back to a full directory scan if git operations fail. Optionally generates fixed docstrings for drifted or undocumented functions when auto_fix is enabled.
+    Accepts a Git repository root path and scans all Python files using DriftDetector.check_directory() to identify functions whose signatures have changed without corresponding docstring updates. When auto_fix is enabled, the function reserves a placeholder for LLM-based docstring generation for drifted or undocumented functions. After aggregating per-function results into DriftResultItem objects, it records the drift check event via record_event() using the API key from the 'X-Wright-API-Key' header, then returns a DriftCheckResponse with total counts and detailed per-function results.
 
     Args:
-        request (DriftCheckRequest): Request object containing repo_root (repository path), since (base git reference for comparison), and auto_fix (boolean flag to enable automatic docstring generation).
+        request (DriftCheckRequest): Request payload containing repo_root (absolute path to the repository root), since (base git reference for diffing, e.g. 'main'), and auto_fix (boolean flag enabling automatic docstring generation for drifted or undocumented functions).
+        http_request (Request): The raw FastAPI/Starlette HTTP request object used to extract the 'X-Wright-API-Key' header for usage tracking via record_event().
 
     Returns:
-        DriftCheckResponse: Response object containing total_checked (number of functions analyzed), drifted (count of functions with outdated docstrings), undocumented (count of functions without docstrings), up_to_date (count of functions with current docstrings), and results (list of DriftResultItem objects with detailed information for each function).
+        DriftCheckResponse: Response object containing total_checked (total functions analyzed), drifted (count with outdated docstrings), undocumented (count with no docstrings), up_to_date (count with current docstrings), and results (list of DriftResultItem objects with per-function details including file_path, status, reason, old_signature, new_signature, and fixed_docstring).
+
+    Raises:
+        Exception: Propagates any unhandled exception raised by DriftDetector.check_directory() or ASTCache initialization, such as invalid repo_root paths or database errors.
 
     Example:
         ```
-        response = await check_drift(DriftCheckRequest(repo_root='/path/to/repo', since='main', auto_fix=False))
+        response = await check_drift(
+            request=DriftCheckRequest(repo_root='/home/user/my_project', since='main', auto_fix=False),
+            http_request=request
+        )
+        print(response.total_checked, response.drifted, response.undocumented, response.up_to_date)
         ```
 
-    Complexity: O(n) time where n is the number of Python functions in the repository or changed files, O(n) space for storing drift results
+    Complexity: O(n) time where n is the number of Python functions in the scanned files, O(n) space for storing per-function drift result items
     """
     from core.drift.drift_detector import DriftDetector
     from core.parser.cache import ASTCache

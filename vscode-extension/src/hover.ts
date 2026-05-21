@@ -27,16 +27,17 @@ const FUNCTION_PATTERNS: Record<string, RegExp[]> = {
 
 // Simple per-language docstring extractors (look for string/comment right after def line)
 /**
- * Extracts documentation strings from source code lines based on the programming language's documentation conventions.
+ * Extracts the docstring or doc comment adjacent to a function definition line.
  *
- * Parses documentation comments or strings that appear immediately before or after a function definition line. Supports Python docstrings (triple quotes), Rust doc comments (///), JSDoc comments, Java Javadoc, Go line comments (//), and inline string literals. Searches up to 15-20 lines depending on the language.
+ * For Python, checks the line after the definition for triple-quoted docstrings.
+ * For Rust, scans backwards for contiguous `///` lines. For Go, scans backwards for `//` lines.
+ * For JS/TS/Java, scans backwards for a JSDoc block comment ending with a closing star-slash.
+ * Returns null if no recognized documentation is found for the given language.
  *
- * @param {string[]} lines - Array of source code lines to search for documentation strings.
- * @param {number} defLineIdx - Zero-based index of the function definition line within the lines array.
- * @param {string} languageId - Programming language identifier (e.g., 'python', 'rust', 'javascript', 'typescript', 'java', 'go').
- * @returns {string | null} Extracted documentation string with whitespace normalized and joined, or null if no documentation is found.
- * @example
- * const doc = extractDocstringAfterLine(codeLines, 42, 'python')
+ * @param {string[]} lines - Array of source code lines representing the entire file content.
+ * @param {number} defLineIdx - Zero-based index of the definition line.
+ * @param {string} languageId - The VS Code language identifier (e.g., 'python', 'typescript', 'go').
+ * @returns {string | null} The trimmed docstring text, or null if none is detected.
  */
 export function extractDocstringAfterLine(lines: string[], defLineIdx: number, languageId: string): string | null {
   const next = lines[defLineIdx + 1]?.trimStart() ?? "";

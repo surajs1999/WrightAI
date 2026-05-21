@@ -8,24 +8,30 @@ interface MetricCardProps {
 }
 
 /**
- * Renders a styled metric card component displaying a label, value, optional color, and optional trend indicator.
+ * Renders a styled dashboard metric card displaying a label, value, optional trend indicator, and an optional call-to-action link.
  *
- * A React functional component that creates a card UI element to display dashboard metrics. The card features a monospaced uppercase label, a large heading-style value, and an optional trend indicator with directional arrow and text. Styling uses CSS custom properties for theming.
+ * MetricCard is a React component that presents a single key metric in a visually consistent card layout. When an `href` is provided, the entire card becomes a clickable anchor element with hover highlight effects. An optional `trend` prop renders a color-coded badge (green for upward, red for downward) beneath the primary value. The card uses CSS custom properties for theming and a monospaced font for labels.
  *
- * Args:
- *     label (string): The metric label text displayed in uppercase monospace font at the top of the card.
- *     value (string | number): The primary metric value displayed prominently in large font size.
- *     color (string | undefined): Optional CSS color value for the metric value text. Defaults to 'var(--text)' if not provided.
- *     trend ({ dir: 'up' | 'down', text: string } | undefined): Optional trend object containing direction ('up' or 'down') and descriptive text, displayed as a colored badge with an arrow indicator.
- *
- * Returns:
- *     JSX.Element: A React JSX element representing the styled metric card.
- *
- * Example:
- *     ```
- *     <MetricCard label="Total Users" value="1,234" color="var(--blue)" trend={{ dir: 'up', text: '+12.5%' }} />
- *     ```
+ * @param {string} label - Short uppercase label displayed above the metric value, identifying what the metric represents (e.g., 'Total Users').
+ * @param {string | number} value - The primary metric value rendered in large bold text (e.g., '1,240' or 98.6).
+ * @param {string | undefined} color - Optional CSS color string used to style the metric value text. Falls back to the CSS variable `--text` when not provided.
+ * @param {{ dir: 'up' | 'down'; text: string } | undefined} trend - Optional trend object. `dir` controls arrow direction and badge color (green for 'up', red for 'down'); `text` is the accompanying trend description (e.g., '+12% this week').
+ * @param {string | undefined} href - Optional URL that, when provided, wraps the card in an anchor tag and enables pointer cursor and hover highlight transitions.
+ * @param {string} cta - Call-to-action label shown at the bottom of the card when `href` is set. Defaults to 'View'.
+ * @returns {JSX.Element} A styled card JSX element — either a plain `<div>` or an `<a>` wrapping a `<div>` depending on whether `href` is provided.
+ * @example
+ * <MetricCard
+ *   label="Active Users"
+ *   value="4,823"
+ *   color="var(--accent)"
+ *   trend={{ dir: "up", text: "+8% this week" }}
+ *   href="/dashboard/users"
+ *   cta="See all"
+ * />
  */
+
+
+
 export default function MetricCard({ label, value, color, trend, href, cta = "View" }: MetricCardProps) {
   const inner = (
     <div

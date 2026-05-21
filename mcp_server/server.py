@@ -74,19 +74,20 @@ _TOOLS: list[Tool] = [
 @server.list_tools()
 async def list_tools(request: ListToolsRequest) -> ListToolsResult:
     """
-    Returns the list of available tools registered with the server.
+    Returns the complete list of available tools registered with the MCP server.
 
-    Handler for the list_tools MCP protocol request that provides the complete list of tools (_TOOLS) available on this server for clients to discover and invoke.
+    Handles the list_tools MCP protocol request by returning all tools stored in the _TOOLS registry, enabling clients to discover and invoke the tools available on this server. Decorated with @server.list_tools() to register it as the handler for the MCP list_tools protocol method.
 
     Args:
-        request (ListToolsRequest): The MCP protocol request object for listing tools.
+        request (ListToolsRequest): The MCP protocol request object for listing available tools.
 
     Returns:
-        ListToolsResult: An object containing the array of available tools from the _TOOLS registry.
+        ListToolsResult: An object containing the array of all available tools sourced from the _TOOLS registry.
 
     Example:
         ```
         result = await list_tools(ListToolsRequest())
+        print(result.tools)  # List of registered Tool objects
         ```
 
     Complexity: O(1) time, O(1) space
@@ -97,15 +98,15 @@ async def list_tools(request: ListToolsRequest) -> ListToolsResult:
 @server.call_tool()
 async def call_tool(request: CallToolRequest) -> CallToolResult:
     """
-    Routes and executes tool calls based on the requested tool name, returning results as formatted JSON text.
+    Routes and executes tool calls by dispatching to the appropriate internal handler based on the requested tool name, returning results as JSON-formatted text.
 
-    This async handler function serves as the main dispatcher for tool requests. It extracts the tool name and arguments from the request, invokes the appropriate internal tool function (_search_docs, _get_function_doc, or _list_undocumented), handles any exceptions that occur during execution, and returns the result wrapped in a CallToolResult with JSON-formatted text content.
+    This async handler function acts as the main dispatcher for MCP tool requests. It extracts the tool name and arguments from the incoming request, invokes the corresponding internal function (_search_docs, _get_function_doc, or _list_undocumented), gracefully handles any exceptions by returning an error payload, and wraps the final result in a CallToolResult containing a JSON-formatted TextContent object.
 
     Args:
-        request (CallToolRequest): The tool call request containing the tool name and arguments to be executed.
+        request (CallToolRequest): The incoming tool call request object containing the tool name (params.name) and optional arguments (params.arguments) to be dispatched and executed.
 
     Returns:
-        CallToolResult: A result object containing the tool execution output or error message as JSON-formatted text content.
+        CallToolResult: A CallToolResult containing a single TextContent item with the tool execution output or error message serialized as an indented JSON string.
 
     Example:
         ```
@@ -132,25 +133,25 @@ async def call_tool(request: CallToolRequest) -> CallToolResult:
 
 async def _search_docs(args: dict[str, Any]) -> list[dict]:
     """
-    Searches documentation for relevant code contexts using hybrid retrieval based on a natural language query.
+    Searches repository documentation and returns the top-N most relevant function contexts matching a natural language query using a hybrid retrieval pipeline.
 
-    Initializes a hybrid retrieval system with embeddings (Voyage AI), vector storage (ChromaDB), and dependency graph analysis to find and rank the most relevant function contexts matching the search query. Returns detailed information about matching functions including their locations, docstrings, and relevance scores.
+    Initializes a hybrid retrieval system composed of Voyage AI embeddings, ChromaDB vector storage, and dependency graph analysis, then queries that system to rank and return the top-N function contexts most relevant to the supplied search string. Each result includes the function name, source file path, starting line number, full docstring, a 100-character summary, and a combined relevance score. The function reads VOYAGE_API_KEY and CHROMA_PATH from environment variables, falling back to sensible defaults when they are absent.
 
     Args:
-        args (dict[str, Any]): Dictionary containing 'query' (str) for the search text, 'repo_root' (str) for the repository root path, and optionally 'n' (int, default=5) for the number of results to return.
+        args (dict[str, Any]): Dictionary containing required key 'query' (str) — the natural language search text, and 'repo_root' (str) — absolute path to the repository root. Optionally accepts 'n' (int, default=5) specifying the maximum number of results to return.
 
     Returns:
-        list[dict]: List of dictionaries, each containing 'function_name' (str), 'file_path' (str), 'line' (int) starting line number, 'docstring' (str or None) full docstring, 'summary' (str or None) first 100 characters of docstring, and 'score' (float) relevance score.
+        list[dict]: List of dictionaries, one per matched function, each containing 'function_name' (str), 'file_path' (str), 'line' (int, 1-based starting line), 'docstring' (str or None), 'summary' (str or None, first 100 characters of docstring), and 'score' (float, combined relevance score). Returns an empty list when no matching contexts are found.
 
     Raises:
-        KeyError: When required keys 'query' or 'repo_root' are missing from args dictionary.
+        KeyError: When required keys 'query' or 'repo_root' are missing from the args dictionary.
 
     Example:
         ```
         results = await _search_docs({'query': 'parse AST nodes', 'repo_root': '/path/to/repo', 'n': 3})
         ```
 
-    Complexity: O(n*m) time where n is corpus size and m is query complexity, O(n) space for retrieval results
+    Complexity: O(n*m) time where n is the corpus size and m is query complexity; O(n) space for retrieval results.
     """
     from core.embeddings.chroma_store import ChromaStore
     from core.embeddings.voyage_embeddings import VoyageEmbedder
@@ -186,22 +187,25 @@ async def _search_docs(args: dict[str, Any]) -> list[dict]:
 
 async def _get_function_doc(args: dict[str, Any]) -> dict:
     """
-    Retrieves comprehensive documentation metadata for a specified function or method from a Python file.
+    Retrieves comprehensive documentation metadata for a specified function or method from a Python file, including its docstring, parameters, return type, async status, decorators, and dependency relationships.
 
-    Parses the specified Python file to locate the named function or method, then builds a dependency graph to determine its callers and callees. Returns a dictionary containing the function's metadata including docstring, parameters, return type, async status, decorators, and dependency relationships.
+    Parses the specified Python file using CodeParser to locate the named function or method, searching both top-level functions and class methods. Once found, builds a DependencyGraph over the parsed file to resolve callers and callees. Returns a structured dictionary of metadata, or a dictionary with an 'error' key if parsing fails or the function cannot be located. This coroutine is dispatched by call_tool() and internally delegates to parse_file(), build(), get_callers(), and get_callees().
 
     Args:
-        args (dict[str, Any]): Dictionary containing 'function_name' (str) for the target function name, 'file_path' (str) for the Python file to parse, and 'repo_root' (str) for the repository root directory.
+        args (dict[str, Any]): A dictionary with three required keys: 'function_name' (str) — the name of the target function or method to document; 'file_path' (str) — absolute or relative path to the Python source file to parse; 'repo_root' (str) — the root directory of the repository, currently reserved for future use.
 
     Returns:
-        dict: Dictionary containing function metadata with keys: 'function_name', 'file_path', 'line', 'docstring', 'parameters', 'return_type', 'is_async', 'decorators', 'callers', 'callees', and 'example'. Returns a dictionary with 'error' key if parsing fails or function is not found.
+        dict: A dictionary containing the function's metadata with keys: 'function_name' (str), 'file_path' (str), 'line' (int, 1-based), 'docstring' (str or None), 'parameters' (list), 'return_type' (str or None), 'is_async' (bool), 'decorators' (list), 'callers' (list of dicts with 'file' and 'function' keys), 'callees' (list of dicts with 'file' and 'function' keys), and 'example' (None). Returns a dictionary with a single 'error' key (str) if the file cannot be parsed or the function is not found.
 
     Example:
         ```
-        doc = await _get_function_doc({'function_name': 'parse_file', 'file_path': '/path/to/module.py', 'repo_root': '/path/to/repo'})
+        doc = await _get_function_doc({'function_name': 'parse_file', 'file_path': '/path/to/repo/core/parser/tree_sitter_parser.py', 'repo_root': '/path/to/repo'})
+        # doc['function_name'] == 'parse_file'
+        # doc['is_async'] == False
+        # doc['callers'] == [{'file': '/path/to/repo/mcp_server/server.py', 'function': '_get_function_doc'}]
         ```
 
-    Complexity: O(n*m) time where n is the number of functions and m is the number of classes/methods in the file, O(k) space where k is the number of dependencies
+    Complexity: O(n*m) time where n is the number of top-level functions and m is the number of class methods in the parsed file; O(k) space where k is the total number of dependency edges in the graph
     """
     from core.parser.dep_graph import DependencyGraph
     from core.parser.tree_sitter_parser import CodeParser
@@ -252,25 +256,29 @@ async def _get_function_doc(args: dict[str, Any]) -> dict:
 
 async def _list_undocumented(args: dict[str, Any]) -> dict:
     """
-    Lists all undocumented functions in a Python codebase directory and returns statistics about documentation coverage.
+    Scans a Python codebase directory for undocumented functions and returns documentation coverage statistics.
 
-    Parses Python files in the specified directory using tree-sitter, identifies functions with and without docstrings, and returns detailed information about undocumented functions along with coverage statistics.
+    Parses all Python files in the specified directory (or subdirectory) using tree-sitter via CodeParser, iterates over every non-anonymous function found, and classifies each as documented or undocumented based on the presence of an existing docstring. Returns aggregate counts alongside a detailed list of undocumented functions including their names, file paths, and line numbers.
 
     Args:
-        args (dict[str, Any]): Dictionary containing 'repo_root' (required str: path to repository root) and optional 'folder' (str: subdirectory path relative to repo_root to search within).
+        args (dict[str, Any]): Configuration dictionary requiring 'repo_root' (str): absolute path to the repository root, and optionally 'folder' (str): a subdirectory path relative to repo_root to restrict the search scope.
 
     Returns:
-        dict: Dictionary with keys 'total' (int: total function count), 'documented' (int: count of functions with docstrings), 'undocumented_count' (int: count of functions without docstrings), and 'undocumented' (list of dicts containing 'function_name', 'file_path', and 'line' for each undocumented function).
+        dict: Dictionary with four keys: 'total' (int) total number of named functions found, 'documented' (int) count of functions that have docstrings, 'undocumented_count' (int) count of functions without docstrings, and 'undocumented' (list[dict]) each containing 'function_name' (str), 'file_path' (str), and 'line' (int, 1-based) for every undocumented function.
 
     Raises:
-        KeyError: When 'repo_root' key is missing from args dictionary.
+        KeyError: When the required 'repo_root' key is absent from the args dictionary.
 
     Example:
         ```
-        result = await _list_undocumented({'repo_root': '/path/to/repo', 'folder': 'src'})
+        result = await _list_undocumented({'repo_root': '/home/user/my_project', 'folder': 'src'})
+        # result => {'total': 42, 'documented': 30, 'undocumented_count': 12, 'undocumented': [{'function_name': 'helper', 'file_path': '/home/user/my_project/src/utils.py', 'line': 17}, ...]}
+        
+        # Without a subdirectory restriction
+        result = await _list_undocumented({'repo_root': '/home/user/my_project'})
         ```
 
-    Complexity: O(n*m) time where n is the number of files and m is the average number of functions per file, O(k) space where k is the number of undocumented functions
+    Complexity: O(n*m) time where n is the number of Python files parsed and m is the average number of functions per file; O(k) space where k is the number of undocumented functions stored in the result list.
     """
     from core.parser.tree_sitter_parser import CodeParser
 
@@ -311,16 +319,17 @@ async def _list_undocumented(args: dict[str, Any]) -> dict:
 
 async def run() -> None:
     """
-    Runs the MCP server by establishing stdio communication streams and initializing the server with wright capabilities.
+    Starts the MCP server by establishing stdio communication streams and running the server with 'wright' initialization options.
 
-    This asynchronous function serves as the main entry point for the MCP (Model Context Protocol) server. It creates a stdio server context that provides read and write streams for communication, then runs the server with initialization options including the server name 'wright', version '0.1.0', and the server's capabilities configuration.
+    Serves as the main async entry point for the MCP (Model Context Protocol) server. Opens a stdio server context to obtain read and write streams, then invokes the server's run loop with InitializationOptions specifying the server name 'wright', version '0.1.0', and the server's capability configuration. This function is called by the CLI entrypoint and various callers such as DriftPage and generate.
 
     Returns:
-        None: This function does not return a value.
+        None: Does not return a value; runs the server until the stdio streams are closed or the process exits.
 
     Example:
         ```
-        await run()
+        import asyncio
+        asyncio.run(run())
         ```
     """
     async with stdio_server() as (read_stream, write_stream):
@@ -340,12 +349,12 @@ async def run() -> None:
 
 def main() -> None:
     """
-    Serves as the entry point for the MCP server, initializing and running the asyncio event loop.
+    Serves as the synchronous entry point for the MCP server by bootstrapping and running the async event loop.
 
-    This function acts as the synchronous entry point that bootstraps the asynchronous MCP server by running the run() coroutine using asyncio.run(). It blocks until the server completes execution.
+    Acts as the top-level entry point called by the CLI (findWrightCli) to start the MCP server. It uses asyncio.run() to execute the run() coroutine, blocking until the server completes or is interrupted. This bridges the synchronous CLI invocation with the asynchronous server implementation.
 
     Returns:
-        None: This function does not return a value.
+        None: Does not return a value; blocks until the asyncio event loop completes.
 
     Example:
         ```

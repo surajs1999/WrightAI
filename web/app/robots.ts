@@ -1,16 +1,20 @@
 import { MetadataRoute } from "next";
 
 /**
- * Generates and returns the robots.txt configuration for the WrightAI web application.
+ * Generates and returns the robots.txt configuration for the Wright AI web application.
  *
- * Defines crawling rules for all user agents, permitting access to the root path while blocking the /dashboard/, /auth/, and /api/ routes. Also provides the sitemap URL for search engine indexing.
- * @returns {MetadataRoute.Robots} A Next.js MetadataRoute.Robots object containing crawling rules for all user agents and the sitemap URL.
+ * Defines crawling rules for all user agents, permitting access to the root path while blocking dashboard, authentication, and API routes. Also specifies the sitemap URL for search engine indexing.
+ * @returns {MetadataRoute.Robots} A Next.js MetadataRoute.Robots object containing crawler rules (userAgent, allow, disallow paths) and the sitemap URL for the Wright AI site.
  * @example
  * // In Next.js app/robots.ts
- * import { robots } from './robots';
  * const robotsConfig = robots();
- * // robotsConfig.sitemap === 'https://www.wrightai.live/sitemap.xml'
+ * // robotsConfig.rules.disallow => ["/dashboard/", "/auth/", "/api/"]
+ * // robotsConfig.sitemap => "https://www.wrightai.live/sitemap.xml"
  */
+
+
+
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {

@@ -21,19 +21,24 @@ const MOCK: UsageStats = {
 };
 
 /**
- * Renders a styled statistics card component displaying a label, value, and optional subtitle with support for coming soon state.
+ * Renders a styled statistic card displaying a label, value, and optional subtitle with support for a 'coming soon' blurred placeholder state.
  *
- * A React functional component that displays a statistic in a card format with customizable styling. When the 'coming' flag is true, it displays a 'SOON' badge, blurs the value (showing '99' as placeholder), and shows 'Coming soon' text instead of the subtitle.
+ * StatCard is a presentational React component used in usage dashboards to display a single metric. When the `coming` flag is set, the value is visually obscured with a blur effect and a 'SOON' badge is shown in the top-right corner, signaling an upcoming feature. An optional `color` prop allows customizing the value text color, and an optional `sub` prop provides secondary context beneath the main value.
  *
- * @param {string} label - The label text displayed at the top of the card in uppercase monospace font.
- * @param {string} value - The main statistic value to display prominently in the card (hidden if coming is true).
- * @param {string | undefined} sub - Optional subtitle text displayed below the value in smaller monospace font.
- * @param {string | undefined} color - Optional CSS color value for the main statistic value text (defaults to '--text' CSS variable).
- * @param {boolean | undefined} coming - Optional flag that when true, displays a 'SOON' badge, blurs the value, and shows 'Coming soon' text.
- * @returns {JSX.Element} A React element representing the styled statistics card with configured content and appearance.
+ * @param {string} label - The uppercase label displayed above the metric value, identifying the statistic (e.g., 'API Calls').
+ * @param {string} value - The primary metric value to display. Replaced with a blurred placeholder when `coming` is true.
+ * @param {string | undefined} sub - An optional secondary subtitle string rendered below the value. Hidden when `coming` is true.
+ * @param {string | undefined} color - An optional CSS color string applied to the value text. Falls back to 'var(--text)' if omitted and `coming` is false.
+ * @param {boolean | undefined} coming - When true, blurs the value, hides the subtitle, shows a 'SOON' badge, and displays a 'Coming soon' label to indicate an unreleased metric.
+ * @returns {JSX.Element} A styled React div element representing the statistic card with label, value, optional subtitle, and conditional 'coming soon' UI treatment.
  * @example
- * <StatCard label="Total Users" value="1,234" sub="+12% from last month" color="var(--green)" />
+ * <StatCard label="API Calls" value="12,480" sub="last 30 days" color="var(--green)" />
+ * <StatCard label="Storage Used" value="0" coming={true} />
  */
+
+
+
+
 function StatCard({
   label, value, sub, color, coming,
 }: {
@@ -81,18 +86,22 @@ function StatCard({
   );
 }
 
-/**
- * Renders a horizontal progress bar with a label and percentage indicator.
+ /**
+ * Renders a labeled horizontal mini progress bar with a muted color fill based on a given percentage.
  *
- * A React component that displays a labeled progress bar with customizable color. The bar shows a percentage-based fill within a light purple background container. The label is displayed on the left with a decorative dash on the right.
+ * A lightweight React component used in dashboard usage pages to display a small, styled progress bar with a text label. The bar fills from left to right according to the provided percentage value and is rendered with reduced opacity for a subtle visual effect.
  *
- * @param {string} label - The text label displayed above the progress bar.
- * @param {number} pct - The percentage value (0-100) that determines the width of the filled portion of the bar.
- * @param {string} color - The CSS color value for the progress bar fill.
- * @returns {JSX.Element} A React element containing the styled progress bar with label.
+ * @param {string} label - The descriptive text label displayed above the progress bar on the left side.
+ * @param {number} pct - The fill percentage of the progress bar, expected to be a value between 0 and 100.
+ * @param {string} color - A valid CSS color value used as the background color of the filled portion of the bar.
+ * @returns {JSX.Element} A React JSX element representing a labeled progress bar with a thin, styled horizontal fill indicator.
  * @example
- * <MiniBar label="CPU Usage" pct={75} color="#4CAF50" />
+ * <MiniBar label="Storage Used" pct={72} color="#7C3AED" />
  */
+
+
+
+
 function MiniBar({ label, pct, color }: { label: string; pct: number; color: string }) {
   return (
     <div style={{ marginBottom: 14 }}>

@@ -19,15 +19,21 @@
  * const message = friendlyError(new Error('401 Unauthorized')); // Returns: "Invalid or missing API key. Open Settings and update Wright: Api Key."
  */
 /**
- * Converts an unknown error into a user-friendly error message with contextual guidance based on error patterns.
+ * Converts an unknown error value into a user-friendly, human-readable error message string.
  *
- * Analyzes the error message or string representation and matches it against common error patterns (authentication, rate limiting, server errors, network issues, etc.) to return a helpful, actionable message for the user. Falls back to a generic message if no pattern matches.
+ * Inspects the raw error message using regex pattern matching to classify common HTTP and network error categories (401/403 auth errors, 404 not found, 429 rate limits, 5xx server errors, network connectivity issues, injection point errors, and workspace errors), returning a contextually appropriate message for each. Falls back to a generic error message if no pattern matches. Called by `_sendMessage` in chat.ts and `generateAndInject` in injector.ts to surface actionable error messages to the user.
  *
- * @param {unknown} err - The error object or value to convert into a friendly message. Can be an Error instance, string, or any other type.
- * @returns {string} A user-friendly error message with contextual guidance based on the error type detected.
+ * @param {unknown} err - The error value to convert; may be an Error instance, a string, or any other value thrown at runtime.
+ * @returns {string} A user-friendly error message string describing what went wrong and, where applicable, how to resolve it.
  * @example
- * const message = friendlyError(new Error('401 Unauthorized')); // Returns: "Invalid or missing API key. Open Settings and update Wright: Api Key."
+ * const msg = friendlyError(new Error('Request failed with status 401'));
+ * // Returns: "Invalid or missing API key. Open Settings and update Wright: Api Key."
+ * 
+ * const msg2 = friendlyError(new Error('ECONNREFUSED'));
+ * // Returns: "Could not reach the Wright server. Check your internet connection."
  */
+
+
 export function friendlyError(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err);
 
@@ -67,15 +73,18 @@ export /**
  * friendlyApiError("injection point not found") // Returns: "Couldn't locate this function. Place your cursor inside the function and try again."
  */
 /**
- * Converts a raw API error message into a user-friendly error message.
+ * Converts a raw API error string into a human-friendly message based on the error's content.
  *
- * Analyzes the API error string using pattern matching to identify specific error types (injection point errors, parsing errors, authentication errors) and returns an appropriate user-friendly message for each case.
+ * Inspects the raw API error string using regular expression pattern matching to categorize the error into one of several known failure modes (injection point issues, parse/syntax errors, authentication/key errors), returning a concise, user-actionable message for each. Falls back to a generic error message if the input is falsy or does not match any known pattern.
  *
- * @param {string | null | undefined} apiError - The raw error message from the API, or null/undefined if no error message is available.
- * @returns {string} A user-friendly error message appropriate for the type of error detected, or a generic error message if the error type cannot be determined.
+ * @param {string | null | undefined} apiError - The raw error message returned from the API, which may be null or undefined if no error detail is available.
+ * @returns {string} A user-friendly error message corresponding to the detected error category, or a generic fallback message if the error is unrecognized or absent.
  * @example
- * const message = friendlyApiError('injection point not found'); // Returns: "Couldn't locate this function. Place your cursor inside the function and try again."
+ * const message = friendlyApiError('auth token is forbidden');
+ * // Returns: 'Invalid API key. Open Settings and update Wright: Api Key.'
  */
+
+
 function friendlyApiError(apiError: string | null | undefined): string {
   if (!apiError) return "Something went wrong. Please try again.";
   if (/injection point|inject/i.test(apiError)) {

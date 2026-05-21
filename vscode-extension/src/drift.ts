@@ -21,15 +21,20 @@ let debounceTimer: ReturnType<typeof setTimeout> | undefined;
  * initDriftDecoration(context);
  */
 /**
- * Initializes and configures the text editor decoration type for displaying documentation drift warnings in the VS Code editor.
+ * Initializes and registers the drift decoration type used to visually mark outdated documentation in the editor.
  *
- * Creates a text editor decoration that displays a warning indicator (⚠ docs outdated) in italic style next to code elements with outdated documentation, using the editor's warning theme color. The decoration appears both inline and in the overview ruler on the right side of the editor. The decoration is registered with the extension context for proper lifecycle management.
+ * Creates a VS Code text editor decoration that renders a warning indicator ('⚠ docs outdated') in italic after affected code symbols, and also marks them in the overview ruler using the editor warning foreground color. The decoration is registered with the extension context's subscriptions to ensure it is disposed of automatically when the extension is deactivated.
  *
- * @param {vscode.ExtensionContext} context - The VS Code extension context used to register the decoration for disposal when the extension is deactivated.
- * @returns {void} This function does not return a value.
+ * @param {vscode.ExtensionContext} context - The VS Code extension context used to register the decoration for automatic disposal via context.subscriptions.
+ * @returns {void} Does not return a value; sets the module-level driftDecoration variable as a side effect.
  * @example
- * initDriftDecoration(context)
+ * // Called during extension activation
+ * export function activate(context: vscode.ExtensionContext): void {
+ *   initDriftDecoration(context);
+ * }
  */
+
+
 export function initDriftDecoration(context: vscode.ExtensionContext): void {
   driftDecoration = vscode.window.createTextEditorDecorationType({
     overviewRulerColor: new vscode.ThemeColor("editorWarning.foreground"),
@@ -54,17 +59,21 @@ export /**
  * @example
  * setupDriftOnSave(context, wrightCodeLensProvider)
  */
-/**
- * Registers an event listener that triggers a debounced drift check whenever a text document is saved in the workspace.
+ /**
+ * Registers a debounced on-save listener that triggers a drift check whenever a text document is saved in the workspace.
  *
- * Sets up a VS Code workspace event handler that monitors document save events. When a document is saved, it cancels any pending drift check and schedules a new one after a 500ms delay to avoid excessive checks during rapid consecutive saves. The disposable subscription is added to the extension context for proper cleanup.
+ * Sets up a VS Code workspace event listener via `onDidSaveTextDocument` that debounces rapid consecutive saves with a 500 ms delay before invoking `runDriftCheck` on the saved document's URI. The resulting disposable is pushed onto the extension context's subscriptions to ensure proper cleanup on extension deactivation.
  *
- * @param {vscode.ExtensionContext} context - The VS Code extension context used to register the disposable subscription for lifecycle management.
- * @param {{ refresh(): void }} codeLensProvider - An object with a refresh method that will be passed to the drift check operation to update code lens displays after drift detection.
- * @returns {void} This function does not return a value.
+ * @param {vscode.ExtensionContext} context - The VS Code extension context used to register the disposable listener for automatic cleanup on deactivation.
+ * @param {{ refresh(): void }} codeLensProvider - An object with a refresh method that is passed to runDriftCheck so code lenses can be updated after the drift check completes.
+ * @returns {void} Does not return a value; the side effect is a registered and managed on-save event listener.
  * @example
- * setupDriftOnSave(context, testCoverageLensProvider)
+ * // Called during extension activation
+ * setupDriftOnSave(context, myCodeLensProvider);
+ * // Now every file save triggers a debounced drift check after 500 ms
  */
+
+
 function setupDriftOnSave(
   context: vscode.ExtensionContext,
   codeLensProvider: { refresh(): void }
@@ -89,17 +98,23 @@ function setupDriftOnSave(
  * @example
  * await runDriftCheck(document.uri, myCodeLensProvider)
  */
-/**
- * Runs a drift check for a given file URI, marks drifted functions, applies visual decorations, and refreshes the CodeLens provider.
+ /**
+ * Runs a drift check for the given file URI, applies editor decorations to drifted functions, and refreshes the CodeLens provider.
  *
- * Performs an asynchronous drift analysis on the repository to identify functions whose implementation has diverged from their test coverage. Clears previous drift markers for the specified file, then iterates through drift check results to mark and visually decorate any drifted functions in the active editor. The CodeLens provider is refreshed to reflect updated drift status. Silently catches and ignores errors to gracefully handle cases where the drift check API may not be running.
+ * Resolves the workspace root and invokes the drift detection API via `checkDrift`. For the specified file, it clears any previously recorded drifted functions, then iterates over the drift results to mark functions whose status is not 'up_to_date'. If the file is currently open in a visible editor, gutter decorations are applied to the affected lines. Finally, the CodeLens provider is refreshed to reflect updated drift state. All errors are swallowed silently, as the backend API may not be available.
  *
- * @param {vscode.Uri} uri - The URI of the file to check for drift.
- * @param {{ refresh(): void }} codeLensProvider - The CodeLens provider instance to refresh after drift checking.
- * @returns {Promise<void>} A promise that resolves when the drift check is complete and decorations are applied.
+ * @param {vscode.Uri} uri - The URI of the source file to check for drift; used to match results from the drift API and to locate the corresponding visible text editor.
+ * @param {{ refresh(): void }} codeLensProvider - An object exposing a `refresh` method that is called after drift results are processed to trigger a re-render of CodeLens items in the editor.
+ * @returns {Promise<void>} Resolves with no value once the drift check, decorations, and CodeLens refresh are complete, or resolves immediately if the workspace root or drift decoration is unavailable.
  * @example
- * await runDriftCheck(fileUri, myCodeLensProvider)
+ * // Called on file save or extension activation
+ * await runDriftCheck(
+ *   vscode.Uri.file('/workspace/src/utils.ts'),
+ *   myCodeLensProvider
+ * );
  */
+
+
 export async function runDriftCheck(
   uri: vscode.Uri,
   codeLensProvider: { refresh(): void }

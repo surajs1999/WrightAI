@@ -19,16 +19,19 @@ const PAGE_TITLES: Record<string, string> = {
 };
 
 /**
- * Renders a sticky top navigation bar component for the dashboard with page title, user avatar dropdown menu, and mobile hamburger button.
+ * Renders a sticky dashboard topbar with a dynamic page title, a mobile hamburger menu button, and a user avatar dropdown containing navigation links and a sign-out action.
  *
- * The Topbar component displays the current page title based on the pathname, a clickable user avatar with initials that toggles a dropdown menu containing navigation links (Settings, API Keys, Help) and a sign-out option, and a hamburger menu button for mobile navigation. The dropdown menu automatically closes when clicking outside of it using a ref-based click-outside handler.
+ * The Topbar component reads the current pathname via `usePathname` to derive a human-readable page title from a `PAGE_TITLES` map, falling back to 'Dashboard'. It manages an open/close state for a user-avatar dropdown menu and closes it automatically when the user clicks outside the component using a `mousedown` event listener attached to the document. The dropdown provides links to Settings, API Keys, Help, and a logout anchor targeting `/api/auth/logout`.
  *
- * @param {string} userInitials - The user's initials to display in the avatar circle, defaults to 'U' if not provided. Only the first two characters are shown in uppercase.
- * @param {() => void} onMenuClick - Optional callback function triggered when the hamburger menu button is clicked, typically used to toggle the mobile sidebar navigation.
- * @returns {JSX.Element} A React header element containing the navigation bar with title, hamburger button, user avatar, and dropdown menu.
+ * @param {string} userInitials - One or two characters displayed inside the circular user avatar button. Defaults to 'U'. Only the first two characters (uppercased) are rendered.
+ * @param {() => void} onMenuClick - Optional callback invoked when the hamburger menu button is clicked, intended to open a mobile navigation sidebar.
+ * @returns {JSX.Element} A React `<header>` element containing the page title, a mobile hamburger button, a user avatar, and a conditionally rendered dropdown navigation menu.
  * @example
  * <Topbar userInitials="JS" onMenuClick={() => setSidebarOpen(true)} />
  */
+
+
+
 export default function Topbar({
   userInitials = "U",
   onMenuClick,

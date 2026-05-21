@@ -5,18 +5,22 @@ import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 
 /**
- * Renders a dashboard layout shell with a toggleable sidebar, topbar, and main content area.
+ * Renders the main dashboard layout shell with a toggleable sidebar, mobile overlay, topbar, and scrollable content area.
  *
- * This React component provides the structural layout for a dashboard interface. It manages sidebar visibility state for mobile/responsive views, including an overlay that closes the sidebar when clicked. The layout consists of three main sections: a collapsible sidebar, a topbar with user initials and menu toggle, and a main scrollable content area where children components are rendered.
+ * DashboardShell is a React layout component that manages the top-level structure of the dashboard UI. It maintains local state for sidebar open/close toggling, renders a mobile overlay that dismisses the sidebar on click, and composes a Topbar and Sidebar with appropriate callbacks. All page content is rendered inside a scrollable main element.
  *
- * @param {React.ReactNode} children - The content to be rendered in the main content area of the dashboard.
- * @param {string} userInitials - The user's initials to be displayed in the topbar component.
- * @returns {JSX.Element} A React element containing the complete dashboard layout structure with sidebar, topbar, and main content area.
+ * @param {React.ReactNode} children - The page content to render inside the scrollable main content area of the dashboard.
+ * @param {string} userInitials - The user's initials string passed to the Topbar component, typically displayed in an avatar or profile badge.
+ * @returns {JSX.Element} A React element representing the full dashboard shell layout including sidebar, overlay, topbar, and main content area.
  * @example
  * <DashboardShell userInitials="JS">
- *   <YourDashboardContent />
+ *   <h1>Welcome to the Dashboard</h1>
+ *   <p>Your analytics overview goes here.</p>
  * </DashboardShell>
  */
+
+
+
 export default function DashboardShell({
   children,
   userInitials,

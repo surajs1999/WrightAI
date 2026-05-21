@@ -28,11 +28,18 @@ const FUNCTION_PATTERNS: Record<string, RegExp[]> = {
 export const DRIFTED_FUNCTIONS = new Map<string, Set<string>>();
 
 /**
- * Marks a function as drifted by adding it to the drifted functions tracking map for the specified document.
+ * Registers a function as drifted for a given document URI in the global DRIFTED_FUNCTIONS map.
  *
- * @param {string} documentUri - The URI of the document containing the drifted function.
- * @param {string} functionName - The name of the function that has drifted.
+ * Ensures that an entry exists in the DRIFTED_FUNCTIONS map for the specified document URI, then adds the given function name to the associated set of drifted functions. This is called by runDriftCheck() when a function is detected to have drifted from its documented or expected state.
+ *
+ * @param {string} documentUri - The URI of the document containing the drifted function, used as the key in the DRIFTED_FUNCTIONS map.
+ * @param {string} functionName - The name of the function that has been identified as drifted and should be recorded.
+ * @returns {void} This function does not return a value.
+ * @example
+ * markFunctionDrifted('file:///workspace/src/utils.ts', 'parseConfig');
  */
+
+
 export function markFunctionDrifted(documentUri: string, functionName: string): void {
   if (!DRIFTED_FUNCTIONS.has(documentUri)) {
     DRIFTED_FUNCTIONS.set(documentUri, new Set());
@@ -41,10 +48,16 @@ export function markFunctionDrifted(documentUri: string, functionName: string): 
 }
 
 /**
- * Removes all drifted function entries for a specific document from the tracked collection.
+ * Removes all tracked drifted functions associated with the given document URI from the internal registry.
  *
- * @param {string} documentUri - The URI of the document whose drifted functions should be cleared from tracking.
+ * Called by runDriftCheck() to clear stale or outdated drift data for a specific document before re-running drift analysis, ensuring the registry reflects the current state of the document.
+ *
+ * @param {string} documentUri - The URI string identifying the VS Code document whose drifted function entries should be removed from the DRIFTED_FUNCTIONS map.
+ * @returns {void} Does not return a value.
+ * @example
+ * clearDriftedFunctions('file:///Users/dev/project/src/utils.ts');
  */
+
 export function clearDriftedFunctions(documentUri: string): void {
   DRIFTED_FUNCTIONS.delete(documentUri);
 }

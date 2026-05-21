@@ -21,17 +21,17 @@ _REPOS_BASE = Path(os.getenv("REPOS_PATH", "/data/repos"))
 
 def _verify_signature(body: bytes, signature_header: str | None, secret: str) -> bool:
     """
-    Verifies a GitHub webhook HMAC-SHA256 signature against the request body and shared secret.
+    Verifies a GitHub webhook HMAC-SHA256 signature against the raw request body and shared secret using constant-time comparison.
 
-    Computes the expected HMAC-SHA256 digest of the raw request body using the provided secret, then performs a constant-time comparison against the supplied signature header to prevent timing attacks. Returns False immediately if the header is missing or does not begin with the required 'sha256=' prefix.
+    Computes the expected HMAC-SHA256 digest of the raw request body using the provided secret, then performs a constant-time comparison against the supplied signature header to prevent timing attacks. Returns False immediately if the header is missing or does not begin with the required 'sha256=' prefix. Called by github_webhook() to authenticate incoming webhook requests from GitHub.
 
     Args:
         body (bytes): The raw bytes of the incoming webhook request body to be verified.
-        signature_header (str | None): The value of the 'X-Hub-Signature-256' header from the GitHub webhook request, expected to be in the format 'sha256=<hex_digest>'. If None or malformed, verification fails immediately.
-        secret (str): The shared webhook secret configured in GitHub and the application, used as the HMAC key to compute the expected signature.
+        signature_header (str | None): The value of the 'X-Hub-Signature-256' header from the GitHub webhook request, expected in the format 'sha256=<hex_digest>'. If None or missing the 'sha256=' prefix, verification fails immediately.
+        secret (str): The shared webhook secret configured in both GitHub and the application, used as the HMAC key to compute the expected signature.
 
     Returns:
-        bool: True if the computed HMAC-SHA256 digest of the body matches the provided signature header; False otherwise.
+        bool: True if the computed HMAC-SHA256 digest of the body matches the provided signature header; False if the header is missing, malformed, or the digests do not match.
 
     Example:
         ```
@@ -49,7 +49,35 @@ async def github_webhook(
     request: Request,
     token: str = Query(..., description="Your WrightAI API key"),
 ) -> JSONResponse:
-    """Handle GitHub push webhooks — pull latest code and re-index the repo."""
+    """
+    Handles incoming GitHub push webhooks by verifying the request signature, pulling the latest code via git, and scheduling an asynchronous re-indexing task.
+
+    This async FastAPI route endpoint listens for GitHub webhook events sent via POST to '/github'. It optionally verifies the request signature using a shared HMAC secret (GITHUB_WEBHOOK_SECRET), short-circuits on ping and non-push events, validates the WrightAI API key, runs a fast-forward 'git pull' on the locally cloned repository, and schedules an asynchronous re-indexing task via asyncio.create_task. Returns a JSON response indicating the outcome of the sync operation.
+
+    Args:
+        request (Request): The incoming FastAPI/Starlette HTTP request object, used to read the raw body, headers (X-Hub-Signature-256, X-GitHub-Event), and JSON payload from the GitHub webhook.
+        token (str): The WrightAI API key provided as a query parameter, used to authenticate the user and resolve their associated repository storage path on disk.
+
+    Returns:
+        JSONResponse: A JSON response with one of the following shapes: {'pong': True} for ping events; {'ignored': True, 'event': <event>} for non-push events; {'synced': False, 'reason': <reason>} if the repo is not connected, git pull fails, or times out; or {'synced': True, 'repo': <repo_name>} on successful sync and re-index scheduling.
+
+    Raises:
+        HTTPException: Raised with status 401 if the HMAC webhook signature verification fails when GITHUB_WEBHOOK_SECRET is set in the environment.
+        HTTPException: Raised with status 401 if the provided API key token does not correspond to a valid user as determined by get_user_by_api_key.
+        HTTPException: Raised with status 400 if the request body cannot be parsed as valid JSON.
+        HTTPException: Raised with status 400 if the repository name cannot be determined from the 'repository.name' field in the webhook payload.
+
+    Example:
+        ```
+        # Triggered automatically by GitHub; manual curl example:
+        # curl -X POST 'https://api.wrightai.com/webhooks/github?token=myapikey123' \
+        #   -H 'X-GitHub-Event: push' \
+        #   -H 'X-Hub-Signature-256: sha256=<hmac_hex>' \
+        #   -H 'Content-Type: application/json' \
+        #   -d '{"repository": {"name": "my-repo"}, "ref": "refs/heads/main"}'
+        # Expected response: {"synced": true, "repo": "my-repo"}
+        ```
+    """
     body = await request.body()
 
     # Optional extra verification via a shared webhook secret

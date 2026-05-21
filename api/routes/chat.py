@@ -26,15 +26,15 @@ class ChatRequest(BaseModel):
 @router.post("")
 async def chat(request: ChatRequest) -> StreamingResponse:
     """
-    Handles chat requests by retrieving relevant code context and streaming AI-generated responses with citations and follow-up questions.
+    Handles an incoming chat POST request by retrieving relevant code context via hybrid retrieval and streaming AI-generated responses back to the client as server-sent events.
 
-    This endpoint initializes the LLM gateway, embedder, vector store, and hybrid retriever to process user questions about a codebase. It retrieves relevant code contexts using semantic and dependency-based search, maintains conversation history (trimmed to last 20 messages), and streams responses as server-sent events including tokens, file citations, and suggested follow-up questions.
+    This async endpoint initializes the LLM gateway (using Anthropic), a VoyageEmbedder, a ChromaStore vector store, and a HybridRetriever to fetch up to 5 semantically and dependency-relevant code contexts for the user's question. Conversation history is trimmed to the last 20 messages to stay within context limits. The response is streamed as server-sent events, emitting 'token' events for incremental text, 'citations' events for referenced source files, 'followups' events for suggested follow-up questions, and a terminal '[DONE]' sentinel. If embeddings or the vector store are unavailable (e.g., missing API keys or unindexed repository), retrieval is skipped gracefully and the LLM answers from the question alone.
 
     Args:
-        request (ChatRequest): The chat request containing the user's question, repository root path, and conversation history.
+        request (ChatRequest): The chat request object containing the user's question, the repository root path used to locate the Chroma vector store, and the prior conversation history as a list of role/content message pairs.
 
     Returns:
-        StreamingResponse: A streaming HTTP response that emits server-sent events with types 'token' (text chunks), 'citations' (referenced files), 'followups' (suggested questions), and a final '[DONE]' message.
+        StreamingResponse: A Starlette StreamingResponse with media type 'text/event-stream' that emits JSON-encoded server-sent events of types 'token' (incremental LLM text), 'citations' (referenced source files), and 'followups' (suggested follow-up questions), terminated by a '[DONE]' message.
 
     Example:
         ```

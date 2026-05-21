@@ -83,24 +83,25 @@ class WrightConfig(BaseModel):
 
 def load_config(repo_root: str) -> WrightConfig:
     """
-    Loads Wright configuration from a .wright.json file in the repository root or returns default configuration if not found.
+    Loads Wright configuration from a .wright.json file in the repository root, returning a default WrightConfig if the file does not exist.
 
-    Reads the .wright.json configuration file from the specified repository root directory. If the file does not exist, returns a default WrightConfig instance. Uses Pydantic model validation to parse and validate the JSON data.
+    Reads and parses the .wright.json configuration file located at the specified repository root directory. If the file is absent, a default WrightConfig instance is returned. Pydantic model validation is used to parse and validate the JSON data against the WrightConfig schema. This function is called by core CLI commands such as generate, coverage, and drift.
 
     Args:
-        repo_root (str): Path to the repository root directory where .wright.json should be located.
+        repo_root (str): Absolute or relative path to the repository root directory where the .wright.json configuration file should be located.
 
     Returns:
-        WrightConfig: A WrightConfig instance either loaded from .wright.json or with default values.
+        WrightConfig: A WrightConfig instance populated with values from .wright.json, or a default WrightConfig instance if the file does not exist.
 
     Raises:
-        json.JSONDecodeError: When the .wright.json file contains invalid JSON syntax.
-        pydantic.ValidationError: When the JSON data does not match the WrightConfig schema.
-        IOError: When the .wright.json file exists but cannot be read due to permissions or other I/O errors.
+        json.JSONDecodeError: When the .wright.json file contains invalid or malformed JSON syntax.
+        pydantic.ValidationError: When the parsed JSON data does not conform to the WrightConfig schema.
+        IOError: When the .wright.json file exists but cannot be read due to insufficient permissions or other I/O errors.
 
     Example:
         ```
         config = load_config('/path/to/my/project')
+        print(config.output_dir)
         ```
 
     Complexity: O(n) time where n is the size of the config file, O(n) space for parsed config data
@@ -115,24 +116,25 @@ def load_config(repo_root: str) -> WrightConfig:
 
 def save_config(config: WrightConfig, repo_root: str) -> None:
     """
-    Saves a WrightConfig object to a .wright.json file in the specified repository root directory.
+    Serializes a WrightConfig object to a .wright.json file in the specified repository root directory.
 
-    Serializes the WrightConfig object to JSON format using Pydantic's model_dump() method and writes it to a .wright.json file with UTF-8 encoding and 2-space indentation.
+    Uses Pydantic's model_dump() method to convert the WrightConfig object to a dictionary, then writes it as a formatted JSON file with UTF-8 encoding and 2-space indentation. This function is called by init() during repository initialization to persist configuration settings.
 
     Args:
-        config (WrightConfig): The WrightConfig object to be serialized and saved.
-        repo_root (str): The path to the repository root directory where the .wright.json file will be created.
+        config (WrightConfig): The WrightConfig Pydantic model instance to be serialized and saved to disk.
+        repo_root (str): The absolute or relative path to the repository root directory where the .wright.json file will be created.
 
     Returns:
-        None: This function does not return a value.
+        None: This function does not return a value; it writes the configuration directly to the filesystem.
 
     Raises:
-        OSError: When the file cannot be written due to permission issues or invalid path.
-        TypeError: When the config object cannot be serialized to JSON.
+        OSError: When the file cannot be written due to insufficient permissions or an invalid directory path.
+        TypeError: When the WrightConfig object contains fields that cannot be serialized to JSON.
 
     Example:
         ```
-        save_config(my_wright_config, '/path/to/repo')
+        wright_config = WrightConfig(project_name='my-project', version='1.0.0')
+        save_config(wright_config, '/home/user/projects/my-project')
         ```
     """
     config_path = os.path.join(repo_root, ".wright.json")

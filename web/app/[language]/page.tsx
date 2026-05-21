@@ -362,19 +362,22 @@ export async function generateStaticParams() {
 }
 
 /**
- * Generates Next.js page metadata for a given language route by resolving the language parameter and mapping it to localized SEO fields.
+ * Generates Next.js page metadata for a given language route by resolving language-specific SEO fields from a language configuration map.
  *
- * Asynchronously resolves the dynamic route `language` parameter, looks it up in the `LANGUAGES` configuration map, and returns a populated `Metadata` object containing title, description, keywords, canonical URL, and OpenGraph data. Returns an empty object if the language key is not recognized.
+ * Asynchronously resolves the dynamic `language` route parameter, looks it up in the `LANGUAGES` configuration map, and returns a `Metadata` object containing title, description, keywords, canonical URL, and OpenGraph tags. If the language key is not found, an empty metadata object is returned.
  *
- * @param {Promise<{ language: string }>} params - A promise resolving to an object containing the `language` route segment string (e.g., 'en', 'fr'), used to look up localized metadata from the LANGUAGES map.
- * @returns {Promise<Metadata>} A promise that resolves to a Next.js `Metadata` object containing localized title, description, keywords, canonical alternate URL, and OpenGraph fields, or an empty object if the language key is not found.
+ * @param {Promise<{ language: string }>} params - A promise that resolves to an object containing the dynamic `language` route segment string, used to look up the corresponding language configuration entry.
+ * @returns {Promise<Metadata>} A promise that resolves to a Next.js `Metadata` object populated with localized title, description, keywords, canonical alternate URL, and OpenGraph properties, or an empty object if the language key is unrecognized.
  * @example
- * // Used automatically by Next.js for the /[language] route
- * // e.g., visiting https://www.wrightai.live/en triggers:
- * const metadata = await generateMetadata({ params: Promise.resolve({ language: 'en' }) });
- * // metadata.title => 'Wright AI - English'
- * // metadata.alternates.canonical => 'https://www.wrightai.live/en'
+ * // In a Next.js App Router page.tsx
+ * const metadata = await generateMetadata({ params: Promise.resolve({ language: 'es' }) });
+ * // metadata.title => 'Wright AI - Spanish'
+ * // metadata.alternates.canonical => 'https://www.wrightai.live/es'
  */
+
+
+
+
 export async function generateMetadata({
   params,
 }: {
@@ -396,19 +399,23 @@ export async function generateMetadata({
   };
 }
 
-/**
- * Renders a language-specific marketing page for Wright AI, displaying a hero section, before/after code examples, feature highlights, comparisons, and a call-to-action.
+     /**
+ * Renders a language-specific marketing page for Wright AI, displaying documentation style examples, feature highlights, and comparisons based on the provided language route parameter.
  *
- * An async Next.js server component that resolves a dynamic route segment containing a language key, looks it up in the LANGUAGES configuration map, and returns a full-page React element. If the language key is not found, it invokes Next.js's notFound() to render a 404 response. The page includes a sticky navigation header, a hero with install CTA, a before/after docstring diff panel, a feature grid explaining call-graph context, coverage tracking, drift detection, and MCP integration, a competitor comparison table, and a final CTA section.
+ * An async Next.js page component that resolves a dynamic route segment (`language`) to a supported language configuration from the `LANGUAGES` map. If the language key is not found, it triggers a 404 via `notFound()`. Otherwise, it renders a full-page layout including a sticky navigation header, a hero section with install CTA, a before/after code example, a feature grid explaining Wright's capabilities, a comparison table against alternatives, and a final call-to-action section.
  *
- * @param {Promise<{ language: string }>} params - A promise that resolves to an object containing the dynamic route parameter 'language', which is used as a key into the LANGUAGES configuration map to retrieve language-specific content.
- * @returns {Promise<JSX.Element>} A promise that resolves to a React JSX element representing the full language-specific marketing page, or triggers a Next.js 404 response if the language key is not found.
- * @throws {NotFoundError} When the resolved language parameter does not match any key in the LANGUAGES configuration map, causing Next.js notFound() to be called and a 404 page to be rendered.
+ * @param {Promise<{ language: string }>} params - A Next.js dynamic route params object (wrapped in a Promise) containing the `language` segment from the URL, e.g., `{ language: 'typescript' }`.
+ * @returns {Promise<JSX.Element>} A Promise that resolves to a full-page React JSX element representing the language-specific Wright AI landing page, or triggers `notFound()` if the language key is unrecognised.
+ * @throws {notFound()} Thrown (via Next.js `notFound()`) when the resolved `language` parameter does not match any key in the `LANGUAGES` configuration map.
  * @example
- * // Next.js automatically calls this component for routes like /python or /typescript
- * // e.g. navigating to /python renders the Python-specific Wright AI landing page
- * <LanguagePage params={Promise.resolve({ language: 'python' })} />
+ * // Accessed via URL: /typescript
+ * // Next.js automatically calls:
+ * await LanguagePage({ params: Promise.resolve({ language: 'typescript' }) });
  */
+
+
+
+
 export default async function LanguagePage({
   params,
 }: {

@@ -44,7 +44,25 @@ def _chroma_for(repo_root: str):
 
 
 async def _index_repo(repo_root: str) -> None:
-    """Parse the repo, generate embeddings, and store in ChromaDB. Fire-and-forget."""
+    """
+    Indexes an entire repository by parsing source files, generating vector embeddings, and upserting them into a ChromaDB collection in a fire-and-forget async pattern.
+
+    Checks whether indexing is already in progress for the given repository root to prevent duplicate concurrent runs. If the VOYAGE_API_KEY environment variable is set, offloads CPU-bound directory parsing (via CodeParser and ASTChunker) to a thread pool executor to avoid blocking the asyncio event loop, then generates embeddings with VoyageEmbedder and stores the resulting chunks in a ChromaDB collection scoped to the repository. Any exception during parsing, embedding, or upserting is caught and logged without re-raising, and the repository root is always removed from the in-progress tracking set upon completion.
+
+    Args:
+        repo_root (str): Absolute or relative filesystem path to the root directory of the repository to be indexed.
+
+    Returns:
+        None: This coroutine returns nothing; it is designed to be called in a fire-and-forget manner via asyncio.create_task().
+
+    Raises:
+        Exception: Any unexpected error during parsing, embedding, or upserting is caught internally, logged via the module logger, and not re-raised.
+
+    Example:
+        ```
+        asyncio.create_task(_index_repo('/workspace/my_project'))
+        ```
+    """
     if repo_root in _indexing:
         return
     _indexing.add(repo_root)
@@ -82,21 +100,21 @@ async def _index_repo(repo_root: str) -> None:
 
 def _save_token(user_dir: Path, repo_slug: str, token: str) -> None:
     """
-    Saves an authentication token for a repository to a JSON file in the user directory.
+    Persists an authentication token for a repository slug to a JSON file in the specified user directory.
 
-    Reads existing tokens from .tokens.json if present, updates the token for the given repository slug, and writes the updated token mapping back to the file. If the file does not exist or cannot be read, it creates a new token mapping.
+    Reads the existing token mapping from `.tokens.json` in the user directory if the file exists, updates or inserts the token for the provided repository slug, and writes the updated mapping back to disk. If the file is missing or its contents cannot be parsed as valid JSON, a fresh mapping is created containing only the new entry. This function is called by `connect_repo()` to store tokens after a successful repository connection.
 
     Args:
-        user_dir (Path): The user's directory path where the .tokens.json file is stored.
-        repo_slug (str): The repository identifier (slug) to associate with the token.
-        token (str): The authentication token to save for the repository.
+        user_dir (Path): The filesystem path to the user's directory where the `.tokens.json` file is stored or will be created.
+        repo_slug (str): The repository identifier (e.g., 'owner/repo') used as the key in the token mapping.
+        token (str): The authentication token to associate with and persist for the given repository slug.
 
     Returns:
-        None: This function does not return a value.
+        None: This function does not return a value; it writes the token to disk as a side effect.
 
     Example:
         ```
-        _save_token(Path('/home/user/.wright'), 'owner/repo', 'ghp_abc123def456')
+        _save_token(Path('/home/user/.wright'), 'octocat/hello-world', 'ghp_abc123def456')
         ```
     """
     token_file = user_dir / ".tokens.json"
@@ -112,20 +130,24 @@ def _save_token(user_dir: Path, repo_slug: str, token: str) -> None:
 
 def load_token(user_dir: Path, repo_slug: str) -> str | None:
     """
-    Loads an authentication token for a specific repository from the user's tokens file.
+    Loads an authentication token for a specific repository from the user's .tokens.json file.
 
-    Reads the .tokens.json file from the user directory and retrieves the token associated with the given repository slug. Returns None if the file doesn't exist, the repository slug is not found, or any error occurs during reading or parsing.
+    Reads the .tokens.json file located in the given user directory and retrieves the token associated with the provided repository slug. Returns None if the file does not exist, the slug is not present, or any error occurs during file reading or JSON parsing. Called by fix_and_pr() and connect_repo() to retrieve stored credentials.
 
     Args:
         user_dir (Path): The directory path where the user's .tokens.json file is stored.
-        repo_slug (str): The repository identifier used as the key to look up the token in the tokens file.
+        repo_slug (str): The repository identifier (e.g., 'owner/repo-name') used as the key to look up the token in the tokens file.
 
     Returns:
-        str | None: The authentication token string for the specified repository, or None if the token file doesn't exist, the repository slug is not found, or an error occurs.
+        str | None: The authentication token string for the specified repository, or None if the token file does not exist, the repository slug is not found, or an error occurs during reading or parsing.
 
     Example:
         ```
-        token = load_token(Path('/home/user'), 'owner/repo-name')
+        token = load_token(Path('/home/user/.wright'), 'octocat/hello-world')
+        if token:
+            print(f'Token found: {token}')
+        else:
+            print('No token available for this repository.')
         ```
     """
     token_file = user_dir / ".tokens.json"
@@ -145,7 +167,28 @@ _API_URL = os.getenv("WRIGHT_API_URL", "https://wrightai-api.fly.dev")
 
 
 def _register_github_webhook(github_token: str, git_url: str, api_key: str) -> None:
-    """Register a push webhook on GitHub for this repo. Silently no-ops on any failure."""
+    """
+    Registers a GitHub push webhook for the specified repository, skipping registration if the webhook already exists or silently suppressing any failure.
+
+    Parses the GitHub repository owner and name from the provided Git URL, then queries the GitHub API to check whether a matching webhook is already registered. If no duplicate is found, it creates a new push webhook pointing to the internal API endpoint authenticated via the provided API key. All network and parsing errors are caught and either logged as warnings or silently ignored, ensuring this function never raises to its caller.
+
+    Args:
+        github_token (str): A GitHub personal access token or OAuth token with 'admin:repo_hook' permission used to authenticate requests to the GitHub API.
+        git_url (str): The HTTPS or SSH URL of the GitHub repository (e.g. 'https://github.com/owner/repo.git') from which the owner and repo name are extracted.
+        api_key (str): The internal API key appended as a query parameter to the webhook callback URL so that incoming webhook payloads can be authenticated.
+
+    Returns:
+        None: This function does not return a value; it performs a side effect of registering a webhook on GitHub.
+
+    Example:
+        ```
+        _register_github_webhook(
+            github_token='ghp_abc123XYZ',
+            git_url='https://github.com/acme/my-service.git',
+            api_key='internal-secret-key'
+        )
+        ```
+    """
     import urllib.request
     import urllib.error
     import json as _json
@@ -195,7 +238,22 @@ def _register_github_webhook(github_token: str, git_url: str, api_key: str) -> N
 
 
 def _user_id_from_request(request: Request) -> str:
-    """Extract user identifier from the request (API key header)."""
+    """
+    Extracts a stable user identifier from the incoming request by reading the last 12 characters of the X-Wright-API-Key header.
+
+    Reads the X-Wright-API-Key HTTP header from the request and uses its last 12 characters as a safe, filesystem-friendly user identifier. Forward slashes and dots are replaced with underscores to prevent path-traversal issues. Falls back to the string 'anonymous' if the header is absent. Called by route handlers such as connect_repo(), list_repos(), delete_repo(), index_status(), and sync_repo() to scope repository data to the authenticated caller.
+
+    Args:
+        request (Request): FastAPI Request object from which the X-Wright-API-Key header is extracted to derive the user identifier.
+
+    Returns:
+        str: A sanitized 12-character (or shorter) string derived from the tail of the API key, with '/' and '.' replaced by '_', or 'anonymous' if the header is missing.
+
+    Example:
+        ```
+        user_id = _user_id_from_request(request)  # e.g. 'abc123xyz789' when X-Wright-API-Key is 'ghp_someverylongtoken_abc123xyz789'
+        ```
+    """
     key = request.headers.get("X-Wright-API-Key", "anonymous")
     # Use last 12 chars of the key as a safe directory name
     return key[-12:].replace("/", "_").replace(".", "_")
@@ -218,25 +276,30 @@ class RepoInfo(BaseModel):
 @router.post("/connect", response_model=RepoInfo)
 async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
     """
-    Connects a Git repository by cloning or updating it locally for a specific user.
+    Connects a Git repository for a specific user by cloning it fresh or pulling the latest changes into an existing local copy.
 
-    Clones a new repository or updates an existing one using git pull. Handles GitHub authentication by injecting tokens into the clone URL for private repositories. Automatically detects the default branch and saves authentication credentials for future use.
+    Derives a safe repository slug from the provided URL and resolves a GitHub token from the request body or a previously saved OAuth token. Injects the token into the clone URL for private repositories and disables interactive git credential prompts. If the repository already exists locally, it attempts a fast-forward pull; on failure it falls back to a shallow fetch and hard reset to FETCH_HEAD. For new repositories, it performs a shallow clone. After syncing, the active branch is detected automatically, the token is persisted for future use, a GitHub webhook is registered asynchronously, and background indexing is kicked off via asyncio.create_task.
 
     Args:
-        body (ConnectRepoRequest): Request payload containing the git_url (repository URL), optional branch name, and optional github_token for authentication.
-        request (Request): FastAPI request object used to extract the user ID from the request context.
+        body (ConnectRepoRequest): Request payload containing git_url (the repository URL to connect), an optional branch name, and an optional github_token for authenticating against private repositories.
+        request (Request): FastAPI Request object used to extract the authenticated user's ID from the request context and to retrieve the X-Wright-API-Key header for webhook registration.
 
     Returns:
-        RepoInfo: Information about the connected repository including its ID, name, git URL, local file system path, and the active branch name.
+        RepoInfo: A RepoInfo object containing the repository's composite ID (user_id/repo_slug), human-readable name, sanitized git URL (with any embedded tokens removed), absolute local filesystem path, and the currently active branch name.
 
     Raises:
-        HTTPException: With status 500 when git pull fails to update an existing repository.
-        HTTPException: With status 400 when authentication fails, repository is not found, or is private without proper credentials.
-        HTTPException: With status 400 when git clone fails for any other reason.
+        HTTPException: Status 400 when git clone times out, when authentication fails, when the repository is not found, when the repository is private and no credentials are supplied, or when git clone fails for any other reason.
+        HTTPException: Status 400 when the fallback git fetch times out or when git fetch/reset fails during an attempted re-sync of an existing repository.
 
     Example:
         ```
-        repo_info = await connect_repo(ConnectRepoRequest(git_url='https://github.com/user/repo', github_token='ghp_token123'), request)
+        repo_info = await connect_repo(
+            body=ConnectRepoRequest(
+                git_url='https://github.com/octocat/Hello-World',
+                github_token='ghp_abc123secrettoken'
+            ),
+            request=request
+        )
         ```
     """
     user_id = _user_id_from_request(request)
@@ -357,22 +420,24 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
 @router.get("", response_model=list[RepoInfo])
 async def list_repos(request: Request) -> list[RepoInfo]:
     """
-    Lists all Git repositories for the authenticated user from the local file system.
+    Lists all Git repositories for the authenticated user by scanning their local repository directory and returning metadata for each discovered repo.
 
-    Retrieves the user ID from the request, scans the user's repository directory for Git repositories, extracts repository metadata including the remote origin URL, and returns a list of repository information objects. If the user directory does not exist, returns an empty list.
+    Retrieves the user ID from the incoming HTTP request, constructs the user-specific repository base path, and iterates over subdirectories to find valid Git repositories (identified by the presence of a .git folder). For each repository, it invokes a subprocess call to extract the remote origin URL and strips any embedded OAuth tokens before assembling a RepoInfo object. Returns an empty list if the user directory does not exist.
 
     Args:
-        request (Request): The incoming HTTP request containing user authentication information.
+        request (Request): The incoming HTTP request object containing user authentication information used to derive the user ID via _user_id_from_request().
 
     Returns:
-        list[RepoInfo]: A list of RepoInfo objects containing metadata for each Git repository found in the user's directory, including repository ID, name, Git URL, local path, and branch information.
+        list[RepoInfo]: A list of RepoInfo objects, each containing the repository's composite ID (user_id/repo_name), name, sanitized remote Git URL, absolute local path, and default branch name ('main'). Returns an empty list if no repositories are found or the user directory does not exist.
 
     Example:
         ```
         repos = await list_repos(request)
+        for repo in repos:
+            print(repo.name, repo.git_url)
         ```
 
-    Complexity: O(n) time where n is the number of directories in the user's repository folder, O(n) space for storing repository information
+    Complexity: O(n) time where n is the number of directories in the user's repository folder; O(n) space for storing the resulting RepoInfo list.
     """
     user_id = _user_id_from_request(request)
     user_dir = _REPOS_BASE / user_id
@@ -408,19 +473,19 @@ async def list_repos(request: Request) -> list[RepoInfo]:
 @router.delete("/{repo_name}")
 async def delete_repo(repo_name: str, request: Request) -> dict:
     """
-    Deletes a repository for the authenticated user by removing its directory from the filesystem.
+    Deletes a repository and all its contents from the filesystem for the authenticated user.
 
-    This endpoint removes the repository directory and all its contents from the user's repository storage. The user is identified from the request, and the repository path is constructed using the user ID and repository name.
+    This async DELETE endpoint constructs the repository path from the authenticated user's ID and the provided repository name, verifies the path exists, and recursively removes the directory and all its contents using shutil.rmtree. The user identity is extracted from the incoming request via _user_id_from_request().
 
     Args:
-        repo_name (str): The name of the repository to delete.
-        request (Request): The FastAPI request object used to extract the authenticated user's ID.
+        repo_name (str): The name of the repository to delete, used to locate the directory under the user's repository storage.
+        request (Request): The FastAPI Request object from which the authenticated user's ID is extracted to construct the repository path.
 
     Returns:
-        dict: A dictionary containing the deleted repository name with key 'deleted'.
+        dict: A dictionary with a single key 'deleted' whose value is the name of the repository that was removed, e.g. {'deleted': 'my-project'}.
 
     Raises:
-        HTTPException: When the repository is not found (status code 404).
+        HTTPException: Raised with HTTP status code 404 and detail 'Repo not found' when the specified repository directory does not exist on the filesystem.
 
     Example:
         ```
@@ -438,7 +503,28 @@ async def delete_repo(repo_name: str, request: Request) -> dict:
 
 @router.get("/{repo_name}/index-status")
 async def index_status(repo_name: str, request: Request) -> dict:
-    """Return whether the repo has been indexed and whether indexing is in progress."""
+    """
+    Returns the indexing status of a named repository, including whether it has been indexed and if indexing is currently in progress.
+
+    This async GET endpoint resolves the authenticated user's repository by name, checks whether the repository path exists on disk, queries the associated ChromaDB collection for the current chunk count, and returns a status payload indicating whether indexing has completed, how many chunks are stored, and whether indexing is actively running.
+
+    Args:
+        repo_name (str): The name of the repository whose index status is being queried.
+        request (Request): The incoming HTTP request object, used to extract the authenticated user's ID via _user_id_from_request.
+
+    Returns:
+        dict: A dictionary with three keys: 'indexed' (bool) indicating whether at least one chunk exists, 'chunk_count' (int) with the total number of indexed chunks, and 'indexing' (bool) indicating whether indexing is currently in progress for this repository.
+
+    Raises:
+        HTTPException: Raised with status code 404 and detail 'Repo not found' when the resolved repository path does not exist on the filesystem.
+
+    Example:
+        ```
+        # GET /my-project/index-status
+        response = await client.get('/my-project/index-status')
+        # Example response: {"indexed": True, "chunk_count": 42, "indexing": False}
+        ```
+    """
     user_id = _user_id_from_request(request)
     repo_path = _REPOS_BASE / user_id / repo_name
     if not repo_path.exists():
@@ -458,7 +544,33 @@ async def index_status(repo_name: str, request: Request) -> dict:
 
 @router.post("/{repo_name}/sync")
 async def sync_repo(repo_name: str, request: Request) -> dict:
-    """Pull latest commits for a connected repo and re-index. Can also be triggered manually."""
+    """
+    Pulls the latest commits for a connected repository via fast-forward merge and re-indexes it asynchronously.
+
+    Handles a POST request to sync a user-owned Git repository by running 'git pull --ff-only' in a subprocess with a 120-second timeout, then schedules a background re-indexing task. The operation is idempotent and can be triggered manually or via automation. Interactive Git prompts are suppressed to prevent hanging in headless environments.
+
+    Args:
+        repo_name (str): The name of the repository to sync, used as a path segment under the user's base directory.
+        request (Request): The incoming FastAPI/Starlette HTTP request object, used to extract the authenticated user's ID.
+
+    Returns:
+        dict: A dictionary confirming the sync was initiated, e.g. {'synced': True, 'repo': 'my-repo'}.
+
+    Raises:
+        HTTPException(404): When the specified repository path does not exist on disk for the authenticated user.
+        HTTPException(500): When 'git pull --ff-only' exits with a non-zero return code, indicating a pull failure (e.g. non-fast-forward update or remote error).
+        HTTPException(504): When the 'git pull' subprocess exceeds the 120-second timeout.
+
+    Example:
+        ```
+        # Via HTTP client:
+        # POST /my-project/sync
+        # Response: {"synced": true, "repo": "my-project"}
+        
+        response = await client.post("/my-project/sync", headers={"Authorization": "Bearer <token>"})
+        assert response.json() == {"synced": True, "repo": "my-project"}
+        ```
+    """
     user_id = _user_id_from_request(request)
     repo_path = _REPOS_BASE / user_id / repo_name
     if not repo_path.exists():
@@ -483,7 +595,28 @@ async def sync_repo(repo_name: str, request: Request) -> dict:
 
 @router.post("/{repo_name}/index")
 async def trigger_index(repo_name: str, request: Request) -> dict:
-    """Trigger background indexing for a repo. Idempotent — safe to call if already indexing."""
+    """
+    Triggers background indexing for a specified repository, returning immediately and skipping if indexing is already in progress.
+
+    This is an idempotent POST endpoint that initiates an asynchronous indexing task for the given repository. It resolves the repository path from the authenticated user's base directory, raises a 404 if the repository does not exist, and spawns a background task via asyncio only if indexing is not already running. The response indicates whether a new indexing task was started.
+
+    Args:
+        repo_name (str): The name of the repository to index, used to locate the repo under the authenticated user's base directory.
+        request (Request): The incoming HTTP request object, used to extract the authenticated user's ID via _user_id_from_request().
+
+    Returns:
+        dict: A dictionary with two keys: 'started' (bool) indicating whether a new indexing task was launched in this call, and 'indexing' (bool) which is always True to confirm indexing is active.
+
+    Raises:
+        HTTPException: Raised with status code 404 when the specified repository path does not exist for the authenticated user.
+
+    Example:
+        ```
+        # POST /my-project/index
+        response = await client.post('/my-project/index', headers={'Authorization': 'Bearer token123'})
+        # Example response: {'started': True, 'indexing': True}
+        ```
+    """
     user_id = _user_id_from_request(request)
     repo_path = _REPOS_BASE / user_id / repo_name
     if not repo_path.exists():

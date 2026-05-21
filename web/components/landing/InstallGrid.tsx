@@ -4,15 +4,19 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 
 /**
- * Renders a button component that copies text to the clipboard and displays visual feedback for 2 seconds.
+ * Renders a copy-to-clipboard button that displays a confirmation state for 2 seconds after the text is copied.
  *
- * A React functional component that provides a copy-to-clipboard button with state-based visual feedback. When clicked, it copies the provided text to the clipboard using the Clipboard API, displays a success state with a checkmark icon and green styling for 2 seconds, then returns to the default copy icon and styling.
+ * A React functional component that uses the Clipboard API to copy the provided text string to the user's clipboard. Upon a successful copy, the button transitions to a green 'copied' confirmation style with a checkmark icon, then reverts to its default appearance after 2000 milliseconds.
  *
- * @param {string} text - The text content to be copied to the clipboard when the button is clicked.
- * @returns {JSX.Element} A styled button element that toggles between 'copy' and 'copied' states with corresponding icons and visual styling.
+ * @param {string} text - The string content to be written to the clipboard when the button is clicked.
+ * @returns {JSX.Element} A styled HTML button element that triggers a clipboard write on click and visually indicates copy success.
  * @example
- * <CopyBtn text="npm install @wright/cli" />
+ * <CopyBtn text="npm install wright" />
  */
+
+
+
+
 function CopyBtn({ text }: { text: string }) {
   const [ok, setOk] = useState(false);
   return (
@@ -42,18 +46,26 @@ function CopyBtn({ text }: { text: string }) {
   );
 }
 
-/**
- * Renders a styled code block component with syntax highlighting, optional terminal prompt, and a copy button.
+   /**
+ * Renders a styled terminal-style code block UI component with a macOS-like title bar, optional prompt line, and a copy-to-clipboard button.
  *
- * A React component that displays code in a terminal-like interface with a macOS-style title bar (red, yellow, green dots), optional command prompt line, and a positioned copy button. The code is rendered line-by-line with monospace font and custom styling.
+ * CodeBlock displays a dark-themed code container that mimics a terminal window. It includes a decorative title bar with three colored circles (red, yellow, green), an optional shell prompt line showing a working directory prefix and a customizable command label, and the code content rendered line-by-line in monospace font. A floating CopyBtn allows users to copy the raw code string to the clipboard.
  *
- * @param {string} code - The code content to display in the code block, with newlines preserved for multi-line code.
- * @param {string | undefined} accent - Optional color value for styling the prompt text when a prompt is provided.
- * @param {string | undefined} prompt - Optional terminal command prompt text to display above the code (e.g., 'npm install').
- * @returns {JSX.Element} A React element containing the styled code block with title bar, optional prompt, code content, and copy button.
+ * @param {string} code - The raw code or command string to display inside the block. Newlines are split and each line is rendered individually.
+ * @param {string | undefined} accent - Optional CSS color value applied to the prompt command text, allowing visual accent customization per block.
+ * @param {string | undefined} prompt - Optional prompt command string displayed above the code lines as a shell-style prompt (e.g., a CLI command). If omitted, the prompt row is not rendered.
+ * @returns {JSX.Element} A React JSX element representing the styled terminal code block with an optional prompt header and a copy button overlay.
  * @example
- * <CodeBlock code="npm install wright" accent="#1D9E75" prompt="npm install wright" />
+ * <CodeBlock
+ *   code={`npm install wright\nnpx wright init`}
+ *   accent="#AFA9EC"
+ *   prompt="npx wright init"
+ * />
  */
+
+
+
+
 function CodeBlock({ code, accent, prompt }: { code: string; accent?: string; prompt?: string }) {
   return (
     <div style={{ position: "relative", marginTop: 16 }}>

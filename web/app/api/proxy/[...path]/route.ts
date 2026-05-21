@@ -6,16 +6,25 @@ import { API_URL } from "@/lib/api";
 type Context = { params: Promise<{ path: string[] }> };
 
 /**
- * Forwards an authenticated HTTP request to a backend API server, handling cookie-based authentication and streaming responses.
+ * Forwards an incoming Next.js API request to the configured backend API, enforcing authentication via a cookie-based token.
  *
- * This function acts as a proxy that extracts authentication tokens from cookies, reconstructs the target URL from dynamic path segments, forwards the request to the backend API with appropriate headers, and streams the response back to the client. It supports both regular and server-sent event (SSE) responses.
+ * Reads the 'wright_token' cookie to authenticate the request, constructs the upstream backend URL from the dynamic route path segments and query string, proxies the request with the appropriate method, headers, and body, and streams back the upstream response — including support for Server-Sent Events (text/event-stream) responses.
  *
- * @param {NextRequest} request - The incoming Next.js request object containing the HTTP method, headers, URL, and body to be forwarded.
- * @param {Context} context - The route context object containing dynamic path parameters used to construct the backend URL.
- * @returns {Promise<NextResponse>} A promise that resolves to a NextResponse containing either an error response (401 for unauthorized), a streaming SSE response, or the proxied backend response with appropriate headers and status code.
+ * @param {NextRequest} request - The incoming Next.js server-side request object, containing the HTTP method, headers, body, and URL details.
+ * @param {Context} context - The Next.js route handler context containing dynamic route parameters (e.g., the catch-all 'path' segments used to reconstruct the backend URL path).
+ * @returns {Promise<NextResponse>} A NextResponse containing the upstream backend's response body, status code, and content-type headers. Returns a 401 JSON error response if the authentication token is missing. Returns a streaming NextResponse with no-cache headers for Server-Sent Event streams.
  * @example
- * const response = await forward(request, { params: { path: ['users', '123'] } })
+ * // Used as a Next.js route handler in app/api/proxy/[...path]/route.ts
+ * export const GET = (request: NextRequest, context: Context) => forward(request, context);
+ * export const POST = (request: NextRequest, context: Context) => forward(request, context);
+ * 
+ * // A GET request to /api/proxy/users/42?include=details
+ * // will be forwarded to {API_URL}/users/42?include=details with the wright_token cookie as X-Wright-API-Key.
  */
+
+
+
+
 async function forward(request: NextRequest, context: Context): Promise<NextResponse> {
   const cookieStore = await cookies();
   const token = cookieStore.get("wright_token")?.value;

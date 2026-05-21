@@ -8,14 +8,21 @@ import { friendlyError, friendlyApiError } from "./errors";
 const FIRST_INJECT_KEY = "wright.hasInjectedOnce";
 
 /**
- * Generates and injects documentation for a specified function with preview and user confirmation.
+ * Generates a JSDoc/docstring for the specified function and injects it into the document after user confirmation via a diff preview.
  *
- * Orchestrates a four-step process: performs a dry-run to generate a documentation preview, displays an inline diff for user review, applies the documentation if accepted, and shows a first-time usage tip.
+ * Orchestrates a four-step workflow: (1) performs a dry-run call to `generateDocstring` to obtain a preview, (2) presents an inline diff preview via `showDiffPreview` for user acceptance, (3) applies the docstring by calling `generateDocstring` again with `dryRun=false`, and (4) on first successful injection, surfaces a one-time informational tip about documentation drift detection. Requires an open workspace folder; shows an error message and returns early if none is found.
  *
- * @param {vscode.TextDocument} document - The VS Code text document containing the function to document.
- * @param {string} functionName - The name of the function for which to generate documentation.
- * @param {vscode.ExtensionContext | undefined} context - Optional VS Code extension context used to track first-time usage and display tips.
+ * @param {vscode.TextDocument} document - The currently active text document whose source text and file path are used to locate and annotate the target function.
+ * @param {string} functionName - The exact name of the function within the document for which documentation should be generated and injected.
+ * @param {vscode.ExtensionContext} context - Optional extension context used to read and write global state for tracking whether the first-injection tip has already been shown to the user.
+ * @returns {Promise<void>} Resolves with no value once the injection workflow completes, is cancelled by the user, or exits early due to an error condition.
+ * @throws {Error} Any unexpected error thrown by `generateDocstring`, `showDiffPreview`, or VS Code API calls is caught internally and surfaced as a VS Code error message notification via `friendlyError`.
+ * @example
+ * // Called from the activate() function in extension.ts
+ * await generateAndInject(vscode.window.activeTextEditor.document, 'calculateTotal', context);
  */
+
+
 export async function generateAndInject(
   document: vscode.TextDocument,
   functionName: string,
@@ -47,15 +54,21 @@ export async function generateAndInject(
         const accepted = await showDiffPreview(document, functionName, preview.preview);
         if (!accepted) return;
 
-        // Step 3: apply
-        const applied = await generateDocstring(
-          document.uri.fsPath, functionName, repoRoot, false, document.languageId, fileContent
+        // Step 3: apply docstring locally so the file watcher fires and the coverage panel refreshes
+        const currentText = document.getText();
+        const newText = insertPreviewIntoSource(currentText, functionName, preview.preview, document.languageId);
+        const edit = new vscode.WorkspaceEdit();
+        edit.replace(
+          document.uri,
+          new vscode.Range(document.positionAt(0), document.positionAt(currentText.length)),
+          newText
         );
-
-        if (!applied.success) {
-          vscode.window.showErrorMessage(`Wright: ${friendlyApiError(applied.error)}`);
+        const applied = await vscode.workspace.applyEdit(edit);
+        if (!applied) {
+          vscode.window.showErrorMessage("Wright: Failed to apply docstring.");
           return;
         }
+        await document.save();
 
         // Step 4: first-time tip
         if (context) {
@@ -76,13 +89,19 @@ export async function generateAndInject(
 }
 
 /**
- * Displays a diff preview of the proposed docstring and prompts the user to apply or discard it.
+ * Displays a side-by-side diff preview of the proposed docstring insertion and prompts the user to apply or discard the change.
  *
- * @param document - The VS Code text document containing the source code to be modified.
- * @param functionName - The name of the function being documented, used in UI labels.
- * @param docstringPreview - The generated docstring content to preview.
- * @returns True if the user chose to apply the docstring, false if discarded.
+ * Generates a temporary file containing the source code with the proposed docstring inserted, opens a VSCode diff editor comparing the original document against the preview, and presents a modal confirmation dialog. Regardless of the user's choice, the temporary file is deleted and the diff tab is closed. Called by generateAndInject() as the final user-confirmation step before committing a docstring to the source file.
+ *
+ * @param {vscode.TextDocument} document - The active VSCode text document whose source code will be compared against the docstring preview.
+ * @param {string} functionName - The name of the function for which the docstring was generated; used to locate the insertion point and to label the diff tab.
+ * @param {string} docstringPreview - The generated docstring text to be previewed and optionally inserted into the source file.
+ * @returns {Promise<boolean>} Resolves to true if the user clicked 'Apply', or false if the user clicked 'Discard' or dismissed the dialog.
+ * @example
+ * const applied = await showDiffPreview(document, 'calculateTotal', '/** Calculates the total price. *\/');
  */
+
+
 async function showDiffPreview(
   document: vscode.TextDocument,
   functionName: string,
@@ -131,11 +150,18 @@ async function showDiffPreview(
 }
 
 /**
- * Maps a language identifier to its corresponding file extension.
+ * Maps a VS Code language identifier to its corresponding file extension string.
  *
- * @param {string} languageId - The programming language identifier (e.g., 'python', 'javascript', 'typescript').
- * @returns {string} The file extension corresponding to the language, or 'txt' if unrecognized.
+ * Performs a lookup against a predefined map of supported language identifiers (python, javascript, typescript, java, go, rust) and returns the associated file extension. Falls back to 'txt' for any unrecognized language identifier. Used by showDiffPreview() to determine the appropriate file extension when constructing diff preview URIs.
+ *
+ * @param {string} languageId - The VS Code language identifier (e.g., 'python', 'typescript') to look up.
+ * @returns {string} The file extension corresponding to the given language identifier (e.g., 'py' for 'python'), or 'txt' if the language identifier is not recognized.
+ * @example
+ * const ext = langExt('typescript'); // returns 'ts'
+ * const fallback = langExt('cobol');   // returns 'txt'
  */
+
+
 export function langExt(languageId: string): string {
   const map: Record<string, string> = {
     python: "py", javascript: "js", typescript: "ts",
@@ -145,13 +171,22 @@ export function langExt(languageId: string): string {
 }
 
 /**
- * Inserts a docstring into source code after the specified function definition.
+ * Inserts a generated docstring into source code after the definition line of a specified function,
+ * with language-aware indentation and placement.
  *
- * @param source - The source code content where the docstring will be inserted.
- * @param functionName - The name of the function to locate in the source code.
- * @param docstring - The documentation string to insert.
- * @param languageId - The programming language identifier used to determine regex pattern and formatting.
- * @returns The modified source code with the docstring inserted, or source with docstring prepended if function not found.
+ * For Python, the docstring is indented to match the function body. For all other supported
+ * languages (JS, TS, Java, Go, Rust), the docstring is inserted verbatim on the line following
+ * the definition. Returns the original source unchanged if the language is unsupported; prepends
+ * the docstring to the file as a fallback if the function is not found.
+ *
+ * @param {string} source - The full source code of the file.
+ * @param {string} functionName - The name of the function whose definition line will be located.
+ * @param {string} docstring - The formatted docstring text to insert.
+ * @param {string} languageId - The VS Code language identifier (e.g., 'python', 'typescript', 'go').
+ * @returns {string} The modified source with the docstring inserted, or the original source if unsupported.
+ * @example
+ * const updated = insertPreviewIntoSource('def greet(name):\n    pass', 'greet', '"""Says hello."""', 'python');
+ * // Result: 'def greet(name):\n    """Says hello."""\n    pass'
  */
 export function insertPreviewIntoSource(
   source: string,

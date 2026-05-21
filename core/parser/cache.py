@@ -10,19 +10,20 @@ from core.parser.tree_sitter_parser import ParsedFile, ParsedFunction, ParsedCla
 
 def _serialize_parsed_file(pf: ParsedFile) -> str:
     """
-    Serializes a ParsedFile object into a JSON string representation.
+    Serializes a ParsedFile object and all its nested structures into a JSON-formatted string.
 
-    Converts a ParsedFile object and all its nested structures (functions, classes, methods) into a dictionary format, then serializes it to a JSON string. The function handles the conversion of ParsedFunction and ParsedClass objects by extracting their attributes into dictionary representations.
+    Converts a ParsedFile object into a dictionary representation by recursively extracting attributes from all nested ParsedFunction and ParsedClass objects, then serializes the resulting dictionary to a JSON string. The output includes the file path, language, functions, classes, imports, and last modified timestamp.
 
     Args:
         pf (ParsedFile): The parsed file object containing functions, classes, imports, and metadata to be serialized.
 
     Returns:
-        str: A JSON-formatted string containing the serialized representation of the parsed file, including its path, language, functions, classes, imports, and last modified timestamp.
+        str: A JSON-formatted string containing the serialized representation of the ParsedFile, including its path, language, functions, classes, imports, and last modified timestamp.
 
     Example:
         ```
         json_str = _serialize_parsed_file(parsed_file)
+        # json_str => '{"path": "app.py", "language": "python", "functions": [], "classes": [], "imports": [], "last_modified": 1700000000.0}'
         ```
 
     Complexity: O(n) time where n is the total number of functions and methods across all classes, O(n) space for the constructed dictionary
@@ -94,26 +95,26 @@ def _serialize_parsed_file(pf: ParsedFile) -> str:
 
 def _deserialize_parsed_file(raw: str) -> ParsedFile:
     """
-    Deserializes a JSON string into a ParsedFile object with nested functions and classes.
+    Deserializes a JSON string into a fully reconstructed ParsedFile object with nested ParsedFunction and ParsedClass instances.
 
-    Converts a JSON-serialized representation of parsed source code back into structured ParsedFile, ParsedFunction, and ParsedClass objects. Uses nested helper functions to reconstruct the object hierarchy from dictionaries.
+    Converts a JSON-serialized representation of parsed source code back into a structured ParsedFile object by parsing the raw JSON string and recursively reconstructing the full object hierarchy, including all top-level functions, classes, and their nested methods, using internal helper functions _dict_to_func and _dict_to_class.
 
     Args:
-        raw (str): JSON string containing serialized ParsedFile data with functions, classes, and metadata.
+        raw (str): A JSON string containing the serialized ParsedFile data, including path, language, functions, classes, imports, and file metadata fields such as last_modified.
 
     Returns:
-        ParsedFile: A ParsedFile object reconstructed from the JSON data, containing parsed functions, classes, imports, and file metadata.
+        ParsedFile: A fully reconstructed ParsedFile object containing lists of ParsedFunction and ParsedClass objects, along with imports and file metadata such as path, language, and last_modified timestamp.
 
     Raises:
-        json.JSONDecodeError: When the raw string is not valid JSON.
-        KeyError: When required keys are missing from the JSON structure.
+        json.JSONDecodeError: When the raw string is not valid JSON and cannot be parsed.
+        KeyError: When required keys such as 'path', 'language', 'name', 'file_path', 'start_byte', 'end_byte', 'start_line', 'end_line', or 'source' are missing from the JSON structure.
 
     Example:
         ```
-        parsed_file = _deserialize_parsed_file('{"path": "example.py", "language": "python", "functions": [], "classes": []}')
+        parsed_file = _deserialize_parsed_file('{"path": "src/utils.py", "language": "python", "functions": [{"name": "add", "language": "python", "file_path": "src/utils.py", "start_byte": 0, "end_byte": 42, "start_line": 1, "end_line": 3, "source": "def add(a, b):\n    return a + b"}], "classes": [], "imports": ["os"], "last_modified": 1700000000.0}')
         ```
 
-    Complexity: O(n + m) time where n is the number of functions and m is the total number of methods across all classes, O(n + m) space
+    Complexity: O(n + m) time and space, where n is the number of top-level functions and m is the total number of methods across all classes
     """
     data = json.loads(raw)
 

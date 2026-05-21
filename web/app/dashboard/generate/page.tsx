@@ -12,15 +12,22 @@ const EXT: Record<string, string> = {
 };
 
 /**
- * Generates CSS properties for a tab button with conditional styling based on its active state.
+ * Generates a React inline style object for a tab button based on its active state.
  *
- * Returns a React.CSSProperties object containing inline styles for a tab button component. When active, the button displays with a purple background and white text. When inactive, it shows a transparent background with muted text and border colors. All styles use CSS custom properties (variables) for theming consistency.
+ * Returns a CSSProperties object that applies active (purple background, white text, purple border) or inactive (transparent background, muted text, border-color border) styles to a tab button. Used by GeneratePage to dynamically style tab navigation buttons.
  *
- * @param {boolean} active - Determines whether the tab button should render in its active state (true) or inactive state (false).
- * @returns {React.CSSProperties} A CSS properties object containing padding, background, border, borderRadius, fontFamily, fontSize, color, cursor, and transition styles conditionally set based on the active parameter.
+ * @param {boolean} active - Whether the tab button is currently selected/active. When true, applies a filled purple style; when false, applies a transparent ghost style.
+ * @returns {React.CSSProperties} An inline style object containing padding, background, border, borderRadius, fontFamily, fontSize, color, cursor, and transition properties styled according to the active state.
  * @example
- * const activeStyles = tabBtn(true); const inactiveStyles = tabBtn(false);
+ * const activeStyle = tabBtn(true);
+ * const inactiveStyle = tabBtn(false);
+ * // Usage in JSX:
+ * <button style={tabBtn(selectedTab === 'preview')}>Preview</button>
  */
+
+
+
+
 const tabBtn = (active: boolean): React.CSSProperties => ({
   padding: "7px 20px",
   background: active ? "var(--purple)" : "transparent",

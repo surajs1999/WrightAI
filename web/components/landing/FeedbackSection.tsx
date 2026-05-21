@@ -86,16 +86,20 @@ const Stars = () => (
 );
 
 /**
- * Renders an animated testimonial card component with hover effects, displaying a customer quote, star rating, and author information.
+ * Renders an animated testimonial card displaying a user's quote, avatar initials, name, role, and company with entrance and hover animations.
  *
- * A React functional component that creates a motion-animated card displaying testimonial content. The card features a staggered entrance animation based on its index, hover lift effect, themed accent colors, and includes a star rating, quote text, and author details with avatar initials. Uses Framer Motion for animations and inline styles for visual presentation.
+ * A React functional component that uses Framer Motion to animate a testimonial card into view with a staggered delay based on its index. The card displays a star rating, a quoted testimonial, and an author section with a gradient avatar showing initials, the author's full name, role, and company. Visual styling (accent color, background) is driven by the testimonial data object.
  *
- * @param {typeof TESTIMONIALS[number]} t - Testimonial object containing quote, name, role, company, initials, accent color, and accentBg properties for rendering the card content and styling.
- * @param {number} index - Zero-based position index used to calculate the staggered animation delay (delay = index * 0.08 seconds).
- * @returns {JSX.Element} A motion.div element containing the fully styled and animated testimonial card with quote, stars, and author information.
+ * @param {typeof TESTIMONIALS[number]} t - A single testimonial data object from the TESTIMONIALS array, containing fields such as quote, name, role, company, initials, accent color, and accentBg background color.
+ * @param {number} index - The zero-based position of this card in the testimonials list, used to calculate the staggered animation delay (index * 0.08 seconds).
+ * @returns {JSX.Element} A Framer Motion animated div element representing a fully styled testimonial card.
  * @example
  * <TestimonialCard t={TESTIMONIALS[0]} index={0} />
  */
+
+
+
+
 function TestimonialCard({ t, index }: { t: typeof TESTIMONIALS[number]; index: number }) {
   return (
     <motion.div

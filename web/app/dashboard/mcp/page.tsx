@@ -15,17 +15,33 @@ const TOOLS: { id: Tool; label: string; icon: string }[] = [
 ];
 
 /**
- * Generates a JSON configuration string for integrating Wright MCP server with the specified development tool.
+ * Generates a JSON configuration string for integrating the Wright MCP server with a specified AI development tool.
  *
- * Creates a tool-specific JSON configuration containing the Wright MCP server endpoint and authentication headers. Supports Claude, Cursor, Continue, and Windsurf tools, with Continue using a different experimental configuration structure while others share the same mcpServers format.
+ * Produces tool-specific JSON configuration snippets for connecting to the Wright Model Context Protocol (MCP) server. Supports 'claude', 'cursor', 'continue', and 'windsurf' tools. For 'claude', 'cursor', and 'windsurf', the output follows the standard `mcpServers` schema. For 'continue', it uses the `experimental.modelContextProtocolServers` schema with an HTTP transport definition. Falls back to placeholder values if `apiKey` or `repoPath` are empty strings.
  *
- * @param {Tool} tool - The development tool to generate configuration for (claude, cursor, continue, or windsurf).
- * @param {string} apiKey - The Wright API key for authentication. Defaults to 'YOUR_API_KEY' if empty or not provided.
- * @param {string} repoPath - The local repository path to be sent in headers. Defaults to '/path/to/your/repo' if empty or not provided.
- * @returns {string} A formatted JSON string (with 2-space indentation) containing the tool-specific MCP server configuration.
+ * @param {Tool} tool - The target AI development tool for which to generate the configuration. Accepted values are 'claude', 'cursor', 'continue', and 'windsurf'.
+ * @param {string} apiKey - The Wright API key to embed in the configuration headers. Defaults to the placeholder string 'YOUR_API_KEY' if an empty or falsy value is provided.
+ * @param {string} repoPath - The absolute path to the local repository root to embed in the configuration headers. Defaults to '/path/to/your/repo' if an empty or falsy value is provided.
+ * @returns {string} A pretty-printed (2-space indented) JSON string containing the MCP server configuration tailored to the specified tool.
  * @example
- * const config = configFor('claude', 'wrt_abc123', '/home/user/my-project')
+ * const config = configFor('claude', 'sk-abc123', '/home/user/my-project');
+ * console.log(config);
+ * // {
+ * //   "mcpServers": {
+ * //     "wright": {
+ * //       "url": "https://api.wright.dev/mcp",
+ * //       "headers": {
+ * //         "X-Wright-API-Key": "sk-abc123",
+ * //         "X-Repo-Root": "/home/user/my-project"
+ * //       }
+ * //     }
+ * //   }
+ * // }
  */
+
+
+
+
 function configFor(tool: Tool, apiKey: string, repoPath: string): string {
   const key = apiKey || "YOUR_API_KEY";
   const repo = repoPath || "/path/to/your/repo";
@@ -67,15 +83,18 @@ function configFor(tool: Tool, apiKey: string, repoPath: string): string {
 }
 
 /**
- * Returns the configuration file path for a specified MCP-compatible tool.
+ * Returns the filesystem configuration file path for a given MCP-supported tool.
  *
- * Maps each supported tool (Claude, Cursor, Continue, Windsurf) to its corresponding MCP configuration file location in the user's home directory. The Claude path includes an alternative command-line usage hint.
+ * Maps a Tool identifier to its corresponding MCP configuration file path string, providing the expected location where the tool reads its MCP server configuration. For Claude, an alternative CLI command is also included in the returned string.
  *
- * @param {Tool} tool - The tool identifier for which to retrieve the configuration path.
- * @returns {string} The file system path to the tool's MCP configuration file, relative to the user's home directory.
+ * @param {Tool} tool - A Tool union type literal identifying the target development tool (e.g., 'claude', 'cursor', 'continue', or 'windsurf').
+ * @returns {string} The filesystem path string for the specified tool's MCP configuration file, potentially including usage hints.
  * @example
- * const path = configPath('claude'); // Returns: '~/.claude/mcp.json  (or use: claude mcp add)'
+ * const path = configPath('cursor'); // Returns '~/.cursor/mcp.json'
  */
+
+
+
 function configPath(tool: Tool): string {
   const paths: Record<Tool, string> = {
     claude: "~/.claude/mcp.json  (or use: claude mcp add)",
@@ -306,17 +325,21 @@ export default function McpPage() {
   );
 }
 
-/**
- * Renders a numbered step component with a circular badge and descriptive text.
+     /**
+ * Renders a numbered step indicator with an associated descriptive text label.
  *
- * A React functional component that displays a step indicator consisting of a circular numbered badge with purple styling and an accompanying text label. The badge and text are arranged horizontally with flex layout.
+ * A React functional component that displays a single step in a sequential list, consisting of a circular badge showing the step number and a text description alongside it. The badge uses a purple-tinted style with monospace font, while the description uses the body font with muted coloring.
  *
- * @param {number} n - The step number to display inside the circular badge.
- * @param {string} text - The descriptive text to display next to the step number.
- * @returns {JSX.Element} A React element containing a flex container with a numbered circular badge and text span.
+ * @param {number} n - The step number displayed inside the circular badge.
+ * @param {string} text - The descriptive text content displayed next to the step number badge.
+ * @returns {JSX.Element} A flex container div element containing a styled circular step number badge and a span with the step description text.
  * @example
- * <Step n={1} text="Install the MCP server package" />
+ * <Step n={1} text="Install the MCP package using your preferred package manager." />
  */
+
+
+
+
 function Step({ n, text }: { n: number; text: string }) {
   return (
     <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>

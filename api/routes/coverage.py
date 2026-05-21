@@ -31,22 +31,23 @@ async def get_coverage(
     http_request: Request = None,
 ) -> CoverageResponse:
     """
-    Analyzes a repository to calculate documentation coverage statistics for all Python functions.
+    Scans all Python files under a repository root and returns documentation coverage statistics at the overall, per-file, and per-folder levels.
 
-    Parses all Python files in the specified repository root directory, excluding configured paths, and computes overall documentation coverage percentage, per-file coverage, per-folder coverage, and identifies all undocumented functions with their locations.
+    Loads repository configuration via load_config to determine exclude paths, then uses CodeParser to parse every Python file under repo_root. For each parsed file, named functions are counted and checked for existing docstrings to compute total and documented function counts. Undocumented functions are collected with their file path and line number. Coverage percentages are calculated overall, per file, and per folder. If an HTTP request object is provided and contains an X-Wright-API-Key header, the scan event is recorded in the usage store.
 
     Args:
-        repo_root (str): Absolute or relative path to the repository root directory to analyze for documentation coverage.
+        repo_root (str): Absolute or relative path to the repository root directory to scan for Python files and analyze documentation coverage.
+        http_request (Request): The incoming FastAPI/Starlette HTTP request object used to extract the X-Wright-API-Key header for usage tracking. Defaults to None if not provided.
 
     Returns:
-        CoverageResponse: Coverage statistics including overall percentage, total and documented function counts, list of undocumented functions with file paths and line numbers, coverage percentages by file, and coverage percentages by folder.
+        CoverageResponse: A CoverageResponse containing: overall_pct (float, overall documentation coverage percentage), total (int, total function count), documented (int, count of documented functions), undocumented (list of UndocumentedFunction with function_name, file_path, and line), by_file (dict mapping file path to coverage percentage), and by_folder (dict mapping folder path to coverage percentage).
 
     Example:
         ```
-        coverage = await get_coverage(repo_root="/path/to/my/project")
+        coverage = await get_coverage(repo_root="/home/user/projects/my_python_app")
         ```
 
-    Complexity: O(n*m) time where n is the number of files and m is the average number of functions per file, O(n*m) space for storing parsed function data
+    Complexity: O(n*m) time where n is the number of Python files and m is the average number of functions per file; O(n*m) space for storing parsed function data across all files.
     """
     from core.config import load_config
     from core.parser.tree_sitter_parser import CodeParser

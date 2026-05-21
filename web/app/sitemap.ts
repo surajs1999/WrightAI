@@ -3,15 +3,22 @@ import { MetadataRoute } from "next";
 const BASE = "https://www.wrightai.live";
 
 /**
- * Generates a static sitemap array defining the crawlable URLs, their update frequency, and priority for the application.
+ * Generates a structured sitemap for the application, covering the home page, docs, language-specific pages, and the login page.
  *
- * Returns a Next.js-compatible MetadataRoute.Sitemap array containing entries for the base URL, the documentation page, and the login page. Each entry includes the current date as the lastModified timestamp, a changeFrequency hint for crawlers, and a numeric priority value indicating relative importance.
- * @returns {MetadataRoute.Sitemap} An array of sitemap entry objects, each containing a URL string, lastModified Date, changeFrequency string, and a numeric priority value. Includes entries for the root URL (priority 1), /docs (priority 0.8), and /login (priority 0.3).
+ * Builds and returns a Next.js-compatible sitemap array containing URL entries for the base route, documentation, five supported programming language pages (Python, TypeScript, JavaScript, Go, Rust), and the login page. Each entry includes the current date as the last-modified timestamp, a change frequency hint, and a priority score for search engine crawling.
+ * @returns {MetadataRoute.Sitemap} An array of sitemap entry objects, each containing a URL, lastModified date set to the current date, a changeFrequency string ('weekly' or 'monthly'), and a numeric priority value between 0 and 1.
  * @example
- * // In Next.js app/sitemap.ts, the default export is picked up automatically:
- * const sitemapEntries = sitemap();
- * // sitemapEntries[0] => { url: 'https://example.com', lastModified: Date, changeFrequency: 'weekly', priority: 1 }
+ * // In Next.js app/sitemap.ts, export the function as default:
+ * // export default sitemap;
+ * // Next.js will automatically call it and serve /sitemap.xml
+ * const entries = sitemap();
+ * // entries[0] => { url: 'https://example.com', lastModified: Date, changeFrequency: 'weekly', priority: 1 }
+ * // entries[2] => { url: 'https://example.com/python', lastModified: Date, changeFrequency: 'monthly', priority: 0.9 }
  */
+
+
+
+
 export default function sitemap(): MetadataRoute.Sitemap {
   const languages = ["python", "typescript", "javascript", "go", "rust"];
 

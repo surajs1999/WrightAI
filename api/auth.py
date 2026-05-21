@@ -19,16 +19,17 @@ WORKOS_API_KEY = os.getenv("WORKOS_API_KEY", "")
 
 def _load_or_generate_key() -> str:
     """
-    Loads or generates a WrightAI API key from environment variable, file, or creates a new one.
+    Loads or generates a WrightAI API key by checking the environment variable, an existing key file, or creating a new cryptographically secure random key.
 
-    Attempts to retrieve the API key in the following priority order: (1) from the WRIGHT_API_KEY environment variable, (2) from an existing key file, or (3) generates a new secure random key, saves it to a file with restricted permissions (0o600), and prints a notification to stderr.
+    Attempts to retrieve the API key in the following priority order: (1) from the WRIGHT_API_KEY environment variable, (2) from an existing key file at the path defined by _KEY_FILE, or (3) generates a new cryptographically secure random key using secrets.token_urlsafe(32), saves it to the key file with restricted permissions (0o600), creates parent directories with mode 0o700 if needed, and prints a notification message to stderr on first run.
 
     Returns:
-        str: The WrightAI API key as a string.
+        str: The WrightAI API key as a URL-safe string, sourced from the WRIGHT_API_KEY environment variable, an existing key file, or a newly generated secure random token.
 
     Example:
         ```
         api_key = _load_or_generate_key()
+        print(api_key)  # e.g., 'aB3dEfGhIjKlMnOpQrStUvWxYz0123456789-_Ab'
         ```
     """
     env_key = os.getenv("WRIGHT_API_KEY", "")
@@ -53,7 +54,26 @@ _WRIGHT_API_KEY = _load_or_generate_key()
 
 
 def _verify_workos_token(token: str) -> dict:
-    """Validate a WorkOS access token by calling the userinfo endpoint."""
+    """
+    Validates a WorkOS access token by calling the WorkOS JWKS userinfo endpoint and returning the parsed JSON response.
+
+    Sends a synchronous GET request to the WorkOS user management JWKS endpoint with the provided Bearer token. If the endpoint returns a non-200 status code, an HTTP 401 exception is raised indicating an invalid token. On success, the decoded JSON payload (typically containing user identity claims) is returned as a dictionary. This function is called internally by verify_api_key() and is not intended for direct external use.
+
+    Args:
+        token (str): The WorkOS access token to validate, passed as a Bearer token in the Authorization header.
+
+    Returns:
+        dict: A dictionary containing the parsed JSON response from the WorkOS JWKS userinfo endpoint, typically including user identity and claims data.
+
+    Raises:
+        HTTPException: Raised with HTTP status code 401 and detail 'Invalid WorkOS token' when the WorkOS endpoint returns a non-200 status code.
+
+    Example:
+        ```
+        user_info = _verify_workos_token('eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...')
+        print(user_info['sub'])  # prints the user's subject identifier
+        ```
+    """
     resp = httpx.get(
         "https://api.workos.com/user_management/jwks/client_01KPEHF4MX8EVWZ2Z3C7JGETRB",
         headers={"Authorization": f"Bearer {token}"},
@@ -70,22 +90,22 @@ async def verify_api_key(
     bearer: HTTPAuthorizationCredentials | None = Security(_BEARER),
 ) -> None:
     """
-    Verifies API authentication credentials from either an API key or bearer token.
+    Verifies incoming API authentication credentials against user-issued API keys, a server-level static key, or WorkOS bearer tokens, raising HTTP 401 on any failure.
 
-    Authenticates requests using one of three methods: user-issued API keys with 'wai_' prefix validated against Supabase, server-level static API keys for CLI/GitHub Actions/MCP, or WorkOS bearer tokens. Returns silently on successful authentication.
+    Authenticates requests via one of three ordered methods: (1) user-issued API keys prefixed with 'wai_' are looked up in the Supabase user store via get_user_by_api_key(); (2) a server-level static key is accepted directly for CLI, GitHub Actions, or MCP integrations; (3) a WorkOS bearer token is verified by calling _verify_workos_token(). The function returns silently on the first successful match. If no method succeeds or no credentials are supplied at all, an HTTP 401 exception is raised.
 
     Args:
-        request (Request): The incoming HTTP request object.
-        api_key (str | None): Optional API key extracted from request headers, either user-issued (wai_ prefix) or server-level static key.
-        bearer (HTTPAuthorizationCredentials | None): Optional bearer token credentials extracted from Authorization header for WorkOS authentication.
+        request (Request): The incoming FastAPI/Starlette HTTP request object, injected by the dependency injection system.
+        api_key (str | None): Optional API key extracted from the request headers. Accepts either a user-issued key (prefixed with 'wai_') validated against Supabase, or a server-level static key for CLI/GitHub Actions/MCP.
+        bearer (HTTPAuthorizationCredentials | None): Optional bearer token credentials extracted from the Authorization header, used for WorkOS token authentication.
 
     Returns:
-        None: Returns nothing on successful authentication.
+        None: Returns None implicitly on successful authentication; no value is produced.
 
     Raises:
-        HTTPException: When the API key with 'wai_' prefix is not found in the user store (status 401).
-        HTTPException: When the WorkOS bearer token verification fails (status 401).
-        HTTPException: When no valid credentials are provided or all authentication methods fail (status 401).
+        HTTPException: Raised with status 401 when an API key with the 'wai_' prefix is not found in the Supabase user store.
+        HTTPException: Raised with status 401 when WorkOS bearer token verification fails via _verify_workos_token().
+        HTTPException: Raised with status 401 when no valid credentials are provided or all authentication methods fail.
 
     Example:
         ```

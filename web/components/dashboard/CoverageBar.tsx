@@ -10,18 +10,21 @@ interface CoverageBarProps {
 }
 
 /**
- * Renders a visual coverage bar component displaying documentation coverage statistics for a folder with color-coded status indicators.
+ * Renders a styled coverage bar row displaying a folder's documentation coverage percentage, count badge, and animated progress bar with hover interactions.
  *
- * A React functional component that displays a grid-based coverage bar with a status dot, truncated folder name, documentation count, progress bar, and percentage badge. The component uses hover effects for interactivity and applies color theming based on coverage percentage thresholds (80% for green, 50% for amber, below 50% for red).
+ * Displays a single row in a coverage dashboard grid containing a color-coded status dot, a truncated folder path, an optional documented/total count badge, an animated progress bar, and a percentage badge. Colors transition through green (≥80%), amber (≥50%), and red (<50%) thresholds. The row highlights on hover and the progress bar gains a glow effect.
  *
- * @param {string} folder - The folder path to display; truncated to 28 characters with ellipsis if longer.
- * @param {number} pct - The coverage percentage value used to determine color theming and display.
- * @param {number | undefined} documented - The count of documented items in the folder; displayed alongside total if defined.
- * @param {number | undefined} total - The total count of items in the folder; displayed alongside documented if defined.
- * @returns {JSX.Element} A React element containing a styled grid layout with status indicator, folder name, count badge, progress bar, and percentage badge.
+ * @param {string} folder - The folder path to display. Paths longer than 28 characters are truncated with a leading ellipsis showing the last 25 characters.
+ * @param {number} pct - The documentation coverage percentage (0–100) used to determine bar width and color thresholds.
+ * @param {number | undefined} documented - The number of documented items in the folder. Displayed alongside total when both are provided.
+ * @param {number | undefined} total - The total number of items in the folder. Displayed alongside documented when both are provided.
+ * @returns {JSX.Element} A React div element containing the fully styled coverage bar row with status dot, folder label, count badge, progress bar, and percentage badge.
  * @example
- * <CoverageBar folder="/src/utils" pct={75} documented={15} total={20} />
+ * <CoverageBar folder="src/components/dashboard" pct={76} documented={19} total={25} />
  */
+
+
+
 export default function CoverageBar({ folder, pct, documented, total }: CoverageBarProps) {
   const [hovered, setHovered] = useState(false);
 

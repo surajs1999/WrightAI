@@ -66,15 +66,19 @@ const NAV: NavItem[] = [
 // ─── Copy button ─────────────────────────────────────────────────────────────
 
 /**
- * Renders a button component that copies the provided text to the clipboard and displays visual feedback for 2 seconds.
+ * Renders a clipboard copy button that visually confirms a successful copy for 2 seconds before resetting.
  *
- * A React functional component that renders a styled button with copy functionality. When clicked, it writes the provided text to the clipboard using the Clipboard API, changes its appearance to show a success state with a checkmark icon, and automatically reverts to the default state after 2 seconds. The button displays different icons and text depending on the copied state.
+ * A React functional component that displays a styled button. When clicked, it writes the provided text to the user's clipboard using the Clipboard API, transitions to a 'copied' visual state with a checkmark icon and green styling, and automatically reverts to the default 'copy' state after 2000 milliseconds.
  *
- * @param {string} text - The text content to be copied to the clipboard when the button is clicked.
- * @returns {JSX.Element} A React button element with inline styles and dynamic content based on the copied state.
+ * @param {string} text - The string content to be written to the clipboard when the button is clicked.
+ * @returns {JSX.Element} A styled <button> element that toggles between 'copy' and 'copied' states based on clipboard interaction.
  * @example
- * <CopyButton text="console.log('Hello, World!')" />
+ * <CopyButton text="npm install wright" />
  */
+
+
+
+
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -122,19 +126,22 @@ function CopyButton({ text }: { text: string }) {
 
 // ─── Code block ──────────────────────────────────────────────────────────────
 
-/**
- * Renders a styled code block component with syntax highlighting indicators, optional filename display, and a copy button.
+ /**
+ * Renders a styled code block UI component with a macOS-style header bar, optional filename or language label, a copy button, and syntax-aware line coloring.
  *
- * A React component that displays code in a dark-themed container with decorative window controls (colored dots), language or filename label, and line-by-line rendering with comment detection for styling.
+ * Displays multi-line code in a dark-themed container. The header shows three decorative traffic-light dots alongside either the provided filename or the language identifier (uppercased). Lines beginning with '#' or '//' are rendered in a dimmed color to simulate comment styling. Each line is mapped to its own div to preserve whitespace formatting, and empty lines are rendered with a non-breaking space to maintain line height. A CopyButton component is included in the header for clipboard access.
  *
- * @param {string} code - The source code string to be displayed in the code block.
- * @param {string} lang - The programming language identifier for the code block, displayed when no filename is provided. Defaults to 'bash'.
- * @param {string | undefined} filename - Optional filename to display in the header; takes precedence over the language label when provided.
- * @returns {JSX.Element} A React element containing the styled code block with header controls and formatted code content.
+ * @param {string} code - The raw source code string to display inside the block. Newlines are split into individual rendered lines.
+ * @param {string} lang - The programming language or shell identifier shown in the header when no filename is provided. Defaults to 'bash'.
+ * @param {string | undefined} filename - Optional filename displayed in the header instead of the language label. When provided, the language label is hidden.
+ * @returns {JSX.Element} A React JSX element representing the fully styled code block container with header and code body.
  * @example
- * <CodeBlock code="npm install package" lang="bash" />
- * <CodeBlock code="const x = 5;" lang="typescript" filename="example.ts" />
+ * <CodeBlock code={`npm install wright\n# installs the package`} lang="bash" filename="terminal.sh" />
  */
+
+
+
+
 function CodeBlock({ code, lang = "bash", filename }: { code: string; lang?: string; filename?: string }) {
   return (
     <div style={{
@@ -188,16 +195,18 @@ function CodeBlock({ code, lang = "bash", filename }: { code: string; lang?: str
 
 // ─── Inline code ─────────────────────────────────────────────────────────────
 
-/**
- * Renders an inline code element with custom styling including monospace font, purple color scheme, and rounded borders.
+  /**
+ * Renders inline code snippets with a styled monospace font and a subtle purple-tinted background.
  *
- * A React component that wraps its children in a styled <code> element with a purple theme, using CSS custom properties for font family and inline styles for visual presentation including background color, border, border radius, and padding.
- *
- * @param {React.ReactNode} children - The content to be rendered inside the code element, typically text or inline elements.
- * @returns {JSX.Element} A styled code element containing the provided children.
+ * @param {React.ReactNode} children - The content to be displayed inside the styled <code> element, typically a string or inline text.
+ * @returns {JSX.Element} A <code> HTML element styled with a monospace font, purple accent color, semi-transparent background, and rounded border.
  * @example
- * <Code>const example = 'value';</Code>
+ * <Code>npm install wright</Code>
  */
+
+
+
+
 function Code({ children }: { children: React.ReactNode }) {
   return (
     <code style={{
@@ -216,17 +225,21 @@ function Code({ children }: { children: React.ReactNode }) {
 
 // ─── Callout ─────────────────────────────────────────────────────────────────
 
-/**
- * Renders a styled callout component with different visual themes based on the specified type.
+          /**
+ * Renders a styled callout box with a type-specific icon, border color, and background for displaying informational, tip, or warning messages.
  *
- * A React functional component that displays a callout box with customized styling, icon, and color scheme. Supports three variants: info (blue), tip (green), and warning (orange). The callout uses flexbox layout with an icon on the left and content on the right.
+ * A React functional component that maps a callout type ('info', 'tip', or 'warning') to a corresponding visual style set (background color, border color, accent color, and icon). It renders a flex container with a left-accented border and an icon beside the provided children content, suitable for documentation or instructional UI.
  *
- * @param {"info" | "tip" | "warning"} type - The variant of the callout that determines its color scheme and icon. Defaults to "info".
- * @param {React.ReactNode} children - The content to be displayed inside the callout box.
- * @returns {JSX.Element} A styled div element containing an icon and the provided children content.
+ * @param {'info' | 'tip' | 'warning'} type - Determines the visual style and icon of the callout. Defaults to 'info' if not provided.
+ * @param {React.ReactNode} children - The content to display inside the callout box, rendered beside the type icon.
+ * @returns {JSX.Element} A styled div element containing a type-specific icon and the provided children content.
  * @example
- * <Callout type="warning">This is an important warning message.</Callout>
+ * <Callout type="warning">Be careful when modifying this configuration in production.</Callout>
  */
+
+
+
+
 function Callout({ type = "info", children }: { type?: "info" | "tip" | "warning"; children: React.ReactNode }) {
   const styles = {
     info:    { bg: "rgba(0,212,255,0.05)",    border: "rgba(0,212,255,0.2)",    icon: "ℹ", color: "#00D4FF" },
@@ -256,18 +269,24 @@ function Callout({ type = "info", children }: { type?: "info" | "tip" | "warning
 
 // ─── Step ────────────────────────────────────────────────────────────────────
 
-/**
- * Renders a numbered step component with a circular badge, title, and content area for documentation or instructional layouts.
+                  /**
+ * Renders a numbered step component with a styled circular badge, title, and descriptive content for use in documentation pages.
  *
- * A React functional component that displays a visually styled step indicator consisting of a numbered circular badge on the left and a content section on the right containing a title and children elements. The component uses inline styles with custom CSS variables for theming.
+ * A React functional component that displays a single instructional step in a visually structured layout. It renders a circular numbered badge on the left using a monospace font and a purple-tinted style, alongside a bold title and body content area that accepts arbitrary React children. Intended for use in sequential, step-by-step documentation or onboarding guides.
  *
- * @param {number} n - The step number to display inside the circular badge.
- * @param {string} title - The title text to display as the step heading.
- * @param {React.ReactNode} children - The content to render below the title, typically descriptive text or other React elements.
- * @returns {JSX.Element} A JSX element containing the styled step component with numbered badge, title, and children content.
+ * @param {number} n - The step number displayed inside the circular badge on the left side of the component.
+ * @param {string} title - The bold heading text displayed at the top of the step's content area.
+ * @param {React.ReactNode} children - The descriptive body content rendered below the title; accepts any valid React renderable node.
+ * @returns {JSX.Element} A styled React div element containing a numbered badge, a step title, and the provided children as body content.
  * @example
- * <Step n={1} title="Install Dependencies">Run npm install to set up the project.</Step>
+ * <Step n={1} title="Install dependencies">
+ *   Run <code>npm install</code> in your project root.
+ * </Step>
  */
+
+
+
+
 function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
     <div style={{ display: "flex", gap: 18, margin: "24px 0" }}>
@@ -295,18 +314,21 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
 
 // ─── Section heading ─────────────────────────────────────────────────────────
 
-/**
- * Renders a styled section heading component with an eyebrow label, main title, and horizontal divider.
+ /**
+ * Renders a styled section heading component with an anchor id, an eyebrow label, a title, and a decorative divider.
  *
- * A React functional component that displays a documentation section heading with consistent styling. The component includes an uppercase eyebrow label in monospace font, a large bold title, and a subtle horizontal separator line below. The section is identified by an ID for anchor linking and includes top padding for proper scroll positioning.
+ * Used in documentation pages to visually separate and label major sections. The component applies CSS custom properties for typography and color, and exposes an `id` attribute to support in-page anchor navigation.
  *
- * @param {string} id - The unique identifier for the section, used as the div element's ID attribute for anchor linking.
- * @param {string} eyebrow - The small uppercase label text displayed above the main title, typically used for categorization or context.
- * @param {string} title - The main heading text displayed prominently as the section title.
- * @returns {JSX.Element} A React element containing a structured section heading with styled eyebrow text, title, and horizontal divider.
+ * @param {string} id - The HTML `id` attribute applied to the wrapper `<div>`, enabling anchor-based navigation to this section.
+ * @param {string} eyebrow - A short uppercase label rendered above the main title using a monospace font and cyan accent color.
+ * @param {string} title - The primary heading text rendered as an `<h2>` element with bold weight and tight letter-spacing.
+ * @returns {JSX.Element} A React `<div>` element containing a styled eyebrow paragraph, an `<h2>` heading, and a thin horizontal rule.
  * @example
  * <SectionHeading id="getting-started" eyebrow="Introduction" title="Getting Started with Wright" />
  */
+
+
+
 function SectionHeading({ id, eyebrow, title }: { id: string; eyebrow: string; title: string }) {
   return (
     <div id={id} style={{ paddingTop: 80, marginBottom: 32 }}>
@@ -321,17 +343,19 @@ function SectionHeading({ id, eyebrow, title }: { id: string; eyebrow: string; t
   );
 }
 
-/**
- * Renders a styled h3 subheading element with a unique identifier and title text.
+ /**
+ * Renders a styled third-level heading element with an anchor ID for in-page navigation.
  *
- * A React functional component that creates a level 3 heading with predefined styling including custom font family, weight, size, color, letter spacing, and vertical spacing. The heading uses CSS custom properties for theming.
+ * A React functional component that outputs an <h3> element with a predefined visual style using CSS custom properties for font family, color, and spacing. The `id` prop enables deep-linking and table-of-contents navigation within a documentation page.
  *
- * @param {string} id - The unique identifier to be assigned to the h3 element's id attribute, enabling anchor linking and programmatic reference.
- * @param {string} title - The text content to be displayed within the subheading.
- * @returns {JSX.Element} A styled h3 JSX element containing the provided title text with inline CSS styling.
+ * @param {string} id - The HTML `id` attribute applied to the <h3> element, used for anchor-based navigation.
+ * @param {string} title - The visible text content rendered inside the <h3> heading element.
+ * @returns {JSX.Element} A styled <h3> React element with the given id and title text.
  * @example
- * <SubHeading id="installation" title="Installation Guide" />
+ * <SubHeading id="installation" title="Installation" />
  */
+
+
 function SubHeading({ id, title }: { id: string; title: string }) {
   return (
     <h3 id={id} style={{
@@ -344,16 +368,18 @@ function SubHeading({ id, title }: { id: string; title: string }) {
   );
 }
 
-/**
- * Renders a styled paragraph element with predefined typography and spacing styles.
+ /**
+ * Renders a styled paragraph element with predefined typography settings for documentation body text.
  *
- * A React component that wraps children content in a paragraph tag with consistent styling including custom font family, font size, color, line height, and margin values using CSS variables.
+ * A React functional component that wraps its children in a <p> element styled with CSS custom properties for font family, muted text color, and relaxed line height, intended for use in documentation pages.
  *
- * @param {React.ReactNode} children - The content to be rendered inside the paragraph element.
- * @returns {JSX.Element} A paragraph element with inline styles applied and the provided children rendered inside.
+ * @param {React.ReactNode} children - The content to be rendered inside the paragraph element, which can be any valid React node such as strings, elements, or fragments.
+ * @returns {JSX.Element} A <p> element styled with body font family, 15px font size, muted text color, 1.8 line height, and 12px vertical margins containing the provided children.
  * @example
- * <P>This is a styled paragraph with consistent typography.</P>
+ * <P>This is a documentation paragraph explaining a concept in detail.</P>
  */
+
+
 function P({ children }: { children: React.ReactNode }) {
   return (
     <p style={{ fontFamily: "var(--font-body)", fontSize: 15, color: "var(--text-muted)", lineHeight: 1.8, margin: "12px 0" }}>
@@ -362,16 +388,19 @@ function P({ children }: { children: React.ReactNode }) {
   );
 }
 
-/**
- * Renders an unordered list component with custom styling and a purple chevron (›) bullet point for each item.
+   /**
+ * Renders a styled unordered list component with a custom bullet character and consistent typography for each item.
  *
- * A React functional component that displays a styled unordered list using flexbox layout. Each list item includes a purple chevron character as a custom bullet point followed by the item content with muted text styling.
+ * UL is a React functional component that accepts an array of ReactNode items and renders them as a vertically stacked unordered list. Each list item is preceded by a purple '›' chevron bullet and displayed using the application's body font with muted text color. The component is intended for use in documentation pages to present information in a visually consistent list format.
  *
- * @param {React.ReactNode[]} items - An array of React nodes to be rendered as list items. Each element will be displayed with a custom chevron bullet point.
- * @returns {JSX.Element} A JSX element representing a styled unordered list with custom bullet points and spacing.
+ * @param {React.ReactNode[]} items - An array of React nodes (strings, elements, or other renderable content) to be displayed as individual list items.
+ * @returns {JSX.Element} A styled <ul> element containing one <li> per item, each with a decorative chevron bullet and formatted text span.
  * @example
- * <UL items={['First item', 'Second item', <span>Custom element</span>]} />
+ * <UL items={['Install dependencies with npm install', 'Run the dev server with npm run dev', <span key="link">See the <a href="/docs">documentation</a> for more</span>]} />
  */
+
+
+
 function UL({ items }: { items: React.ReactNode[] }) {
   return (
     <ul style={{ margin: "12px 0 12px 4px", display: "flex", flexDirection: "column", gap: 8 }}>
@@ -387,17 +416,27 @@ function UL({ items }: { items: React.ReactNode[] }) {
 
 // ─── Table ───────────────────────────────────────────────────────────────────
 
-/**
- * Renders a styled HTML table component with customizable headers and rows of React nodes.
+      /**
+ * Renders a styled HTML table component with a header row and multiple data rows from provided headers and row content arrays.
  *
- * A React functional component that creates a responsive table with styled headers and body rows. The table features a scrollable container, monospaced headers with uppercase text, and a design system that uses CSS variables for theming. Each header and cell is rendered with specific styling including borders, padding, and typography settings.
+ * A React functional component that produces a horizontally scrollable, fully-styled table. Column headers are rendered in uppercase monospace font with subtle styling, while body cells use a body font with muted color and comfortable padding. Accepts arbitrary React nodes as cell content, making it flexible for both plain text and rich UI elements. Used by generate, coverage, and drift documentation sections to display structured information.
  *
- * @param {string[]} headers - An array of strings representing the column headers to be displayed in the table's thead section.
- * @param {React.ReactNode[][]} rows - A two-dimensional array where each inner array represents a table row, and each element within the inner array represents a cell containing any valid React node.
- * @returns {JSX.Element} A JSX element containing a scrollable div wrapper with a fully styled HTML table structure including thead and tbody elements.
+ * @param {string[]} headers - An array of string labels rendered as uppercase column header cells in the table's thead row.
+ * @param {React.ReactNode[][]} rows - A two-dimensional array where each inner array represents a table row, and each element within that array is a React node rendered as an individual table cell (td).
+ * @returns {JSX.Element} A JSX element consisting of a horizontally scrollable div containing a fully styled HTML table with a thead and tbody populated from the provided headers and rows.
  * @example
- * <Table headers={['Name', 'Age', 'Status']} rows={[['Alice', <span>25</span>, 'Active'], ['Bob', <span>30</span>, 'Inactive']]} />
+ * <Table
+ *   headers={["Name", "Type", "Description"]}
+ *   rows={[
+ *     ["limit", <code>number</code>, "Maximum number of results to return."],
+ *     ["offset", <code>number</code>, "Number of results to skip before returning."]
+ *   ]}
+ * />
  */
+
+
+
+
 function Table({ headers, rows }: { headers: string[]; rows: React.ReactNode[][] }) {
   return (
     <div style={{ overflowX: "auto", margin: "20px 0" }}>

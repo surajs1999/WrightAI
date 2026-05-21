@@ -38,15 +38,19 @@ const MAX_HISTORY = 20;
 
 // Renders markdown-like text with code block support
 /**
- * Renders formatted message content with support for code blocks and inline code formatting.
+ * Renders a React component that parses and displays message text with formatted fenced code blocks and inline code snippets.
  *
- * Parses text containing markdown-style code blocks (triple backticks) and inline code (single backticks), rendering code blocks with syntax highlighting, language labels, and copy buttons, while preserving whitespace and formatting for regular text.
+ * Splits the input text on triple-backtick fenced code blocks, rendering each block as a styled `<pre><code>` element with an optional language label and a clipboard copy button. Text segments outside fenced blocks are further parsed for inline backtick code spans, rendering them as styled `<code>` elements. All remaining plain text is wrapped in `<span>` elements with pre-wrap whitespace handling.
  *
- * @param {string} text - The message text content to parse and render, which may contain markdown-style code blocks (```lang\ncode\n```) and inline code (`code`).
- * @returns {JSX.Element} A React fragment containing the formatted message content with rendered code blocks (including language label and copy button) and inline code elements.
+ * @param {string} text - The raw message string that may contain fenced code blocks (delimited by triple backticks with an optional language identifier) and/or inline code spans (delimited by single backticks).
+ * @returns {JSX.Element} A React Fragment containing a mix of styled div elements for fenced code blocks (with copy buttons) and span elements for plain text and inline code, visually representing the parsed message content.
  * @example
- * <MessageContent text="Here is some code:\n```javascript\nconst x = 5;\n```\nAnd inline `code` too." />
+ * <MessageContent text={"Here is some `inline code` and a block:\n```typescript\nconst x = 42;\n```"} />
  */
+
+
+
+
 function MessageContent({ text }: { text: string }) {
   const parts = text.split(/(```[\s\S]*?```)/g);
   return (
