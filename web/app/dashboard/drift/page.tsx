@@ -213,6 +213,7 @@ export default function DriftPage() {
 
           {drifted.length > 0 && (
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+            <div style={{ overflowX: "auto" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1.6fr 1.2fr 100px", background: "var(--bg)", borderBottom: "1px solid var(--border)" }}>
                 {["Function", "File", "Issue", "Action"].map(h => (
                   <div key={h} style={{ padding: "10px 16px", fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em" }}>{h}</div>
@@ -236,6 +237,7 @@ export default function DriftPage() {
                   </div>
                 </div>
               ))}
+            </div>{/* end overflowX scroll wrapper */}
               <div style={{ padding: "14px 16px", borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>
                   {drifted.length} function{drifted.length !== 1 ? "s" : ""} need attention

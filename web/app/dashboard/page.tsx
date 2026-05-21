@@ -319,7 +319,7 @@ export default function DashboardHome() {
       {(() => {
         const hasData = coverage && coverage.total > 0;
         return (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16, marginBottom: 28 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16, marginBottom: 28 }}>
             <MetricCard label="Total Functions" value={hasData ? String(coverage!.total) : "—"} color="var(--purple-light)" />
             <MetricCard label="Documented" value={hasData ? String(coverage!.documented) : "—"} color="var(--green)" />
             <MetricCard label="Coverage" value={hasData ? `${coverage!.overall_pct.toFixed(0)}%` : "—"} color={hasData ? (coverage!.overall_pct >= 80 ? "var(--green)" : coverage!.overall_pct >= 50 ? "var(--amber)" : "var(--red)") : undefined} />

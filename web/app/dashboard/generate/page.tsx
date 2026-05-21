@@ -221,7 +221,7 @@ export default function GeneratePage() {
         <button style={tabBtn(tab === "repo")} onClick={() => setTab("repo")}>Repo file</button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 24 }}>
         {/* Left — input */}
         <div>
           {tab === "snippet" ? (

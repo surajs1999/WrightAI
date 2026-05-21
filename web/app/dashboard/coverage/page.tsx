@@ -57,7 +57,7 @@ export default function CoveragePage() {
   const color = pct >= 80 ? "var(--green)" : pct >= 50 ? "var(--amber)" : "var(--red)";
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 24, alignItems: "flex-start" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 300px) 1fr", gap: 24, alignItems: "flex-start" }}>
 
       {/* Left panel — controls + summary */}
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
