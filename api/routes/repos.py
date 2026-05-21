@@ -141,6 +141,57 @@ def load_token(user_dir: Path, repo_slug: str) -> str | None:
 router = APIRouter(prefix="/repos", tags=["repos"], dependencies=[Depends(verify_api_key)])
 
 _REPOS_BASE = Path(os.getenv("REPOS_PATH", "/data/repos"))
+_API_URL = os.getenv("WRIGHT_API_URL", "https://wrightai-api.fly.dev")
+
+
+def _register_github_webhook(github_token: str, git_url: str, api_key: str) -> None:
+    """Register a push webhook on GitHub for this repo. Silently no-ops on any failure."""
+    import urllib.request
+    import urllib.error
+    import json as _json
+
+    # Extract owner/repo from URL (handles https://github.com/owner/repo[.git])
+    match = re.search(r"github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?$", git_url)
+    if not match:
+        return
+    owner, repo = match.group(1), match.group(2)
+
+    webhook_url = f"{_API_URL}/webhooks/github?token={api_key}"
+    payload = _json.dumps({
+        "name": "web",
+        "active": True,
+        "events": ["push"],
+        "config": {"url": webhook_url, "content_type": "json", "insecure_ssl": "0"},
+    }).encode()
+
+    # Check if our webhook already exists to avoid duplicates
+    list_req = urllib.request.Request(
+        f"https://api.github.com/repos/{owner}/{repo}/hooks",
+        headers={"Authorization": f"token {github_token}", "Accept": "application/vnd.github+json"},
+    )
+    try:
+        with urllib.request.urlopen(list_req, timeout=10) as resp:
+            existing = _json.loads(resp.read())
+        if any(h.get("config", {}).get("url", "").startswith(f"{_API_URL}/webhooks/github") for h in existing):
+            return  # already registered
+    except Exception:
+        pass  # can't list — try to create anyway
+
+    create_req = urllib.request.Request(
+        f"https://api.github.com/repos/{owner}/{repo}/hooks",
+        data=payload,
+        headers={
+            "Authorization": f"token {github_token}",
+            "Accept": "application/vnd.github+json",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        urllib.request.urlopen(create_req, timeout=10)
+        _logger.info("Registered GitHub webhook for %s/%s", owner, repo)
+    except Exception as e:
+        _logger.warning("Could not register webhook for %s/%s: %s", owner, repo, e)
 
 
 def _user_id_from_request(request: Request) -> str:
@@ -284,6 +335,10 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
 
     if github_token:
         _save_token(user_dir, repo_slug, github_token)
+        # Auto-register webhook so every push triggers a sync — fire-and-forget
+        api_key = request.headers.get("X-Wright-API-Key", "")
+        clean_url = re.sub(r"https://[^@]+@", "https://", body.git_url)
+        _register_github_webhook(github_token, clean_url, api_key)
 
     # Kick off indexing in the background — chat will be ready by the time
     # the user navigates there. Does nothing if VOYAGE_API_KEY is not set.
@@ -399,6 +454,31 @@ async def index_status(repo_name: str, request: Request) -> dict:
         count = 0
 
     return {"indexed": count > 0, "chunk_count": count, "indexing": indexing}
+
+
+@router.post("/{repo_name}/sync")
+async def sync_repo(repo_name: str, request: Request) -> dict:
+    """Pull latest commits for a connected repo and re-index. Can also be triggered manually."""
+    user_id = _user_id_from_request(request)
+    repo_path = _REPOS_BASE / user_id / repo_name
+    if not repo_path.exists():
+        raise HTTPException(status_code=404, detail="Repo not found")
+
+    git_env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "echo"}
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_path), "pull", "--ff-only"],
+            capture_output=True,
+            timeout=120,
+            env=git_env,
+        )
+        if result.returncode != 0:
+            raise HTTPException(status_code=500, detail=f"git pull failed: {result.stderr.decode()}")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="git pull timed out")
+
+    asyncio.create_task(_index_repo(str(repo_path)))
+    return {"synced": True, "repo": repo_name}
 
 
 @router.post("/{repo_name}/index")

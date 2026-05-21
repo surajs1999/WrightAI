@@ -127,6 +127,15 @@ export default function UsagePage() {
 
   const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 
+  const currentMonth = new Date().toLocaleString("default", { month: "long", year: "numeric" });
+
+  const totalActivity = stats.docs_generated + stats.drift_checks_run + stats.coverage_scans || 1;
+  const breakdownPct = {
+    generate: Math.round((stats.docs_generated / totalActivity) * 100),
+    coverage: Math.round((stats.coverage_scans / totalActivity) * 100),
+    drift:    Math.round((stats.drift_checks_run / totalActivity) * 100),
+  };
+
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 24, alignItems: "flex-start" }}>
 
@@ -185,7 +194,7 @@ export default function UsagePage() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
           <StatCard label="Calls today" value={fmt(stats.api_calls_today)} sub="resets midnight UTC" />
-          <StatCard label="Calls this month" value={fmt(stats.api_calls_month)} sub="April 2026" />
+          <StatCard label="Calls this month" value={fmt(stats.api_calls_month)} sub={currentMonth} />
           <StatCard label="Tokens used" value={fmt(stats.tokens_used)} sub="across all generations" />
         </div>
       </div>
@@ -209,10 +218,9 @@ export default function UsagePage() {
           <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 16 }}>
             Usage breakdown
           </div>
-          <MiniBar label="Generate" pct={60} color="var(--purple-light)" />
-          <MiniBar label="Coverage" pct={40} color="var(--green)" />
-          <MiniBar label="Drift" pct={25} color="var(--amber)" />
-          <MiniBar label="Chat" pct={15} color="var(--text-muted)" />
+          <MiniBar label="Generate" pct={breakdownPct.generate} color="var(--purple-light)" />
+          <MiniBar label="Coverage" pct={breakdownPct.coverage} color="var(--green)" />
+          <MiniBar label="Drift" pct={breakdownPct.drift} color="var(--amber)" />
           <div style={{ marginTop: 8, padding: "8px 10px", background: "rgba(83,74,183,0.06)", borderRadius: 6, border: "1px solid rgba(83,74,183,0.12)" }}>
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--purple-light)" }}>
               Detailed breakdown coming soon

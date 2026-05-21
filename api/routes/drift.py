@@ -12,7 +12,6 @@ router = APIRouter(prefix="/drift-check", tags=["drift"], dependencies=[Depends(
 
 class DriftCheckRequest(BaseModel):
     repo_root: str
-    since: str = "HEAD~1"
     auto_fix: bool = False
 
 
@@ -63,10 +62,7 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
     cache = ASTCache(cache_path)
     detector = DriftDetector()
 
-    try:
-        raw_results = detector.check_git_diff(request.repo_root, base_ref=request.since)
-    except Exception:
-        raw_results = detector.check_directory(request.repo_root, cache)
+    raw_results = detector.check_directory(request.repo_root, cache)
 
     items: list[DriftResultItem] = []
     fixed_docstring: str | None = None
@@ -92,8 +88,13 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
     up_to_date_count = sum(1 for r in raw_results if r.status == "up_to_date")
 
     from api.usage_store import record_event
+    import os as _os
 
-    record_event(http_request.headers.get("X-Wright-API-Key", ""), "drift_checks_run")
+    record_event(
+        http_request.headers.get("X-Wright-API-Key", ""),
+        "drift_checks_run",
+        repo_name=_os.path.basename(request.repo_root),
+    )
 
     return DriftCheckResponse(
         total_checked=len(raw_results),

@@ -45,7 +45,6 @@ const selectStyle: React.CSSProperties = {
 export default function DriftPage() {
   const router = useRouter();
   const { repos, loadingRepos, selectedRepoId, setSelectedRepoId, selectedRepo } = useConnectedRepos();
-  const [since, setSince] = useState("HEAD~1");
 
   useEffect(() => {
     if (selectedRepo) run();
@@ -100,7 +99,7 @@ export default function DriftPage() {
       const res = await fetch("/api/proxy/drift-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repo_root: selectedRepo.local_path, since }),
+        body: JSON.stringify({ repo_root: selectedRepo.local_path }),
       });
       if (!res.ok) throw new Error(`${res.status}`);
       setData(await res.json());
@@ -152,8 +151,8 @@ export default function DriftPage() {
       {/* Description */}
       <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "14px 18px", marginBottom: 22 }}>
         <p style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, margin: 0 }}>
-          <strong style={{ color: "var(--text)" }}>Drift Check</strong> compares your recent git commits against existing docstrings to find functions that have changed but whose docs are now out of date.
-          Select a repo, choose how far back to look, then click <strong style={{ color: "var(--text)" }}>Run drift check</strong>. Hit <strong style={{ color: "var(--text)" }}>Fix →</strong> on any row to jump straight to Generate.
+          <strong style={{ color: "var(--text)" }}>Drift Check</strong> — scans all functions in your repo and flags any whose docstring is missing or doesn&apos;t match the current implementation.
+          Select a repo and click <strong style={{ color: "var(--text)" }}>Run drift check</strong>. Hit <strong style={{ color: "var(--text)" }}>Fix →</strong> on any row to jump straight to Generate.
         </p>
       </div>
 
@@ -169,12 +168,6 @@ export default function DriftPage() {
           <>
             <select value={selectedRepoId} onChange={e => { setSelectedRepoId(e.target.value); setData(null); }} style={selectStyle}>
               {repos.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </select>
-            <select value={since} onChange={e => setSince(e.target.value)} style={selectStyle}>
-              <option value="HEAD~1">HEAD~1</option>
-              <option value="HEAD~5">HEAD~5</option>
-              <option value="HEAD~10">Last 10 commits</option>
-              <option value="main">vs main</option>
             </select>
             <button
               onClick={run}
@@ -198,7 +191,7 @@ export default function DriftPage() {
       {loading && (
         <div style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--text-muted)", padding: "20px 0", display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>⟳</span>
-          Scanning git diff and checking docstrings…
+          Scanning all functions and checking docstrings…
         </div>
       )}
 

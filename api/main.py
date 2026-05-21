@@ -83,7 +83,7 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-from api.routes import auth, chat, coverage, drift, fix_pr, generate, llms_txt, repos, usage  # noqa: E402
+from api.routes import auth, chat, coverage, drift, fix_pr, generate, llms_txt, repos, usage, webhooks  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(generate.router)
@@ -94,6 +94,7 @@ app.include_router(repos.router)
 app.include_router(fix_pr.router)
 app.include_router(llms_txt.router)
 app.include_router(usage.router)
+app.include_router(webhooks.router)
 
 
 @app.get("/health")

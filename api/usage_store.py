@@ -1,133 +1,119 @@
 from __future__ import annotations
 
-import json
-import os
 from datetime import datetime, timezone
-from pathlib import Path
-
-_EMPTY: dict = {
-    "docs_generated": 0,
-    "drift_checks_run": 0,
-    "coverage_scans": 0,
-    "tokens_used": 0,
-    "daily": {},
-}
 
 
-def _usage_file(api_key: str) -> Path | None:
+def _db():
     """
-    Resolves and returns the path to a user-specific 'usage.json' file, creating the necessary directory structure if it does not already exist.
+    Retrieves the shared database connection instance by delegating to the user store's internal database accessor.
 
-    Derives a user directory name from the last 12 characters of the provided API key (sanitizing '/' and '.' characters to '_'), appends it to the base repository path (defaulting to '/data/repos' or the value of the REPOS_PATH environment variable), attempts to create the directory, and returns the full path to 'usage.json' within that directory. Returns None if directory creation fails due to an OSError.
-
-    Args:
-        api_key (str): The API key used to derive a unique user directory name; the last 12 characters are extracted and sanitized to form a valid directory name.
+    Acts as a proxy to the `_db` function defined in `api.user_store`, ensuring that `api.usage_store` uses the same underlying database connection. The import is deferred inside the function body to avoid circular import issues at module load time.
 
     Returns:
-        Path | None: A Path object pointing to the 'usage.json' file inside the user-specific directory, or None if the directory could not be created due to an OSError.
+        unknown: The database connection or client instance returned by `api.user_store._db()`.
 
     Example:
         ```
-        file_path = _usage_file('sk-abc123xyz789uvw')
-        if file_path:
-            print(file_path)  # e.g., Path('/data/repos/23xyz789uvw/usage.json')
+        db = _db()
+        records = db.collection('usage').find({})
         ```
     """
-    base = Path(os.getenv("REPOS_PATH", "/data/repos"))
-    user_dir = base / api_key[-12:].replace("/", "_").replace(".", "_")
+    from api.user_store import _db as _get_db
+    return _get_db()
+
+
+def _resolve_user_id(api_key: str) -> str | None:
+    """Return the users.id UUID for the given API key, or None if not found."""
     try:
-        user_dir.mkdir(parents=True, exist_ok=True)
-    except OSError:
+        result = _db().table("users").select("id").eq("api_key", api_key).execute()
+        return result.data[0]["id"] if result.data else None
+    except Exception:
         return None
-    return user_dir / "usage.json"
 
 
-def _load(api_key: str) -> dict:
-    """
-    Loads usage data for the given API key from its corresponding file, returning an empty usage dict if the file does not exist or cannot be parsed.
-
-    Resolves the storage file path for the provided API key via `_usage_file`. If the file exists and contains valid JSON, its contents are deserialized and returned. If the file is missing, unresolvable, or contains malformed JSON, a fresh copy of the default empty usage structure (`_EMPTY`) is returned instead. This function is called by both `record_event` and `get_stats` to retrieve the current usage state before processing.
-
-    Args:
-        api_key (str): The API key whose associated usage data file should be loaded.
-
-    Returns:
-        dict: A dictionary containing the usage data for the given API key, or a copy of the default empty usage structure if no valid data file is found.
-
-    Example:
-        ```
-        usage_data = _load('sk-abc123xyz')
-        print(usage_data)
-        ```
-    """
-    f = _usage_file(api_key)
-    if f and f.exists():
-        try:
-            return json.loads(f.read_text())
-        except Exception:
-            pass
-    return dict(_EMPTY)
-
-
-def _save(api_key: str, data: dict) -> None:
-    """
-    Serializes and writes usage data to the file associated with the given API key.
-
-    Retrieves the usage file path for the specified API key via `_usage_file()` and, if a valid path is returned, attempts to write the provided data dictionary as a JSON string. Any exceptions raised during the file write operation are silently suppressed. This function is called internally by `record_event()` to persist usage tracking data.
-
-    Args:
-        api_key (str): The API key used to resolve the target usage file path via `_usage_file()`.
-        data (dict): A dictionary containing usage data to be serialized as JSON and written to the usage file.
-
-    Returns:
-        None: This function does not return a value.
-
-    Example:
-        ```
-        _save('sk-abc123', {'events': [{'type': 'api_call', 'timestamp': '2024-01-01T00:00:00Z'}]})
-        ```
-    """
-    f = _usage_file(api_key)
-    if f:
-        try:
-            f.write_text(json.dumps(data))
-        except Exception:
-            pass
-
-
-def record_event(api_key: str, event: str, tokens: int = 0) -> None:
-    """Increment usage counter for event ('docs_generated', 'drift_checks_run', 'coverage_scans')."""
-    data = _load(api_key)
-    data[event] = data.get(event, 0) + 1
-    data["tokens_used"] = data.get("tokens_used", 0) + tokens
-
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    daily = data.setdefault("daily", {})
-    daily[today] = daily.get(today, 0) + 1
-
-    # Keep only 31 days of daily data
-    if len(daily) > 31:
-        oldest = sorted(daily)[0]
-        del daily[oldest]
-
-    _save(api_key, data)
+def record_event(
+    api_key: str,
+    event_type: str,
+    tokens: int = 0,
+    repo_name: str | None = None,
+    language: str | None = None,
+) -> None:
+    """Insert one usage event for the user identified by api_key. Never raises."""
+    if not api_key:
+        return
+    try:
+        user_id = _resolve_user_id(api_key)
+        if not user_id:
+            return
+        _db().table("usage_events").insert({
+            "user_id": user_id,
+            "event_type": event_type,
+            "tokens": tokens,
+            "repo_name": repo_name,
+            "language": language,
+        }).execute()
+    except Exception:
+        pass
 
 
 def get_stats(api_key: str) -> dict:
     """Return usage stats shaped for the /usage API response."""
-    data = _load(api_key)
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    this_month = today[:7]
+    if not api_key:
+        return _empty_stats()
+    try:
+        user_id = _resolve_user_id(api_key)
+        if not user_id:
+            return _empty_stats()
 
-    daily = data.get("daily", {})
-    api_calls_today = daily.get(today, 0)
-    api_calls_month = sum(v for k, v in daily.items() if k.startswith(this_month))
+        now = datetime.now(timezone.utc)
+        today_start = now.strftime("%Y-%m-%d") + "T00:00:00+00:00"
+        month_start = now.strftime("%Y-%m") + "-01T00:00:00+00:00"
 
+        rows = _db().table("usage_events") \
+            .select("event_type, tokens, created_at") \
+            .eq("user_id", user_id) \
+            .execute()
+        events = rows.data or []
+
+        docs_generated   = sum(1 for e in events if e["event_type"] == "docs_generated")
+        drift_checks_run = sum(1 for e in events if e["event_type"] == "drift_checks_run")
+        coverage_scans   = sum(1 for e in events if e["event_type"] == "coverage_scans")
+        tokens_used      = sum(e.get("tokens") or 0 for e in events)
+        api_calls_today  = sum(1 for e in events if (e.get("created_at") or "") >= today_start)
+        api_calls_month  = sum(1 for e in events if (e.get("created_at") or "") >= month_start)
+
+        return {
+            "api_calls_today":  api_calls_today,
+            "api_calls_month":  api_calls_month,
+            "docs_generated":   docs_generated,
+            "drift_checks_run": drift_checks_run,
+            "coverage_scans":   coverage_scans,
+            "tokens_used":      tokens_used,
+        }
+    except Exception:
+        return _empty_stats()
+
+
+def _empty_stats() -> dict:
+    """
+    Returns a dictionary with all usage statistics fields initialized to zero.
+
+    Constructs and returns a fresh statistics dictionary containing six keys that track API usage, document generation, drift checks, coverage scans, and token consumption. This function serves as the canonical zero-state factory for usage statistics and is called by get_stats() when no existing stats record is found.
+
+    Returns:
+        dict: A dictionary with keys 'api_calls_today', 'api_calls_month', 'docs_generated', 'drift_checks_run', 'coverage_scans', and 'tokens_used', all set to integer value 0.
+
+    Example:
+        ```
+        stats = _empty_stats()
+        # stats == {'api_calls_today': 0, 'api_calls_month': 0, 'docs_generated': 0, 'drift_checks_run': 0, 'coverage_scans': 0, 'tokens_used': 0}
+        ```
+    """
     return {
-        "api_calls_today": api_calls_today,
-        "api_calls_month": api_calls_month,
-        "docs_generated": data.get("docs_generated", 0),
-        "drift_checks_run": data.get("drift_checks_run", 0),
-        "coverage_scans": data.get("coverage_scans", 0),
-        "tokens_used": data.get("tokens_used", 0),
+        "api_calls_today":  0,
+        "api_calls_month":  0,
+        "docs_generated":   0,
+        "drift_checks_run": 0,
+        "coverage_scans":   0,
+        "tokens_used":      0,
     }

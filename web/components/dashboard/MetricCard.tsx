@@ -3,6 +3,8 @@ interface MetricCardProps {
   value: string;
   color?: string;
   trend?: { dir: "up" | "down"; text: string };
+  href?: string;
+  cta?: string;
 }
 
 /**
@@ -24,15 +26,19 @@ interface MetricCardProps {
  *     <MetricCard label="Total Users" value="1,234" color="var(--blue)" trend={{ dir: 'up', text: '+12.5%' }} />
  *     ```
  */
-export default function MetricCard({ label, value, color, trend }: MetricCardProps) {
-  return (
+export default function MetricCard({ label, value, color, trend, href, cta = "View" }: MetricCardProps) {
+  const inner = (
     <div
       style={{
         background: "var(--surface)",
         border: "1px solid var(--border)",
         borderRadius: 12,
         padding: "20px 24px",
+        cursor: href ? "pointer" : undefined,
+        transition: href ? "border-color 0.15s, background 0.15s" : undefined,
       }}
+      onMouseEnter={href ? e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(175,169,236,0.4)"; (e.currentTarget as HTMLElement).style.background = "rgba(175,169,236,0.04)"; } : undefined}
+      onMouseLeave={href ? e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; (e.currentTarget as HTMLElement).style.background = "var(--surface)"; } : undefined}
     >
       <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>
         {label}
@@ -55,6 +61,16 @@ export default function MetricCard({ label, value, color, trend }: MetricCardPro
           {trend.dir === "up" ? "↑" : "↓"} {trend.text}
         </div>
       )}
+      {href && (
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "rgba(175,169,236,0.4)", marginTop: 8 }}>
+          {cta} →
+        </div>
+      )}
     </div>
   );
+
+  if (href) {
+    return <a href={href} style={{ textDecoration: "none", display: "block" }}>{inner}</a>;
+  }
+  return inner;
 }

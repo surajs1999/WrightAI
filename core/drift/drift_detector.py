@@ -54,7 +54,7 @@ class DriftDetector:
         cache.set(current_parsed)
 
         results: list[DriftResult] = []
-        current_funcs = {f.name: f for f in current_parsed.functions}
+        current_funcs = {f.name: f for f in current_parsed.functions if f.name != "<anonymous>"}
 
         if cached is None:
             for func in current_parsed.functions:
@@ -174,7 +174,7 @@ class DriftDetector:
     def check_directory(self, dir_path: str, cache: ASTCache) -> list[DriftResult]:
         results: list[DriftResult] = []
         for root, dirs, files in os.walk(dir_path):
-            dirs[:] = [d for d in dirs if d not in ("node_modules", ".git", "__pycache__", "dist")]
+            dirs[:] = [d for d in dirs if d not in self._parser._DEFAULT_EXCLUDE]
             for filename in files:
                 file_path = os.path.join(root, filename)
                 lang = self._parser.detect_language(file_path)
@@ -190,7 +190,25 @@ class DriftDetector:
             import git
 
             repo = git.Repo(repo_path)
+
+            # Shallow clones won't have the base_ref commit — deepen to get enough history
+            if repo.git.rev_parse("--is-shallow-repository").strip() == "true":
+                depth = int(base_ref.replace("HEAD~", "") or "1") + 1
+                try:
+                    repo.git.fetch("--depth", str(depth))
+                except Exception:
+                    raise RuntimeError("Shallow clone — could not deepen to reach base ref")
+
             diff = repo.head.commit.diff(base_ref)
+            cache = None
+            try:
+                from core.parser.cache import ASTCache
+                import os as _os
+                cache_path = _os.path.join(repo_path, ".wright", "ast_cache.db")
+                cache = ASTCache(cache_path)
+            except Exception:
+                pass
+
             results: list[DriftResult] = []
             for diff_item in diff:
                 file_path = os.path.join(repo_path, diff_item.a_path)
@@ -198,19 +216,31 @@ class DriftDetector:
                     lang = self._parser.detect_language(file_path)
                     if lang:
                         try:
-                            current = self._parser.parse_file(file_path)
-                            for func in current.functions:
-                                if func.existing_docstring is None:
-                                    results.append(
-                                        DriftResult(
+                            if cache is not None:
+                                results.extend(self.check_file(file_path, cache))
+                            else:
+                                current = self._parser.parse_file(file_path)
+                                for func in current.functions:
+                                    if func.name == "<anonymous>":
+                                        continue
+                                    if func.existing_docstring is None:
+                                        results.append(DriftResult(
                                             function_name=func.name,
                                             file_path=file_path,
                                             status="undocumented",
                                             reason="Modified file has undocumented function",
                                             old_signature=None,
                                             new_signature=_signature_str(func),
-                                        )
-                                    )
+                                        ))
+                                    else:
+                                        results.append(DriftResult(
+                                            function_name=func.name,
+                                            file_path=file_path,
+                                            status="up_to_date",
+                                            reason=None,
+                                            old_signature=None,
+                                            new_signature=_signature_str(func),
+                                        ))
                         except Exception:
                             pass
             return results
@@ -226,13 +256,19 @@ class DriftDetector:
             or old_func.is_async != new_func.is_async
         )
 
+    _SKIP_PARAMS = {"self", "cls", "args", "kwargs"}
+
     def _docstring_covers_params(self, func: ParsedFunction) -> bool:
-        if not func.parameters:
+        meaningful = [
+            p for p in func.parameters
+            if p["name"] not in self._SKIP_PARAMS
+            and not p["name"].startswith("*")
+        ]
+        if not meaningful:
             return True
         doc = func.existing_docstring or ""
-        for param in func.parameters:
+        for param in meaningful:
             name = param["name"]
-            # Use word-boundary check so "y" doesn't match "only"
             if not re.search(r"\b" + re.escape(name) + r"\b", doc):
                 return False
         return True

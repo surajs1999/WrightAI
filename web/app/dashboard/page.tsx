@@ -35,6 +35,8 @@ export default function DashboardHome() {
   const [connectError, setConnectError] = useState<string | null>(null);
   const [githubConnected, setGithubConnected] = useState(false);
   const [githubRepos, setGithubRepos] = useState<{ full_name: string; private: boolean; clone_url: string }[]>([]);
+  const [driftCount, setDriftCount] = useState<number | null>(null);
+  const [driftLoading, setDriftLoading] = useState(false);
   const [selectedGithubRepo, setSelectedGithubRepo] = useState("");
 
   useEffect(() => {
@@ -89,6 +91,22 @@ export default function DashboardHome() {
       .finally(() => setLoading(false));
   }, [selectedRepo]);
 
+  useEffect(() => {
+    if (!selectedRepo) return;
+    const path = `/data/repos/${selectedRepo}`;
+    setDriftCount(null);
+    setDriftLoading(true);
+    fetch("/api/proxy/drift-check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ repo_root: path }),
+    })
+      .then(r => r.json())
+      .then((d: { drifted: number }) => setDriftCount(d.drifted ?? 0))
+      .catch(() => setDriftCount(null))
+      .finally(() => setDriftLoading(false));
+  }, [selectedRepo]);
+
   const disconnectRepo = async () => {
     if (!selectedRepo) return;
     if (!confirmDisconnect) { setConfirmDisconnect(true); return; }
@@ -138,167 +156,157 @@ export default function DashboardHome() {
 
   return (
     <div>
-      {/* Repo connect card */}
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "18px 22px", marginBottom: 24 }}>
-      <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>Connected repositories</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        {repos.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <select
-              value={selectedRepo}
-              onChange={e => { setSelectedRepo(e.target.value); setConfirmDisconnect(false); }}
-              style={{
-                background: "var(--surface)", border: "1px solid var(--border)",
-                borderRadius: 8, color: "var(--text)",
-                fontFamily: "var(--font-mono)", fontSize: 13,
-                padding: "8px 12px", outline: "none", cursor: "pointer",
-              }}
-            >
-              {repos.map(r => (
-                <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
-            </select>
+      {/* Repo section */}
+      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
+
+        {/* Row 1: active repo selector + remove */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
+              Active repo
+            </span>
+            {repos.length > 0 ? (
+              <select
+                value={selectedRepo}
+                onChange={e => { setSelectedRepo(e.target.value); setConfirmDisconnect(false); }}
+                style={{
+                  background: "rgba(175,169,236,0.06)", border: "1px solid rgba(175,169,236,0.2)",
+                  borderRadius: 8, color: "var(--text)",
+                  fontFamily: "var(--font-mono)", fontSize: 13,
+                  padding: "6px 12px", outline: "none", cursor: "pointer",
+                }}
+              >
+                {repos.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+            ) : (
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--text-muted)" }}>
+                No repos connected yet
+              </span>
+            )}
+          </div>
+
+          {repos.length > 0 && (
             <button
               onClick={disconnectRepo}
               disabled={disconnecting}
-              title={confirmDisconnect ? "Click again to confirm" : "Disconnect repo"}
+              title={confirmDisconnect ? "Click again to confirm" : "Remove this repo"}
               style={{
-                padding: "8px 12px",
+                padding: "5px 12px",
                 background: confirmDisconnect ? "rgba(226,75,74,0.12)" : "transparent",
-                border: `1px solid ${confirmDisconnect ? "rgba(226,75,74,0.5)" : "rgba(226,75,74,0.3)"}`,
-                borderRadius: 8, fontFamily: "var(--font-mono)", fontSize: 12,
-                color: "var(--red)", cursor: "pointer", transition: "all 0.15s",
-                whiteSpace: "nowrap",
+                border: `1px solid ${confirmDisconnect ? "rgba(226,75,74,0.5)" : "rgba(226,75,74,0.25)"}`,
+                borderRadius: 7, fontFamily: "var(--font-mono)", fontSize: 11,
+                color: "var(--red)", cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap",
               }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(226,75,74,0.1)"; }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = confirmDisconnect ? "rgba(226,75,74,0.12)" : "transparent"; }}
             >
-              {disconnecting ? "Removing…" : confirmDisconnect ? "Confirm remove?" : "✕ Remove"}
+              {disconnecting ? "Removing…" : confirmDisconnect ? "Confirm?" : "✕ Remove"}
+            </button>
+          )}
+        </div>
+
+        {/* Divider */}
+        <div style={{ borderTop: "1px solid var(--border)", marginBottom: 16 }} />
+
+        {/* Row 2: connect new repo */}
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+          Connect a repository
+        </div>
+
+        {githubConnected ? (
+          /* GitHub connected — show repo picker */
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--green)", whiteSpace: "nowrap" }}>✓ GitHub</span>
+            <select
+              value={selectedGithubRepo}
+              onChange={e => setSelectedGithubRepo(e.target.value)}
+              style={{
+                flex: 1, background: "var(--surface)", border: "1px solid var(--border)",
+                borderRadius: 8, color: "var(--text)",
+                fontFamily: "var(--font-mono)", fontSize: 13,
+                padding: "7px 12px", outline: "none", cursor: "pointer",
+              }}
+            >
+              {githubRepos.map(r => (
+                <option key={r.clone_url} value={r.clone_url}>{r.private ? "🔒 " : ""}{r.full_name}</option>
+              ))}
+            </select>
+            <button
+              onClick={async () => {
+                if (!selectedGithubRepo || connecting) return;
+                setConnecting(true); setConnectError(null);
+                try {
+                  const res = await fetch("/api/proxy/repos/connect", {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ git_url: selectedGithubRepo, branch: "main" }),
+                  });
+                  if (res.ok) {
+                    const repo = await res.json();
+                    setRepos(prev => prev.some(r => r.id === repo.id) ? prev : [...prev, repo]);
+                    setSelectedRepo(repo.id);
+                    localStorage.setItem("wright_last_repo_path", repo.local_path);
+                  } else {
+                    const err = await res.json().catch(() => ({}));
+                    setConnectError(err.detail ?? `Error ${res.status}`);
+                  }
+                } catch { setConnectError("Network error."); }
+                finally { setConnecting(false); }
+              }}
+              disabled={connecting || !selectedGithubRepo}
+              style={{
+                padding: "7px 18px", background: "var(--purple)", color: "#fff",
+                border: "none", borderRadius: 8, fontFamily: "var(--font-body)", fontSize: 13,
+                cursor: connecting ? "not-allowed" : "pointer", opacity: connecting ? 0.55 : 1, whiteSpace: "nowrap",
+              }}
+            >
+              {connecting ? "Connecting…" : "Connect"}
             </button>
           </div>
-        )}
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, minWidth: 260 }}>
-          {githubConnected && githubRepos.length > 0 ? (
-            <div style={{ display: "flex", gap: 8 }}>
-              <select
-                value={selectedGithubRepo}
-                onChange={e => setSelectedGithubRepo(e.target.value)}
-                style={{
-                  flex: 1, background: "var(--surface)", border: "1px solid var(--border)",
-                  borderRadius: 8, color: "var(--text)",
-                  fontFamily: "var(--font-mono)", fontSize: 13,
-                  padding: "8px 12px", outline: "none", cursor: "pointer",
-                }}
-              >
-                {githubRepos.map(r => (
-                  <option key={r.clone_url} value={r.clone_url}>
-                    {r.private ? "🔒 " : ""}{r.full_name}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={async () => {
-                  if (!selectedGithubRepo || connecting) return;
-                  setConnecting(true);
-                  setConnectError(null);
-                  try {
-                    const res = await fetch("/api/proxy/repos/connect", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ git_url: selectedGithubRepo, branch: "main" }),
-                    });
-                    if (res.ok) {
-                      const repo = await res.json();
-                      setRepos(prev => prev.some(r => r.id === repo.id) ? prev : [...prev, repo]);
-                      setSelectedRepo(repo.id);
-                      localStorage.setItem("wright_last_repo_path", repo.local_path);
-                    } else {
-                      const err = await res.json().catch(() => ({}));
-                      setConnectError(err.detail ?? `Error ${res.status}`);
-                    }
-                  } catch { setConnectError("Network error."); }
-                  finally { setConnecting(false); }
-                }}
-                disabled={connecting || !selectedGithubRepo}
-                style={{
-                  padding: "8px 18px", background: "var(--purple)", color: "#fff",
-                  border: "none", borderRadius: 8, fontFamily: "var(--font-body)", fontSize: 13,
-                  cursor: connecting ? "not-allowed" : "pointer",
-                  opacity: connecting ? 0.55 : 1,
-                }}
-              >
-                {connecting ? "Connecting…" : "Connect repo"}
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                value={connectUrl}
-                onChange={e => setConnectUrl(e.target.value)}
-                placeholder="https://github.com/user/repo"
-                onKeyDown={e => e.key === "Enter" && connectRepo()}
-                style={{
-                  flex: 1, background: "var(--surface)", border: "1px solid var(--border)",
-                  borderRadius: 8, color: "var(--text)",
-                  fontFamily: "var(--font-mono)", fontSize: 13,
-                  padding: "8px 12px", outline: "none", transition: "border-color 0.15s",
-                }}
-                onFocus={e => (e.currentTarget.style.borderColor = "rgba(175,169,236,0.5)")}
-                onBlur={e => (e.currentTarget.style.borderColor = "var(--border)")}
-              />
-              <button
-                onClick={connectRepo}
-                disabled={connecting || !connectUrl.trim()}
-                style={{
-                  padding: "8px 18px", background: "var(--purple)", color: "#fff",
-                  border: "none", borderRadius: 8, fontFamily: "var(--font-body)", fontSize: 13,
-                  cursor: connecting || !connectUrl.trim() ? "not-allowed" : "pointer",
-                  opacity: connecting || !connectUrl.trim() ? 0.55 : 1,
-                }}
-              >
-                {connecting ? "Connecting…" : "Connect repo"}
-              </button>
-            </div>
-          )}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {githubConnected ? (
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--green, #4ade80)" }}>
-                ✓ GitHub connected
-              </span>
-            ) : (
-              <>
-                <a
-                  href="/api/auth/github"
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 6,
-                    padding: "6px 14px", background: "#24292e", color: "#fff",
-                    border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8,
-                    fontFamily: "var(--font-body)", fontSize: 13, textDecoration: "none",
-                  }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-                  </svg>
-                  Connect GitHub
-                </a>
-                <input
-                  value={githubToken}
-                  onChange={e => setGithubToken(e.target.value)}
-                  placeholder="or paste token manually"
-                  type="password"
-                  style={{
-                    flex: 1, background: "var(--surface)", border: "1px solid var(--border)",
-                    borderRadius: 8, color: "var(--text)",
-                    fontFamily: "var(--font-mono)", fontSize: 12,
-                    padding: "6px 12px", outline: "none",
-                  }}
-                />
-              </>
-            )}
+        ) : (
+          /* GitHub not connected — URL input + Connect + GitHub on one row */
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              value={connectUrl}
+              onChange={e => setConnectUrl(e.target.value)}
+              placeholder="https://github.com/user/repo"
+              onKeyDown={e => e.key === "Enter" && connectRepo()}
+              style={{
+                flex: 1, background: "var(--surface)", border: "1px solid var(--border)",
+                borderRadius: 8, color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 13,
+                padding: "7px 12px", outline: "none", transition: "border-color 0.15s",
+              }}
+              onFocus={e => (e.currentTarget.style.borderColor = "rgba(175,169,236,0.5)")}
+              onBlur={e => (e.currentTarget.style.borderColor = "var(--border)")}
+            />
+            <button
+              onClick={connectRepo}
+              disabled={connecting || !connectUrl.trim()}
+              style={{
+                padding: "7px 18px", background: "var(--purple)", color: "#fff",
+                border: "none", borderRadius: 8, fontFamily: "var(--font-body)", fontSize: 13,
+                cursor: connecting || !connectUrl.trim() ? "not-allowed" : "pointer",
+                opacity: connecting || !connectUrl.trim() ? 0.55 : 1, whiteSpace: "nowrap",
+              }}
+            >
+              {connecting ? "Connecting…" : "Connect"}
+            </button>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" }}>or</span>
+            <a
+              href="/api/auth/github"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "7px 14px", background: "#24292e", color: "#fff",
+                border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8,
+                fontFamily: "var(--font-body)", fontSize: 12, textDecoration: "none", whiteSpace: "nowrap",
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+              </svg>
+              Connect GitHub
+            </a>
           </div>
-        </div>
-      </div>
+        )}
       </div>
 
       {connectError && (
@@ -311,11 +319,12 @@ export default function DashboardHome() {
       {(() => {
         const hasData = coverage && coverage.total > 0;
         return (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 28 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16, marginBottom: 28 }}>
             <MetricCard label="Total Functions" value={hasData ? String(coverage!.total) : "—"} color="var(--purple-light)" />
             <MetricCard label="Documented" value={hasData ? String(coverage!.documented) : "—"} color="var(--green)" />
             <MetricCard label="Coverage" value={hasData ? `${coverage!.overall_pct.toFixed(0)}%` : "—"} color={hasData ? (coverage!.overall_pct >= 80 ? "var(--green)" : coverage!.overall_pct >= 50 ? "var(--amber)" : "var(--red)") : undefined} />
-            <MetricCard label="Drifted" value={hasData ? String(coverage!.total - coverage!.documented) : "—"} color={hasData ? (coverage!.total - coverage!.documented === 0 ? "var(--green)" : "var(--red)") : undefined} />
+            <MetricCard label="Undocumented" value={hasData ? String(coverage!.total - coverage!.documented) : "—"} color={hasData ? (coverage!.total - coverage!.documented === 0 ? "var(--green)" : "var(--red)") : undefined} href="/dashboard/generate" cta="Generate" />
+            <MetricCard label="Drifted" value={driftLoading ? "…" : driftCount !== null ? String(driftCount) : "—"} color={driftCount === 0 ? "var(--green)" : driftCount !== null && driftCount > 0 ? "var(--amber)" : undefined} href="/dashboard/drift" cta="Fix" />
           </div>
         );
       })()}

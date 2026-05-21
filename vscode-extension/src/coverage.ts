@@ -34,17 +34,32 @@ function findWrightCli(repoRoot: string): { cmd: string; args: string[] } | null
   return null;
 }
 
-/**
- * Run `wright coverage <repoRoot> --output <tmpFile>` and parse the JSON result.
- * Falls back to a self-contained Python script for source-checkout installations
- * where the module path can be resolved from the venv.
- */
+function runCli(
+  cli: { cmd: string; args: string[] },
+  repoRoot: string,
+  extraArgs: string[],
+  tmpOut: string,
+  allowExitOne = false,
+): Promise<string | null> {
+  const fullArgs = [...cli.args, ...extraArgs, "--output", tmpOut];
+  return new Promise(resolve => {
+    cp.execFile(cli.cmd, fullArgs, { cwd: repoRoot, timeout: 90_000 }, (err, _out, stderr) => {
+      if (err && !(allowExitOne && err.code === 1)) {
+        console.error("[Wright]", stderr || err.message);
+        try { fs.unlinkSync(tmpOut); } catch { /* ignore */ }
+        resolve(null);
+        return;
+      }
+      resolve(tmpOut);
+    });
+  });
+}
+
 function runScan(
   repoRoot: string,
 ): Promise<{ total: number; documented: number; files: number } | null> {
   const os = require("os") as typeof import("os");
   const tmpOut = path.join(os.tmpdir(), `wright-cov-${Date.now()}.json`);
-
   const cli = findWrightCli(repoRoot);
   if (!cli) {
     vscode.window.showWarningMessage(
@@ -52,29 +67,28 @@ function runScan(
     );
     return Promise.resolve(null);
   }
+  return runCli(cli, repoRoot, ["coverage", repoRoot], tmpOut, true).then(out => {
+    if (!out) return null;
+    try {
+      const data = JSON.parse(fs.readFileSync(out, "utf8")) as { total: number; documented: number; files: number };
+      try { fs.unlinkSync(out); } catch { /* ignore */ }
+      return { total: data.total ?? 0, documented: data.documented ?? 0, files: data.files ?? 0 };
+    } catch { return null; }
+  });
+}
 
-  const { cmd, args } = cli;
-  const fullArgs = [...args, "coverage", repoRoot, "--output", tmpOut];
-
-  return new Promise(resolve => {
-    cp.execFile(cmd, fullArgs, { cwd: repoRoot, timeout: 90_000 }, (err, _out, stderr) => {
-      // exit code 1 is expected when coverage < threshold — not a fatal error
-      if (err && err.code !== 1) {
-        console.error("[Wright coverage]", stderr || err.message);
-        try { fs.unlinkSync(tmpOut); } catch { /* ignore */ }
-        resolve(null);
-        return;
-      }
-      try {
-        const data = JSON.parse(fs.readFileSync(tmpOut, "utf8")) as {
-          total: number; documented: number; files: number;
-        };
-        try { fs.unlinkSync(tmpOut); } catch { /* ignore */ }
-        resolve({ total: data.total ?? 0, documented: data.documented ?? 0, files: data.files ?? 0 });
-      } catch {
-        resolve(null);
-      }
-    });
+function runDriftScan(repoRoot: string): Promise<{ drifted: number; undocumented: number } | null> {
+  const os = require("os") as typeof import("os");
+  const tmpOut = path.join(os.tmpdir(), `wright-drift-${Date.now()}.json`);
+  const cli = findWrightCli(repoRoot);
+  if (!cli) return Promise.resolve(null);
+  return runCli(cli, repoRoot, ["drift", repoRoot], tmpOut, false).then(out => {
+    if (!out) return null;
+    try {
+      const data = JSON.parse(fs.readFileSync(out, "utf8")) as { drifted: number; undocumented: number };
+      try { fs.unlinkSync(out); } catch { /* ignore */ }
+      return { drifted: data.drifted ?? 0, undocumented: data.undocumented ?? 0 };
+    } catch { return null; }
   });
 }
 
@@ -104,19 +118,24 @@ export class CoverageTreeProvider implements vscode.TreeDataProvider<CoverageIte
 
     await new Promise<void>(resolve => setImmediate(resolve));
 
-    const result = await runScan(repoRoot);
+    const [result, driftResult] = await Promise.all([
+      runScan(repoRoot),
+      runDriftScan(repoRoot),
+    ]);
 
     if (result) {
       const { total, documented, files } = result;
       const pct = total > 0 ? (documented / total) * 100 : 100;
+      const drifted = driftResult?.drifted ?? 0;
       this._pct = pct;
       this._total = total;
       this._documented = documented;
       this._items = [
-        { label: `Coverage: ${pct.toFixed(1)}%`,        pct,                              description: `${files} files` },
-        { label: `Workspace: ${path.basename(repoRoot)}`, pct: 100,                        description: repoRoot },
-        { label: `Documented: ${documented} / ${total}`, pct,                              description: "functions" },
-        { label: `Undocumented: ${total - documented}`,  pct: total - documented === 0 ? 100 : 0, description: "functions" },
+        { label: `Coverage: ${pct.toFixed(1)}%`,          pct,                                     description: `${files} files` },
+        { label: `Workspace: ${path.basename(repoRoot)}`,  pct: 100,                                description: repoRoot },
+        { label: `Documented: ${documented} / ${total}`,   pct,                                     description: "functions" },
+        { label: `Undocumented: ${total - documented}`,    pct: total - documented === 0 ? 100 : 0,  description: "functions" },
+        { label: `Drifted: ${drifted}`,                    pct: drifted === 0 ? 100 : 0,             description: "need regeneration" },
       ];
     } else {
       this._items = [{ label: "Could not scan workspace", pct: 0, description: "run: pip install wright" }];

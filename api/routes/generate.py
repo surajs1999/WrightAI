@@ -160,7 +160,15 @@ async def generate_docstring(request: GenerateRequest, http_request: Request) ->
     if result.success:
         from api.usage_store import record_event
 
-        record_event(http_request.headers.get("X-Wright-API-Key", ""), "docs_generated")
+        # Estimate tokens: input (function source) + output (generated docstring)
+        tokens = (len(func.source_code or "") + len(doc.docstring or "")) // 4
+        record_event(
+            http_request.headers.get("X-Wright-API-Key", ""),
+            "docs_generated",
+            tokens=tokens,
+            repo_name=os.path.basename(request.repo_root),
+            language=func.language if hasattr(func, "language") else None,
+        )
 
     return GenerateResponse(
         success=result.success,

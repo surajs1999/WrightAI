@@ -91,7 +91,11 @@ async def get_coverage(
     if http_request:
         from api.usage_store import record_event
 
-        record_event(http_request.headers.get("X-Wright-API-Key", ""), "coverage_scans")
+        record_event(
+            http_request.headers.get("X-Wright-API-Key", ""),
+            "coverage_scans",
+            repo_name=os.path.basename(repo_root),
+        )
 
     return CoverageResponse(
         overall_pct=overall_pct,

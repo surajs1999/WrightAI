@@ -419,10 +419,11 @@ def coverage(
 @app.command()
 def drift(
     path: str = typer.Argument(".", help="Repository root"),
-    since: str = typer.Option("HEAD~1", "--since", help="Git ref to compare against"),
+    fix: bool = typer.Option(False, "--fix", help="Auto-regenerate drifted and undocumented docstrings"),
+    output: Optional[str] = typer.Option(None, "--output", help="Write JSON report to file"),
     auto_pr: bool = typer.Option(False, "--auto-pr", help="Open GitHub PR with fixes"),
 ) -> None:
-    """Check for documentation drift since a git ref."""
+    """Check all functions for documentation drift."""
     from core.drift.drift_detector import DriftDetector
 
     path_abs = _resolve_workspace(os.path.abspath(path))
@@ -431,16 +432,83 @@ def drift(
 
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as progress:
         t = progress.add_task("Checking drift...", total=None)
-        try:
-            results = detector.check_git_diff(path_abs, base_ref=since)
-        except Exception:
-            results = detector.check_directory(path_abs, cache)
+        results = detector.check_directory(path_abs, cache)
         progress.update(t, completed=True)
 
-    drifted = [r for r in results if r.status in ("drifted", "undocumented")]
+    total       = len(results)
+    drifted_res = [r for r in results if r.status == "drifted"]
+    undoc_res   = [r for r in results if r.status == "undocumented"]
+    up_to_date  = total - len(drifted_res) - len(undoc_res)
 
-    if not drifted:
-        console.print("[green]No drift detected — all documentation is up to date![/green]")
+    console.print(
+        f"[bold]Checked:[/bold] {total}  "
+        f"[red]Drifted:[/red] {len(drifted_res)}  "
+        f"[yellow]Undocumented:[/yellow] {len(undoc_res)}  "
+        f"[green]Up to date:[/green] {up_to_date}"
+    )
+
+    if output:
+        import json as _json
+        with open(output, "w") as _f:
+            _json.dump({
+                "total": total,
+                "drifted": len(drifted_res),
+                "undocumented": len(undoc_res),
+                "up_to_date": up_to_date,
+            }, _f)
+
+    needs_attention = drifted_res + undoc_res
+    if not needs_attention:
+        console.print("[green]All documentation is up to date![/green]")
+        return
+
+    if fix:
+        from core.config import load_config
+        from core.llm.prompts import LANGUAGE_DEFAULT_STYLE
+        from core.output.injector import DocstringInjector
+        from core.parser.dep_graph import DependencyGraph
+        from core.parser.tree_sitter_parser import CodeParser
+        from core.retrieval.hybrid_retriever import HybridRetriever
+
+        config = load_config(path_abs)
+        gateway = _build_gateway()
+        embedder = _build_embedder()
+        chroma = _get_chroma(path_abs)
+        parser = CodeParser()
+        injector = DocstringInjector()
+
+        # Group by file for efficient re-parsing
+        from collections import defaultdict
+        by_file: dict = defaultdict(list)
+        for r in needs_attention:
+            by_file[r.file_path].append(r.function_name)
+
+        dep_graph = DependencyGraph()
+        dep_graph.build(parser.parse_directory(path_abs))
+        retriever = HybridRetriever(chroma, dep_graph, embedder)
+
+        fixed = 0
+        with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as progress:
+            task = progress.add_task(f"Fixing {len(needs_attention)} functions…", total=len(needs_attention))
+            for file_path, func_names in by_file.items():
+                pf = parser.parse_file(file_path)
+                for func in pf.functions:
+                    if func.name not in func_names:
+                        continue
+                    lang = pf.language if hasattr(pf, "language") else None
+                    doc_style = LANGUAGE_DEFAULT_STYLE.get(lang, config.style) if lang else config.style
+                    try:
+                        import asyncio
+                        context = retriever.retrieve_for_function(func)
+                        doc = asyncio.run(gateway.generate_docstring(func, context, doc_style))
+                        result = injector.inject(file_path, func, doc, doc_style, dry_run=False)
+                        if result.success:
+                            fixed += 1
+                    except Exception as e:
+                        console.print(f"[red]✕[/red] {func.name}: {e}")
+                    progress.advance(task)
+
+        console.print(f"[green]Fixed {fixed} / {len(needs_attention)} functions.[/green]")
         return
 
     table = Table(title="Documentation Drift")
@@ -449,16 +517,15 @@ def drift(
     table.add_column("Status", style="yellow")
     table.add_column("Reason")
 
-    for r in drifted:
-        status_str = (
-            "[red]drifted[/red]" if r.status == "drifted" else "[yellow]undocumented[/yellow]"
-        )
+    for r in needs_attention:
+        status_str = "[red]drifted[/red]" if r.status == "drifted" else "[yellow]undocumented[/yellow]"
         table.add_row(r.function_name, os.path.basename(r.file_path), status_str, r.reason or "")
 
     console.print(table)
+    console.print(f"\n[dim]Run with [bold]--fix[/bold] to auto-regenerate all {len(needs_attention)} functions.[/dim]")
 
     if auto_pr:
-        _open_drift_pr(path_abs, drifted)
+        _open_drift_pr(path_abs, needs_attention)
 
 
 def _open_drift_pr(repo_root: str, drifted: list) -> None:
