@@ -163,7 +163,7 @@ async def generate_docstring(request: GenerateRequest, http_request: Request) ->
 
     doc_style = DocStyle(request.style)
     context = retriever.retrieve_for_function(func)
-    doc = await gateway.generate_docstring(func, context, doc_style, verbosity=request.verbosity)
+    doc, tokens_used = await gateway.generate_docstring(func, context, doc_style, verbosity=request.verbosity)
     result = injector.inject(func.file_path, func, doc, doc_style, dry_run=True)
 
     if _tmp_path:
@@ -172,12 +172,10 @@ async def generate_docstring(request: GenerateRequest, http_request: Request) ->
     if result.success:
         from api.usage_store import record_event
 
-        # Estimate tokens: input (function source) + output (generated docstring)
-        tokens = (len(func.source_code or "") + len(doc.docstring or "")) // 4
         record_event(
             http_request.headers.get("X-Wright-API-Key", ""),
             "docs_generated",
-            tokens=tokens,
+            tokens=tokens_used,
             repo_name=os.path.basename(request.repo_root),
             language=func.language if hasattr(func, "language") else None,
         )

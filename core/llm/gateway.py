@@ -55,10 +55,11 @@ class LLMGateway:
         context: RetrievedContext,
         style: DocStyle,
         verbosity: str = "standard",
-    ) -> DocstringSchema:
+    ) -> tuple[DocstringSchema, int]:
+        """Returns (schema, tokens_used) where tokens_used is the real Anthropic token count."""
         prompt = build_docstring_prompt(func, context, style, func.language, verbosity)
-        response_text = await self._call_claude(prompt, _DOCSTRING_SYSTEM)
-        return self._parse_structured_output(response_text)
+        response_text, tokens = await self._call_claude_tracked(prompt, _DOCSTRING_SYSTEM)
+        return self._parse_structured_output(response_text), tokens
 
     async def generate_readme(self, parsed_files: list[ParsedFile], repo_name: str) -> str:
         prompt = build_readme_prompt(parsed_files, repo_name)
@@ -161,6 +162,32 @@ class LLMGateway:
             return is_drifted, reason
         except (json.JSONDecodeError, KeyError):
             return False, "Could not parse drift check response"
+
+    async def _call_claude_tracked(self, prompt: str, system: str) -> tuple[str, int]:
+        """Like _call_claude but also returns the real input+output token count from Anthropic."""
+        messages: list[dict[str, str]] = [{"role": "user", "content": prompt}]
+        for attempt in range(5):
+            try:
+                response = await self._anthropic.messages.create(
+                    model=self.PRIMARY_MODEL,
+                    max_tokens=2048,
+                    system=system,
+                    messages=messages,
+                )
+                tokens = response.usage.input_tokens + response.usage.output_tokens
+                return response.content[0].text, tokens
+            except anthropic.RateLimitError:
+                if attempt == 4:
+                    raise
+                await asyncio.sleep(2**attempt)
+            except anthropic.APIStatusError as e:
+                if e.status_code == 529:
+                    if attempt == 4:
+                        raise RuntimeError("Anthropic API overloaded after retries") from e
+                    await asyncio.sleep(2**attempt)
+                else:
+                    raise RuntimeError(f"Anthropic API error: {e}") from e
+        raise RuntimeError("Exhausted retries calling Anthropic API")
 
     async def _call_claude(self, prompt: str, system: str, retry_context: str | None = None) -> str:
         messages: list[dict[str, str]] = [{"role": "user", "content": prompt}]

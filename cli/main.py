@@ -389,7 +389,7 @@ def generate(
                                 else LANGUAGE_DEFAULT_STYLE.get(func.language, doc_style)
                             )
                             context = retriever.retrieve_for_function(func)
-                            doc = await gateway.generate_docstring(
+                            doc, _tokens = await gateway.generate_docstring(
                                 func, context, effective_style, verbosity=verbosity
                             )
                             result = injector.inject(
@@ -654,7 +654,7 @@ def drift(
                 doc_style = LANGUAGE_DEFAULT_STYLE.get(lang, config.style) if lang else config.style
                 try:
                     context = retriever.retrieve_for_function(func) if retriever else []
-                    doc = await gateway.generate_docstring(func, context, doc_style)
+                    doc, _tokens = await gateway.generate_docstring(func, context, doc_style)
                     return (file_path, func, doc, doc_style, None)
                 except Exception as e:
                     return (file_path, func, None, doc_style, str(e))

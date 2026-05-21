@@ -214,7 +214,7 @@ def run_generate() -> None:
 
         for pf, func in undoc:
             context = retriever.retrieve_for_function(func)
-            doc = await gateway.generate_docstring(func, context, config.style)
+            doc, _tokens = await gateway.generate_docstring(func, context, config.style)
             result = injector.inject(func.file_path, func, doc, config.style)
             if result.success:
                 count += 1

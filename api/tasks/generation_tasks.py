@@ -71,7 +71,7 @@ def generate_file_docs(self, file_path: str, repo_root: str, style: str, dry_run
                 meta={"current": i, "total": total, "function": func.name},
             )
             context = retriever.retrieve_for_function(func)
-            doc = await gateway.generate_docstring(func, context, doc_style)
+            doc, _tokens = await gateway.generate_docstring(func, context, doc_style)
             result = injector.inject(func.file_path, func, doc, doc_style, dry_run=dry_run)
             results.append(
                 {

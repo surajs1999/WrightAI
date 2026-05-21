@@ -264,7 +264,7 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
             dep_graph.build([parsed_file])
             retriever = HybridRetriever(chroma, dep_graph, embedder)
             context = retriever.retrieve_for_function(func)
-            doc = await gateway.generate_docstring(func, context, doc_style)
+            doc, _tokens = await gateway.generate_docstring(func, context, doc_style)
             result = injector.inject(func.file_path, func, doc, doc_style, dry_run=False)
 
             if result.success:
