@@ -86,7 +86,7 @@ Promise<void> {
   if (choice === "Set API Key") {
     await vscode.commands.executeCommand("workbench.action.openSettings", "wright.apiKey");
   } else if (choice === "Get API Key") {
-    await vscode.env.openExternal(vscode.Uri.parse("https://wrightai-web.fly.dev/dashboard/keys"));
+    await vscode.env.openExternal(vscode.Uri.parse("https://www.wrightai.live/dashboard/keys"));
   }
 }
 
