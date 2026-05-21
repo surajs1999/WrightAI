@@ -163,7 +163,9 @@ async def generate_docstring(request: GenerateRequest, http_request: Request) ->
 
     doc_style = DocStyle(request.style)
     context = retriever.retrieve_for_function(func)
-    doc, tokens_used = await gateway.generate_docstring(func, context, doc_style, verbosity=request.verbosity)
+    doc, tokens_used = await gateway.generate_docstring(
+        func, context, doc_style, verbosity=request.verbosity
+    )
     result = injector.inject(func.file_path, func, doc, doc_style, dry_run=True)
 
     if _tmp_path:

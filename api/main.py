@@ -83,7 +83,7 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-from api.routes import (
+from api.routes import (  # noqa: E402
     auth,
     chat,
     coverage,
@@ -94,7 +94,7 @@ from api.routes import (
     repos,
     usage,
     webhooks,
-)  # noqa: E402
+)
 
 app.include_router(auth.router)
 app.include_router(generate.router)
