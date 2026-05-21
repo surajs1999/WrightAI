@@ -63,7 +63,6 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
     <aside
       style={{
         width: 228,
-        minHeight: "100vh",
         height: "100%",
         background: "var(--surface)",
         borderRight: "1px solid var(--border)",

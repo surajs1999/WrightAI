@@ -49,7 +49,7 @@ export default function DashboardShell({
           userInitials={userInitials}
           onMenuClick={() => setSidebarOpen(o => !o)}
         />
-        <main style={{ flex: 1, overflowY: "auto", padding: "24px 28px" }}>
+        <main style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 28px" }}>
           {children}
         </main>
       </div>
