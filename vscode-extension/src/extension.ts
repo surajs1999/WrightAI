@@ -1,5 +1,4 @@
 import * as vscode from "vscode";
-import * as cp from "child_process";
 import { ChatPanel } from "./chat";
 import { WrightCodeLensProvider } from "./codelens";
 import { CoverageTreeProvider } from "./coverage";
@@ -10,7 +9,6 @@ import { WrightHoverProvider } from "./hover";
 import { initGutterDecorations, updateGutterDecorations } from "./gutter";
 import { DRIFTED_FUNCTIONS } from "./codelens";
 
-let apiProcess: cp.ChildProcess | undefined;
 let statusBarItem: vscode.StatusBarItem;
 
 /**
@@ -29,27 +27,8 @@ let statusBarItem: vscode.StatusBarItem;
  */
 
 
-async function startApiServer(context: vscode.ExtensionContext): Promise<"local" | "remote" | "none"> {
-  // Try remote first (default apiUrl)
-  if (await checkHealth()) return "remote";
-
-  // Try to spawn local server
-  apiProcess = cp.spawn("python", ["-m", "api.main"], {
-    cwd: context.extensionPath,
-    env: { ...process.env },
-    detached: false,
-  });
-
-  apiProcess.stderr?.on("data", (data: Buffer) => {
-    console.error("[Wright API]", data.toString());
-  });
-
-  for (let i = 0; i < 30; i++) {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    if (await checkHealth()) return "local";
-  }
-
-  return "none";
+async function connectToApi(): Promise<"remote" | "none"> {
+  return (await checkHealth()) ? "remote" : "none";
 }
 
  /**
@@ -146,15 +125,13 @@ function updateStatusBar(statusBar: vscode.StatusBarItem, pct?: number | null, d
 
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  // 1. Start/connect to API server and report status
+  // 1. Connect to hosted API
   const serverStatus = await vscode.window.withProgress(
     { location: vscode.ProgressLocation.Window, title: "Wright: Connecting…" },
-    () => startApiServer(context)
+    () => connectToApi()
   );
 
-  if (serverStatus === "local") {
-    vscode.window.setStatusBarMessage("$(check) Wright: Ready", 4000);
-  } else if (serverStatus === "remote") {
+  if (serverStatus === "remote") {
     vscode.window.setStatusBarMessage("$(cloud) Wright: Connected", 4000);
   } else {
     vscode.window.showWarningMessage(
@@ -352,9 +329,5 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
  */
 
 export function deactivate(): void {
-  if (apiProcess) {
-    apiProcess.kill();
-    apiProcess = undefined;
-  }
   statusBarItem?.dispose();
 }

@@ -486,7 +486,7 @@ export default function FeatureScroll() {
             How it works
           </p>
           <h2 style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: "clamp(32px, 4vw, 52px)", color: "var(--text)", letterSpacing: "-0.035em", lineHeight: 1.04 }}>
-            Everything your codebase needs.
+            AI code documentation tools your codebase needs.
           </h2>
         </motion.div>
 

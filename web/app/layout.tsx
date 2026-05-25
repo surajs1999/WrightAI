@@ -31,12 +31,14 @@ export const metadata: Metadata = {
     canonical: SITE_URL,
   },
   title: {
-    default: "Wright AI — AI Docstring Generator for VS Code, CLI & CI",
+    default: "Wright AI — AI Code Documentation Tool for VS Code, CLI & CI",
     template: "%s | Wright AI",
   },
   description:
     "Auto-generate docstrings for Python, TypeScript, Go & Rust. Detect doc drift. Serve live docs to Claude Code & Cursor via MCP. Free to start.",
   keywords: [
+    "ai code documentation tools",
+    "ai code documentation tool",
     "ai docstring generator",
     "auto generate docstrings",
     "code documentation generator",
@@ -57,7 +59,7 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: SITE_URL,
     siteName: "Wright AI",
-    title: "Wright AI — AI Docstring Generator for VS Code, CLI & CI",
+    title: "Wright AI — AI Code Documentation Tool for VS Code, CLI & CI",
     description:
       "Auto-generate docstrings for Python, TypeScript, Go & more. Detect documentation drift. Serve live docs to Claude Code, Cursor, and Copilot via MCP. Free to start.",
     images: [
@@ -71,7 +73,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Wright AI — AI Docstring Generator",
+    title: "Wright AI — AI Code Documentation Tool",
     description:
       "Auto-generate docstrings, catch documentation drift, and give Claude Code & Cursor live access to your codebase via MCP. Free.",
     images: ["/opengraph-image"],

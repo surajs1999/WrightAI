@@ -2,14 +2,14 @@
 
 WrightAI brings AI-powered documentation directly into your editor. Generate docstrings, track coverage, detect drift, and chat with your codebase — all without leaving VS Code.
 
-Powered by Claude (Anthropic). No local server or Python installation required — the backend is fully hosted.
+No local server or Python installation required — the backend is fully hosted.
 
 ---
 
 ## Getting Started
 
 1. Install this extension from the VS Code Marketplace
-2. Sign in at **[www.wrightai.live](https://www.wrightai.live)** with GitHub or Google
+2. Sign in at **[www.wrightai.live](https://wrightai-web.fly.dev)** with GitHub or Google
 3. Copy your personal API key (starts with `wai_`)
 4. Open VS Code Settings (`Cmd+,` / `Ctrl+,`), search for `WrightAI`, and paste the key into **Wright: Api Key**
 5. Open any supported file — a **Generate Docs** button will appear above each function

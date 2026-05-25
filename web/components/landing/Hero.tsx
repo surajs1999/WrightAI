@@ -201,9 +201,10 @@ export default function Hero() {
               maxWidth: 520,
             }}
           >
-            Wright AI auto-generates docstrings for Python, TypeScript,
-            JavaScript, Go, and Rust — detects documentation drift, and exposes
-            your codebase to Claude Code, Cursor, and Copilot via MCP.
+            The AI code documentation tool that auto-generates docstrings for
+            Python, TypeScript, JavaScript, Go, and Rust — detects
+            documentation drift, and exposes your codebase to Claude Code,
+            Cursor, and Copilot via MCP.
           </p>
 
           {/* CTA row */}

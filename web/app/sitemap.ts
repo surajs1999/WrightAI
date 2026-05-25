@@ -19,32 +19,41 @@ const BASE = "https://www.wrightai.live";
 
 
 
+// Update LAST_UPDATED when you make meaningful content changes to the home or docs pages
+const LAST_UPDATED = new Date("2025-05-25");
+
 export default function sitemap(): MetadataRoute.Sitemap {
-  const languages = ["python", "typescript", "javascript", "go", "rust"];
+  const languages = [
+    { slug: "python",     updated: new Date("2025-05-25") },
+    { slug: "typescript", updated: new Date("2025-05-25") },
+    { slug: "javascript", updated: new Date("2025-05-25") },
+    { slug: "go",         updated: new Date("2025-05-25") },
+    { slug: "rust",       updated: new Date("2025-05-25") },
+  ];
 
   return [
     {
       url: BASE,
-      lastModified: new Date(),
+      lastModified: LAST_UPDATED,
       changeFrequency: "weekly",
       priority: 1,
     },
     {
       url: `${BASE}/docs`,
-      lastModified: new Date(),
+      lastModified: LAST_UPDATED,
       changeFrequency: "weekly",
       priority: 0.8,
     },
-    ...languages.map((lang) => ({
-      url: `${BASE}/${lang}`,
-      lastModified: new Date(),
+    ...languages.map(({ slug, updated }) => ({
+      url: `${BASE}/${slug}`,
+      lastModified: updated,
       changeFrequency: "monthly" as const,
       priority: 0.9,
     })),
     {
       url: `${BASE}/login`,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
+      lastModified: new Date("2025-01-01"),
+      changeFrequency: "yearly" as const,
       priority: 0.3,
     },
   ];
