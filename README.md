@@ -95,9 +95,11 @@ wright coverage . --output coverage.json   # Write JSON report
 ```
 
 ### `wright drift [PATH]`
-Detect functions whose documentation is out of sync with the current code. Drift is triggered when:
-- **Parameter names** are added, removed, or renamed
-- **Return type** changes between two concrete types (e.g. `str → dict`, `list → list[str]`)
+Detect functions whose documentation is out of sync with the current code. Two categories of drift are detected:
+- **Structural drift** — parameter names added, removed, or renamed; return type changes between concrete types (e.g. `str → dict`, `list → list[str]`)
+- **Semantic drift** — function body changes that make the docstring factually wrong even when the signature is unchanged, detected by a fast LLM pass (claude-haiku)
+
+LLM results are cached in SQLite (keyed by source + docstring hash), so unchanged functions are never re-checked. On a warm cache, `wright drift` runs in milliseconds.
 
 ```bash
 wright drift .
@@ -144,8 +146,8 @@ wright llms-txt .
 - **Gutter icons** — ✓ (documented), ○ (undocumented), ⚠ (drifted) on every function line
 - **Diff preview** — side-by-side preview before any change is written
 - **Hover** — shows the existing docstring and a regenerate link on hover
-- **Coverage panel** — live doc coverage %, undocumented count, and drifted count in the Explorer sidebar; auto-refreshes after every injection
-- **Drift detection** — checked automatically on every file save; flags parameter renames and return type changes
+- **Coverage panel** — live doc coverage %, undocumented count, and drifted count in the Explorer sidebar; auto-refreshes after every injection; uses local CLI + SQLite cache for zero token cost on unchanged functions
+- **Drift detection** — checked automatically on every file save; detects structural changes (param renames, return type changes) and LLM-based semantic drift; SQLite-cached so re-saves are instant
 - **Codebase chat** — ask questions, get answers with clickable file citations
 
 **Settings** (`settings.json`):
@@ -268,7 +270,7 @@ wright/
 │   │   ├── tree_sitter_parser.py   # Language parsers + docstring extraction
 │   │   ├── ast_chunker.py          # AST boundary chunking
 │   │   ├── dep_graph.py            # NetworkX PageRank dependency graph
-│   │   └── cache.py                # SQLite mtime-tracked AST cache
+│   │   └── cache.py                # SQLite mtime-tracked AST + LLM result cache
 │   ├── embeddings/          # Vector store
 │   │   ├── voyage_embeddings.py    # voyage-code-3 embeddings
 │   │   └── chroma_store.py         # ChromaDB wrapper
@@ -283,7 +285,7 @@ wright/
 │   │   ├── markdown_writer.py      # Markdown output
 │   │   └── llms_txt.py             # llms.txt generation
 │   ├── drift/               # Drift detection
-│   │   └── drift_detector.py       # AST diff staleness detection
+│   │   └── drift_detector.py       # Structural + LLM semantic drift detection
 │   └── config.py            # .wright.json config loader
 │
 ├── api/                     # FastAPI REST backend
@@ -300,7 +302,7 @@ wright/
 ```
 
 **Hosted infrastructure:**
-- **Fly.io** — FastAPI backend at `https://wrightai-api.fly.dev`; Next.js dashboard at `https://www.wrightai.live`
+- **Fly.io** — FastAPI backend at `https://wrightai-api.fly.dev`; Next.js dashboard at `https://www.wrightai.live` (canonical domain)
 - **WorkOS** — OAuth login (GitHub / Google)
 - **Supabase** — Per-user API key storage and usage tracking
 
@@ -313,7 +315,7 @@ wright/
 6. Schema → Injector (byte-offset, language-aware) → Modified source file
 
 **Auth flow:**
-1. User signs in via WorkOS (GitHub/Google) at `wrightai-web.fly.dev`
+1. User signs in via WorkOS (GitHub/Google) at `www.wrightai.live`
 2. Backend generates a unique `wai_` API key → stored in Supabase
 3. Key sent on every request via `X-Wright-API-Key` header
 

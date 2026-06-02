@@ -3,10 +3,11 @@ from __future__ import annotations
 import os
 import tempfile
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from api.auth import verify_api_key
+from api.quota import check_quota
 
 router = APIRouter(prefix="/generate", tags=["generate"], dependencies=[Depends(verify_api_key)])
 
@@ -41,7 +42,7 @@ class JobStatusResponse(BaseModel):
 
 
 @router.post("", response_model=GenerateResponse)
-async def generate_docstring(request: GenerateRequest, http_request: Request) -> GenerateResponse:
+async def generate_docstring(request: GenerateRequest, http_request: Request, response: Response) -> GenerateResponse:
     """
     Generates an AI-powered docstring for a specified Python function by parsing the source file, building a dependency graph, retrieving hybrid context, and injecting the result via an LLM gateway.
 
@@ -76,6 +77,12 @@ async def generate_docstring(request: GenerateRequest, http_request: Request) ->
         )
         ```
     """
+    api_key = http_request.headers.get("X-Wright-API-Key", "")
+    quota = check_quota(api_key, "docs_generated", raise_on_blocked=True)
+    if quota.warning:
+        response.headers["X-Wright-Quota-Warning"] = "true"
+        response.headers["X-Wright-Usage-Pct"] = str(quota.pct)
+
     if request.batch:
         from api.tasks.generation_tasks import generate_file_docs
 

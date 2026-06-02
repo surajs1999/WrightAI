@@ -27,3 +27,5 @@ class DocstringSchema(BaseModel):
     raises: list[RaiseDoc] = []
     example: str | None = None
     complexity: str | None = None
+    side_effects: str | None = None
+    notes: str | None = None

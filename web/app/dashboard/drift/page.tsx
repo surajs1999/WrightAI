@@ -211,6 +211,21 @@ export default function DriftPage() {
             ))}
           </div>
 
+          {/* Semantic drift Pro CTA */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+            padding: "10px 16px", marginBottom: 18,
+            background: "rgba(83,74,183,0.06)", border: "1px solid rgba(83,74,183,0.16)", borderRadius: 9,
+            flexWrap: "wrap",
+          }}>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(175,169,236,0.6)" }}>
+              Free plan shows structural drift only — semantic (LLM) analysis catches subtle logic changes.
+            </span>
+            <a href="/pricing" style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#AFA9EC", textDecoration: "none", whiteSpace: "nowrap" }}>
+              Upgrade for semantic drift →
+            </a>
+          </div>
+
           {drifted.length > 0 && (
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
             <div style={{ overflowX: "auto" }}>

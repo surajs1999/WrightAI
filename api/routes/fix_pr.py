@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from api.auth import verify_api_key
+from api.quota import check_feature_flag
 
 router = APIRouter(prefix="/fix-pr", tags=["fix-pr"], dependencies=[Depends(verify_api_key)])
 
@@ -172,6 +173,9 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
         print(result['pr_url'])  # https://github.com/owner/my-repo/pull/42
         ```
     """
+    api_key = request.headers.get("X-Wright-API-Key", "")
+    check_feature_flag(api_key, "auto_pr", raise_on_blocked=True)
+
     from core.config import load_config
     from core.embeddings.chroma_store import ChromaStore
     from core.embeddings.voyage_embeddings import VoyageEmbedder
@@ -243,6 +247,7 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
 
     fixed: list[str] = []
     errors: list[str] = []
+    total_tokens = 0
 
     for fn_ref in body.functions:
         try:
@@ -264,7 +269,8 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
             dep_graph.build([parsed_file])
             retriever = HybridRetriever(chroma, dep_graph, embedder)
             context = retriever.retrieve_for_function(func)
-            doc, _tokens = await gateway.generate_docstring(func, context, doc_style)
+            doc, fn_tokens = await gateway.generate_docstring(func, context, doc_style)
+            total_tokens += fn_tokens
             result = injector.inject(func.file_path, func, doc, doc_style, dry_run=False)
 
             if result.success:
@@ -358,6 +364,14 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
 
     if resp.status_code not in (200, 201):
         raise HTTPException(status_code=500, detail=f"PR creation failed: {resp.text}")
+
+    from api.usage_store import record_event
+    record_event(
+        request.headers.get("X-Wright-API-Key", ""),
+        "fix_pr",
+        tokens=total_tokens,
+        repo_name=repo_name,
+    )
 
     pr_data = resp.json()
     return {

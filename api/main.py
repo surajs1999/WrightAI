@@ -85,6 +85,7 @@ async def log_requests(request: Request, call_next):
 
 from api.routes import (  # noqa: E402
     auth,
+    billing,
     chat,
     coverage,
     drift,
@@ -97,6 +98,7 @@ from api.routes import (  # noqa: E402
 )
 
 app.include_router(auth.router)
+app.include_router(billing.router)
 app.include_router(generate.router)
 app.include_router(coverage.router)
 app.include_router(drift.router)

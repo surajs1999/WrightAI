@@ -5,7 +5,7 @@ import textwrap
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from api.auth import verify_api_key
@@ -357,7 +357,7 @@ def _emit_func(lines: list[str], func, indent: str = "") -> None:
 
 
 @router.post("")
-async def generate_llms_txt(body: LlmsTxtRequest) -> dict:
+async def generate_llms_txt(body: LlmsTxtRequest, http_request: Request) -> dict:
     """
     Generates a markdown-style llms.txt documentation file for a given repository by walking its directory tree, parsing code files with tree-sitter, and extracting functions and classes with their signatures and docstrings.
 
@@ -445,6 +445,14 @@ async def generate_llms_txt(body: LlmsTxtRequest) -> dict:
 
     content = "\n".join(lines)
     token_estimate = len(content) // 4
+
+    from api.usage_store import record_event
+    record_event(
+        http_request.headers.get("X-Wright-API-Key", ""),
+        "llms_txt_generated",
+        tokens=token_estimate,
+        repo_name=repo_name,
+    )
 
     return {
         "content": content,

@@ -47,16 +47,20 @@ The **Wright Coverage** panel in the Explorer sidebar shows live documentation m
 - Overall coverage percentage
 - Documented / total function counts
 - **Undocumented** count
-- **Drifted** count — functions whose signatures changed since their docstring was written
+- **Drifted** count — functions whose docs are out of sync with the current code
+
+The panel runs `wright coverage` and `wright drift` via the local CLI, so results use the SQLite cache and incur no extra token cost for functions already checked.
 
 The panel refreshes automatically every time you save a file or accept a docstring injection.
 
 Run **Wright: Show coverage** from the Command Palette to refresh it manually.
 
 ### Drift Detection
-Wright detects drift when:
-- **Parameter names** are added, removed, or renamed
-- **Return type** changes between two concrete types (e.g. `str → dict`, `list → list[str]`)
+Wright detects two kinds of drift:
+- **Structural drift** — parameter names added, removed, or renamed; return type changes between concrete types (e.g. `str → dict`)
+- **Semantic drift** — the function body changes in a way that makes the docstring factually wrong, even if the signature hasn't changed (detected by an LLM)
+
+Results are cached locally in SQLite so repeated saves for unchanged functions cost zero tokens.
 
 Run **Wright: Check for doc drift** to scan the current file. Stale functions are highlighted with an **⚠ Docs outdated — regenerate** CodeLens.
 

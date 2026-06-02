@@ -3,11 +3,12 @@ from __future__ import annotations
 import json
 import os
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from api.auth import verify_api_key
+from api.quota import check_feature_flag, check_quota
 
 router = APIRouter(prefix="/chat", tags=["chat"], dependencies=[Depends(verify_api_key)])
 
@@ -24,7 +25,7 @@ class ChatRequest(BaseModel):
 
 
 @router.post("")
-async def chat(request: ChatRequest) -> StreamingResponse:
+async def chat(request: ChatRequest, http_request: Request) -> StreamingResponse:
     """
     Handles an incoming chat POST request by retrieving relevant code context via hybrid retrieval and streaming AI-generated responses back to the client as server-sent events.
 
@@ -42,7 +43,12 @@ async def chat(request: ChatRequest) -> StreamingResponse:
         ```
     """
     from core.llm.gateway import LLMGateway
+    from api.usage_store import record_event
 
+    api_key = http_request.headers.get("X-Wright-API-Key", "")
+
+    # Gate: chat_messages_per_month == 0 on free → 403; >0 enforces monthly cap
+    quota = check_quota(api_key, "chat_message", raise_on_blocked=True)
     gateway = LLMGateway(anthropic_key=os.getenv("ANTHROPIC_API_KEY", ""))
     history = [{"role": m.role, "content": m.content} for m in request.conversation_history]
 
@@ -70,6 +76,8 @@ async def chat(request: ChatRequest) -> StreamingResponse:
         history = history[-20:]
 
     async def event_stream():
+        if quota.warning:
+            yield f"data: {json.dumps({'type': 'quota_warning', 'used': quota.used, 'limit': quota.limit, 'pct': quota.pct, 'upgrade_url': quota.upgrade_url})}\n\n"
         async for kind, payload in gateway.chat_stream(request.question, contexts, history):
             if kind == "token":
                 yield f"data: {json.dumps({'type': 'token', 'content': payload})}\n\n"
@@ -78,5 +86,6 @@ async def chat(request: ChatRequest) -> StreamingResponse:
             elif kind == "followups":
                 yield f"data: {json.dumps({'type': 'followups', 'questions': payload})}\n\n"
         yield "data: [DONE]\n\n"
+        record_event(api_key, "chat_message", repo_name=os.path.basename(request.repo_root))
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

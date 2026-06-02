@@ -78,6 +78,7 @@ export default function Navbar() {
         <div className="desktop-only" style={{ display: "none", alignItems: "center", gap: 48 }}>
           {[
             { label: "Features", href: "#features" },
+            { label: "Pricing", href: "/pricing" },
             { label: "Docs", href: "/docs" },
             { label: "Changelog", href: "https://github.com/surajs1999/WrightAI/releases" },
             { label: "Get Started", href: "#install" },

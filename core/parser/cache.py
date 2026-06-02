@@ -1,11 +1,41 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sqlite3
 import time
 
+import redis as _redislib
+
 from core.parser.tree_sitter_parser import ParsedFile, ParsedFunction, ParsedClass
+
+# ── Redis LLM result cache (L2) ───────────────────────────────────────────────
+# Keyed by content hash — no user identity, shared globally across all callers.
+# Falls back silently to SQLite-only if REDIS_URL is unset or unreachable.
+
+_redis_client: object = None   # None = not tried; False = unavailable; Redis = connected
+_REDIS_LLM_TTL = int(os.getenv("WRIGHT_CACHE_TTL_DAYS", "30")) * 86400
+
+
+def _redis() -> "_redislib.Redis | None":  # type: ignore[name-defined]
+    global _redis_client
+    if _redis_client is None:
+        url = os.getenv("REDIS_URL")
+        if url:
+            try:
+                c = _redislib.Redis.from_url(url, socket_connect_timeout=1, decode_responses=True)
+                c.ping()
+                _redis_client = c
+            except Exception:
+                _redis_client = False
+        else:
+            _redis_client = False
+    return _redis_client if _redis_client is not False else None
+
+
+def _hash(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
 def _serialize_parsed_file(pf: ParsedFile) -> str:
@@ -41,28 +71,6 @@ def _serialize_parsed_file(pf: ParsedFile) -> str:
             "source": f.source,
             "existing_docstring": f.existing_docstring,
             "parameters": f.parameters,
-            """
-            Deserializes a JSON string into a ParsedFile object with nested functions and classes.
-
-            Parses a JSON-encoded string representation of a parsed source file and reconstructs the complete ParsedFile object hierarchy, including all nested ParsedFunction objects (as standalone functions or class methods) and ParsedClass objects. Helper functions convert dictionaries to their respective typed objects.
-
-            Args:
-                raw (str): JSON-encoded string containing serialized ParsedFile data with functions, classes, and metadata.
-
-            Returns:
-                ParsedFile: A fully reconstructed ParsedFile object containing the file path, language, functions, classes, imports, and last modified timestamp.
-
-            Raises:
-                json.JSONDecodeError: When the input string is not valid JSON.
-                KeyError: When required fields are missing from the JSON structure.
-
-            Example:
-                ```
-                parsed_file = _deserialize_parsed_file('{"path": "app.py", "language": "python", "functions": [], "classes": []}')
-                ```
-
-            Complexity: O(n) time where n is the total number of functions and classes in the file, O(n) space for constructing the object hierarchy
-            """
             "return_type": f.return_type,
             "is_async": f.is_async,
             "decorators": f.decorators,
@@ -83,6 +91,7 @@ def _serialize_parsed_file(pf: ParsedFile) -> str:
         }
 
     data = {
+        "schema_version": 2,
         "path": pf.path,
         "language": pf.language,
         "functions": [_func_to_dict(f) for f in pf.functions],
@@ -117,6 +126,10 @@ def _deserialize_parsed_file(raw: str) -> ParsedFile:
     Complexity: O(n + m) time and space, where n is the number of top-level functions and m is the total number of methods across all classes
     """
     data = json.loads(raw)
+
+    # Reject cache entries from older schema versions
+    if data.get("schema_version", 1) < 2:
+        raise ValueError(f"Unsupported cache schema version: {data.get('schema_version', 1)}")
 
     def _dict_to_func(d: dict) -> ParsedFunction:
         return ParsedFunction(
@@ -174,9 +187,15 @@ class ASTCache:
                     file_path TEXT PRIMARY KEY,
                     mtime REAL,
                     parsed_json TEXT,
-                    updated_at REAL
+                    updated_at REAL,
+                    last_checked_json TEXT
                 )
             """)
+            # Migrate existing databases that predate last_checked_json
+            try:
+                conn.execute("ALTER TABLE ast_cache ADD COLUMN last_checked_json TEXT")
+            except Exception:
+                pass
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self._db_path)
@@ -216,9 +235,27 @@ class ASTCache:
         parsed_json = _serialize_parsed_file(parsed_file)
         with self._connect() as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO ast_cache (file_path, mtime, parsed_json, updated_at) VALUES (?, ?, ?, ?)",
+                """INSERT INTO ast_cache (file_path, mtime, parsed_json, updated_at)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(file_path) DO UPDATE SET
+                       mtime = excluded.mtime,
+                       parsed_json = excluded.parsed_json,
+                       updated_at = excluded.updated_at""",
                 (parsed_file.path, mtime, parsed_json, time.time()),
             )
+
+    def get_baseline(self, file_path: str) -> ParsedFile | None:
+        """Return the stored snapshot regardless of mtime — used by drift detection."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT parsed_json FROM ast_cache WHERE file_path = ?", (file_path,)
+            ).fetchone()
+        if row is None:
+            return None
+        try:
+            return _deserialize_parsed_file(row[0])
+        except Exception:
+            return None
 
     def invalidate(self, file_path: str) -> None:
         with self._connect() as conn:
@@ -227,3 +264,89 @@ class ASTCache:
     def clear(self) -> None:
         with self._connect() as conn:
             conn.execute("DELETE FROM ast_cache")
+
+    def _write_sqlite_result(
+        self,
+        file_path: str,
+        func_name: str,
+        source: str,
+        docstring: str,
+        status: str,
+        reason: str | None,
+    ) -> None:
+        """Write an LLM result to SQLite only. Used by set_function_result and Redis backfill."""
+        entry_json = json.dumps({
+            "src_hash": _hash(source),
+            "doc_hash": _hash(docstring),
+            "status": status,
+            "reason": reason,
+        })
+        now = time.time()
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT INTO ast_cache (file_path, mtime, parsed_json, updated_at, last_checked_json)
+                   VALUES (?, 0, '{}', ?, json_set('{}', '$.' || ?, json(?)))
+                   ON CONFLICT(file_path) DO UPDATE SET
+                       last_checked_json = json_set(
+                           COALESCE(last_checked_json, '{}'), '$.' || ?, json(?)
+                       ),
+                       updated_at = excluded.updated_at""",
+                (file_path, now, func_name, entry_json, func_name, entry_json),
+            )
+
+    def get_function_result(
+        self, file_path: str, func_name: str, source: str, docstring: str
+    ) -> tuple[str, str | None] | None:
+        """Return (status, reason) if a cached LLM result exists, else None. Checks SQLite then Redis."""
+        src_hash = _hash(source)
+        doc_hash = _hash(docstring)
+
+        # L1: SQLite (local, fast, offline)
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT last_checked_json FROM ast_cache WHERE file_path = ?", (file_path,)
+            ).fetchone()
+        if row and row[0]:
+            try:
+                entry = json.loads(row[0]).get(func_name)
+                if entry and entry["src_hash"] == src_hash and entry["doc_hash"] == doc_hash:
+                    return entry["status"], entry.get("reason")
+            except Exception:
+                pass
+
+        # L2: Redis (shared across devs and API server)
+        r = _redis()
+        if r:
+            try:
+                cached = r.get(f"wright:drift:v1:{src_hash}:{doc_hash}")
+                if cached:
+                    val = json.loads(cached)
+                    # backfill SQLite so next offline run is instant
+                    self._write_sqlite_result(file_path, func_name, source, docstring, val["status"], val.get("reason"))
+                    return val["status"], val.get("reason")
+            except Exception:
+                pass
+
+        return None
+
+    def set_function_result(
+        self,
+        file_path: str,
+        func_name: str,
+        source: str,
+        docstring: str,
+        status: str,
+        reason: str | None,
+    ) -> None:
+        """Persist the LLM result for a function — writes to SQLite and Redis."""
+        self._write_sqlite_result(file_path, func_name, source, docstring, status, reason)
+        r = _redis()
+        if r:
+            try:
+                r.set(
+                    f"wright:drift:v1:{_hash(source)}:{_hash(docstring)}",
+                    json.dumps({"status": status, "reason": reason}),
+                    ex=_REDIS_LLM_TTL,
+                )
+            except Exception:
+                pass

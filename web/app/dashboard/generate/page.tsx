@@ -299,6 +299,10 @@ export default function GeneratePage() {
           >
             {loading ? "Generating…" : "Generate docstring →"}
           </button>
+          <p style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "rgba(175,169,236,0.35)", marginTop: 8, textAlign: "center" }}>
+            Free: 100 generations/month ·{" "}
+            <a href="/pricing" style={{ color: "rgba(175,169,236,0.55)", textDecoration: "none" }}>Upgrade for 10×</a>
+          </p>
         </div>
 
         {/* Right — output */}

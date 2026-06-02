@@ -42,17 +42,31 @@ class HybridRetriever:
             self._pagerank = self._graph.get_pagerank_scores()
         return self._pagerank
 
-    def retrieve_for_function(self, func: ParsedFunction) -> RetrievedContext:
-        query_embedding = self._embedder.embed_query(func.source)
-        search_results = self._store.search(query_embedding, n_results=5)
+    def retrieve_for_function(self, func: ParsedFunction) -> list[RetrievedContext]:
+        pagerank = self._get_pagerank()
+        callers = self._graph.get_callers(func.name, func.file_path)
+        callees = self._graph.get_callees(func.name, func.file_path)
 
-        # Build a representative chunk for the function itself
-        best_chunk: CodeChunk | None = None
-        best_vector_score = 0.0
+        # Multi-query: embed 3 different perspectives on the function
+        param_names = " ".join(p["name"] for p in func.parameters) if func.parameters else ""
+        callee_names = " ".join(name for _, name in callees[:5])
+        queries = [
+            func.source,
+            f"{func.name} {param_names}".strip(),
+        ]
+        if callee_names:
+            queries.append(callee_names)
 
-        for result in search_results:
-            if result.name == func.name and result.file_path == func.file_path:
-                best_chunk = CodeChunk(
+        seen_chunk_ids: set[str] = set()
+        all_results: list[RetrievedContext] = []
+
+        for query in queries:
+            embedding = self._embedder.embed_query(query)
+            for result in self._store.search(embedding, n_results=5):
+                if result.chunk_id in seen_chunk_ids:
+                    continue
+                seen_chunk_ids.add(result.chunk_id)
+                chunk = CodeChunk(
                     chunk_id=result.chunk_id,
                     file_path=result.file_path,
                     language=result.language,
@@ -63,12 +77,47 @@ class HybridRetriever:
                     end_line=result.end_line,
                     token_count=len(result.source) // 4,
                 )
-                best_vector_score = 1.0 - result.distance
+                vector_score = 1.0 - result.distance
+                node_id = f"{result.file_path}::{result.name}"
+                graph_score = pagerank.get(node_id, 0.0)
+                ctx_func = ParsedFunction(
+                    name=result.name,
+                    language=result.language,
+                    file_path=result.file_path,
+                    start_byte=0,
+                    end_byte=0,
+                    start_line=result.start_line,
+                    end_line=result.end_line,
+                    source=result.source,
+                    existing_docstring=None,
+                    parameters=[],
+                    return_type=None,
+                    is_async=False,
+                    decorators=[],
+                )
+                all_results.append(RetrievedContext(
+                    function=ctx_func,
+                    chunk=chunk,
+                    callers=[],
+                    callees=[],
+                    vector_score=vector_score,
+                    graph_score=graph_score,
+                    combined_score=self._combine_scores(vector_score, graph_score),
+                    total_tokens=chunk.token_count,
+                ))
+
+        # Ensure the function itself is always first (as primary context with callers/callees)
+        primary_chunk: CodeChunk | None = None
+        primary_vector_score = 0.0
+        for ctx in all_results:
+            if ctx.chunk.name == func.name and ctx.chunk.file_path == func.file_path:
+                primary_chunk = ctx.chunk
+                primary_vector_score = ctx.vector_score
+                all_results.remove(ctx)
                 break
 
-        if best_chunk is None:
-            # Create chunk from the function itself
-            best_chunk = CodeChunk(
+        if primary_chunk is None:
+            primary_chunk = CodeChunk(
                 chunk_id="",
                 file_path=func.file_path,
                 language=func.language,
@@ -80,24 +129,79 @@ class HybridRetriever:
                 token_count=len(func.source) // 4,
             )
 
-        pagerank = self._get_pagerank()
         node_id = f"{func.file_path}::{func.name}"
         graph_score = pagerank.get(node_id, 0.0)
-        combined_score = self._combine_scores(best_vector_score, graph_score)
-
-        callers = self._graph.get_callers(func.name, func.file_path)
-        callees = self._graph.get_callees(func.name, func.file_path)
-
-        return RetrievedContext(
+        primary = RetrievedContext(
             function=func,
-            chunk=best_chunk,
+            chunk=primary_chunk,
             callers=callers,
             callees=callees,
-            vector_score=best_vector_score,
+            vector_score=primary_vector_score,
             graph_score=graph_score,
-            combined_score=combined_score,
-            total_tokens=best_chunk.token_count,
+            combined_score=self._combine_scores(primary_vector_score, graph_score),
+            total_tokens=primary_chunk.token_count,
         )
+
+        # Fetch source for top 2 callers and top 2 callees from the store
+        related: list[RetrievedContext] = []
+        for file_path, func_name in (callers[:2] + callees[:2]):
+            if f"{file_path}::{func_name}" in seen_chunk_ids:
+                continue
+            results = self._store.search(
+                self._embedder.embed_query(func_name),
+                n_results=1,
+                filter={"file_path": file_path},
+            )
+            if not results:
+                continue
+            r = results[0]
+            chunk_key = f"{r.file_path}::{r.name}"
+            if chunk_key in seen_chunk_ids:
+                continue
+            seen_chunk_ids.add(chunk_key)
+            chunk = CodeChunk(
+                chunk_id=r.chunk_id,
+                file_path=r.file_path,
+                language=r.language,
+                chunk_type=r.chunk_type,
+                name=r.name,
+                source=r.source,
+                start_line=r.start_line,
+                end_line=r.end_line,
+                token_count=len(r.source) // 4,
+            )
+            ctx_func = ParsedFunction(
+                name=r.name,
+                language=r.language,
+                file_path=r.file_path,
+                start_byte=0,
+                end_byte=0,
+                start_line=r.start_line,
+                end_line=r.end_line,
+                source=r.source,
+                existing_docstring=None,
+                parameters=[],
+                return_type=None,
+                is_async=False,
+                decorators=[],
+            )
+            vs = 1.0 - r.distance
+            gs = pagerank.get(f"{r.file_path}::{r.name}", 0.0)
+            related.append(RetrievedContext(
+                function=ctx_func,
+                chunk=chunk,
+                callers=[],
+                callees=[],
+                vector_score=vs,
+                graph_score=gs,
+                combined_score=self._combine_scores(vs, gs),
+                total_tokens=chunk.token_count,
+            ))
+
+        # Sort remaining by combined score, prepend primary
+        all_results.sort(key=lambda c: c.combined_score, reverse=True)
+        final = [primary] + all_results[:4] + related
+        return self._trim_to_token_budget(final)
 
     def retrieve_for_query(self, query: str, n: int = 5) -> list[RetrievedContext]:
         query_embedding = self._embedder.embed_query(query)

@@ -23,32 +23,22 @@ def _db():
     return _get_db()
 
 
-def _resolve_user_id(api_key: str) -> str | None:
-    """
-    Resolves and returns the UUID of a user record matching the given API key, or None if no match is found.
-
-    Queries the 'users' table in the database for a row whose 'api_key' column matches the provided key. If a matching record exists, its 'id' UUID string is returned. If no record is found or any exception occurs during the database call, None is returned silently. This function is used internally by record_event() and get_stats() to map an API key to a user identity before performing usage-related operations.
-
-    Args:
-        api_key (str): The API key string used to look up the corresponding user record in the database.
-
-    Returns:
-        str | None: The UUID string of the matching user's 'id' field if a record is found, or None if no matching user exists or a database error occurs.
-
-    Example:
-        ```
-        user_id = _resolve_user_id('sk-abc123xyz456')
-        if user_id:
-            print(f'Resolved user ID: {user_id}')
-        else:
-            print('API key not found or invalid.')
-        ```
-    """
+def _resolve_user(api_key: str) -> tuple[str, str] | None:
+    """Return (user_id, email) for the given API key, or None if not found."""
     try:
-        result = _db().table("users").select("id").eq("api_key", api_key).execute()
-        return result.data[0]["id"] if result.data else None
+        result = _db().table("users").select("id, email").eq("api_key", api_key).execute()
+        if result.data:
+            row = result.data[0]
+            return row["id"], row.get("email") or ""
+        return None
     except Exception:
         return None
+
+
+# Keep old name as alias so existing callers don't break.
+def _resolve_user_id(api_key: str) -> str | None:
+    resolved = _resolve_user(api_key)
+    return resolved[0] if resolved else None
 
 
 def record_event(
@@ -87,12 +77,14 @@ def record_event(
     if not api_key:
         return
     try:
-        user_id = _resolve_user_id(api_key)
-        if not user_id:
+        resolved = _resolve_user(api_key)
+        if not resolved:
             return
+        user_id, email = resolved
         _db().table("usage_events").insert(
             {
                 "user_id": user_id,
+                "user_email": email,
                 "event_type": event_type,
                 "tokens": tokens,
                 "repo_name": repo_name,
@@ -154,6 +146,12 @@ def get_stats(api_key: str) -> dict:
         docs_generated = sum(1 for e in events if e["event_type"] == "docs_generated")
         drift_checks_run = sum(1 for e in events if e["event_type"] == "drift_checks_run")
         coverage_scans = sum(1 for e in events if e["event_type"] == "coverage_scans")
+        chat_messages = sum(1 for e in events if e["event_type"] == "chat_message")
+        fix_prs = sum(1 for e in events if e["event_type"] == "fix_pr")
+        llms_txt_generated = sum(1 for e in events if e["event_type"] == "llms_txt_generated")
+        repos_connected = sum(1 for e in events if e["event_type"] == "repo_connect")
+        repos_synced = sum(1 for e in events if e["event_type"] == "repo_sync")
+        repos_indexed = sum(1 for e in events if e["event_type"] == "repo_index")
         tokens_used = sum(e.get("tokens") or 0 for e in events)
         api_calls_today = sum(1 for e in events if (e.get("created_at") or "") >= today_start)
         api_calls_month = sum(1 for e in events if (e.get("created_at") or "") >= month_start)
@@ -164,6 +162,12 @@ def get_stats(api_key: str) -> dict:
             "docs_generated": docs_generated,
             "drift_checks_run": drift_checks_run,
             "coverage_scans": coverage_scans,
+            "chat_messages": chat_messages,
+            "fix_prs": fix_prs,
+            "llms_txt_generated": llms_txt_generated,
+            "repos_connected": repos_connected,
+            "repos_synced": repos_synced,
+            "repos_indexed": repos_indexed,
             "tokens_used": tokens_used,
         }
     except Exception:
@@ -191,5 +195,11 @@ def _empty_stats() -> dict:
         "docs_generated": 0,
         "drift_checks_run": 0,
         "coverage_scans": 0,
+        "chat_messages": 0,
+        "fix_prs": 0,
+        "llms_txt_generated": 0,
+        "repos_connected": 0,
+        "repos_synced": 0,
+        "repos_indexed": 0,
         "tokens_used": 0,
     }

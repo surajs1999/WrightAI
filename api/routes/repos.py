@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from api.auth import verify_api_key
+from api.quota import check_quota
 
 _logger = logging.getLogger("wright.repos")
 
@@ -307,6 +308,9 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
         )
         ```
     """
+    api_key = request.headers.get("X-Wright-API-Key", "")
+    check_quota(api_key, "repo_connect", raise_on_blocked=True)
+
     user_id = _user_id_from_request(request)
     user_dir = _REPOS_BASE / user_id
     user_dir.mkdir(parents=True, exist_ok=True)
@@ -415,6 +419,9 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
     # Kick off indexing in the background — chat will be ready by the time
     # the user navigates there. Does nothing if VOYAGE_API_KEY is not set.
     asyncio.create_task(_index_repo(str(repo_path)))
+
+    from api.usage_store import record_event
+    record_event(request.headers.get("X-Wright-API-Key", ""), "repo_connect", repo_name=repo_slug)
 
     repo_id = f"{user_id}/{repo_slug}"
     return RepoInfo(
@@ -601,6 +608,8 @@ async def sync_repo(repo_name: str, request: Request) -> dict:
         raise HTTPException(status_code=504, detail="git pull timed out")
 
     asyncio.create_task(_index_repo(str(repo_path)))
+    from api.usage_store import record_event
+    record_event(request.headers.get("X-Wright-API-Key", ""), "repo_sync", repo_name=repo_name)
     return {"synced": True, "repo": repo_name}
 
 
@@ -638,4 +647,6 @@ async def trigger_index(repo_name: str, request: Request) -> dict:
     if not already:
         asyncio.create_task(_index_repo(repo_root))
 
+    from api.usage_store import record_event
+    record_event(request.headers.get("X-Wright-API-Key", ""), "repo_index", repo_name=repo_name)
     return {"started": not already, "indexing": True}

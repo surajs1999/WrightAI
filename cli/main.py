@@ -270,6 +270,7 @@ def generate(
     verbosity: str = typer.Option("standard", "--verbosity", help="concise/standard/detailed"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview without writing"),
     watch: bool = typer.Option(False, "--watch", help="Watch for changes"),
+    quality: str = typer.Option("standard", "--quality", help="standard/high — 'high' enables critic/rewriter loop (uses more tokens)"),
 ) -> None:
     """
     Generates and injects docstrings for all undocumented functions in a specified file or directory using an LLM-backed pipeline.
@@ -312,7 +313,7 @@ def generate(
 
     gateway = _build_gateway()
     embedder = _build_embedder()
-    _get_cache(repo_root)
+    gen_cache = _get_cache(repo_root)
     chroma = _get_chroma(repo_root)
     parser = CodeParser()
     injector = DocstringInjector()
@@ -329,7 +330,10 @@ def generate(
     undoc_funcs = [
         (pf, f)
         for pf in parsed_files
-        for f in pf.functions
+        for f in [
+            *pf.functions,
+            *(m for cls in pf.classes for m in cls.methods),
+        ]
         if not f.existing_docstring and f.name != "<anonymous>"
     ]
 
@@ -378,8 +382,12 @@ def generate(
                             # (previous injection shifted bytes for later functions).
                             if not dry_run:
                                 fresh_parsed = parser.parse_file(file_path)
+                                all_fresh = [
+                                    *fresh_parsed.functions,
+                                    *(m for cls in fresh_parsed.classes for m in cls.methods),
+                                ]
                                 func = next(
-                                    (f for f in fresh_parsed.functions if f.name == func.name),
+                                    (f for f in all_fresh if f.name == func.name),
                                     func,
                                 )
 
@@ -388,9 +396,9 @@ def generate(
                                 if style
                                 else LANGUAGE_DEFAULT_STYLE.get(func.language, doc_style)
                             )
-                            context = retriever.retrieve_for_function(func)
+                            contexts = retriever.retrieve_for_function(func)
                             doc, _tokens = await gateway.generate_docstring(
-                                func, context, effective_style, verbosity=verbosity
+                                func, contexts, effective_style, verbosity=verbosity, quality=quality
                             )
                             result = injector.inject(
                                 file_path, func, doc, effective_style, dry_run=dry_run
@@ -407,6 +415,12 @@ def generate(
                             )
                         finally:
                             progress.advance(task)
+                    # Re-parse the fully-injected file and store as drift baseline
+                    if not dry_run:
+                        try:
+                            gen_cache.set(parser.parse_file(file_path))
+                        except Exception:
+                            pass
 
             await asyncio.gather(*[process_file(fp, funcs) for fp, funcs in by_file.items()])
 
@@ -468,9 +482,10 @@ def coverage(
 
     for pf in parsed_files:
         folder = os.path.dirname(pf.path)
-        for func in pf.functions:
-            if func.name == "<anonymous>":
-                continue
+        all_funcs = [f for f in pf.functions if f.name != "<anonymous>"]
+        for cls in pf.classes:
+            all_funcs.extend(m for m in cls.methods if m.name != "<anonymous>")
+        for func in all_funcs:
             total_funcs += 1
             t, d = by_folder.get(folder, (0, 0))
             by_folder[folder] = (t + 1, d)
@@ -531,6 +546,7 @@ def drift(
     ),
     output: Optional[str] = typer.Option(None, "--output", help="Write JSON report to file"),
     auto_pr: bool = typer.Option(False, "--auto-pr", help="Open GitHub PR with fixes"),
+    file: Optional[str] = typer.Option(None, "--file", help="Check a single file only (fast; used by the VS Code extension on save)"),
 ) -> None:
     """
     Checks all functions in a repository for documentation drift and optionally auto-fixes or reports issues.
@@ -565,9 +581,27 @@ def drift(
     cache = _get_cache(path_abs)
     detector = DriftDetector()
 
+    # Use LLM path only when API key is present; fall back to signature-only otherwise.
+    # This allows the extension subprocess (which may not inherit .env) to still run.
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as progress:
         t = progress.add_task("Checking drift...", total=None)
-        results = detector.check_directory(path_abs, cache)
+        if anthropic_key:
+            from core.llm.gateway import LLMGateway
+            gateway = LLMGateway(anthropic_key=anthropic_key)
+            if file:
+                file_abs = os.path.abspath(file)
+                sem = asyncio.Semaphore(5)
+                results = asyncio.run(detector.check_file_async(file_abs, cache, gateway, sem))
+            else:
+                results = asyncio.run(detector.check_directory_async(path_abs, cache, gateway))
+        else:
+            if file:
+                file_abs = os.path.abspath(file)
+                results = detector.check_file(file_abs, cache)
+            else:
+                results = detector.check_directory(path_abs, cache)
         progress.update(t, completed=True)
 
     total = len(results)
@@ -592,6 +626,18 @@ def drift(
                     "drifted": len(drifted_res),
                     "undocumented": len(undoc_res),
                     "up_to_date": up_to_date,
+                    "results": [
+                        {
+                            "function_name": r.function_name,
+                            "file_path": r.file_path,
+                            "status": r.status,
+                            "reason": r.reason,
+                            "old_signature": r.old_signature,
+                            "new_signature": r.new_signature,
+                            "line": r.line,
+                        }
+                        for r in results
+                    ],
                 },
                 _f,
             )
@@ -643,8 +689,6 @@ def drift(
                 pass  # proceed without retrieval context
             prog.update(t, completed=True)
 
-        import asyncio
-
         async def _fix_all() -> int:
             # Generate all docstrings concurrently (LLM calls are independent)
             # but inject them file-by-file sequentially to avoid write conflicts.
@@ -659,13 +703,18 @@ def drift(
                 except Exception as e:
                     return (file_path, func, None, doc_style, str(e))
 
-            # Collect all (file_path, func) pairs
+            # Collect all (file_path, func) pairs — include class methods
             work = []
             for file_path, func_names in by_file.items():
                 pf = parser.parse_file(file_path)
-                for func in pf.functions:
-                    if func.name in func_names:
-                        work.append((file_path, func))
+                candidates = {f.name: f for f in pf.functions if f.name != "<anonymous>"}
+                for cls in pf.classes:
+                    for m in cls.methods:
+                        if m.name != "<anonymous>":
+                            candidates[f"{cls.name}.{m.name}"] = m
+                for qname in func_names:
+                    if qname in candidates:
+                        work.append((file_path, candidates[qname]))
 
             console.print(
                 f"Regenerating docs for [bold]{len(work)}[/bold] drifted functions (max 5 concurrent LLM calls)…"

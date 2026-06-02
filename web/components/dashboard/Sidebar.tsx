@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   Home, BarChart2, Zap, GitPullRequest,
-  MessageSquare, FileText, Key, Settings, Activity, Server, HelpCircle,
+  MessageSquare, FileText, Key, Settings, Activity, Server, HelpCircle, CreditCard,
 } from "lucide-react";
 
 const NAV = [
@@ -31,6 +31,7 @@ const NAV = [
     group: "ACCOUNT",
     items: [
       { label: "API Keys", href: "/dashboard/keys", icon: Key },
+      { label: "Pricing", href: "/pricing", icon: CreditCard },
       { label: "Settings", href: "/dashboard/settings", icon: Settings },
       { label: "Need Help?", href: "/dashboard/help", icon: HelpCircle },
     ],

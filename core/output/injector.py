@@ -48,6 +48,17 @@ class DocstringInjector:
             indent = self._get_body_indent(
                 source_bytes, injection_point, func.language, func.start_byte
             )
+
+            # Reconcile LLM-generated param names against the actual parsed signature.
+            # Drop hallucinated names and reorder to match the real parameter order.
+            if func.parameters and docstring.parameters:
+                actual_names = [p["name"] for p in func.parameters]
+                actual_set = set(actual_names)
+                by_name = {p.name: p for p in docstring.parameters if p.name in actual_set}
+                docstring = docstring.model_copy(update={
+                    "parameters": [by_name[n] for n in actual_names if n in by_name]
+                })
+
             formatted = self.format_docstring(docstring, style, func.language, indent)
 
             if self._has_existing_docstring(func):
@@ -323,6 +334,14 @@ class DocstringInjector:
         if doc.complexity:
             lines.append("")
             lines.append(f"{pad}Complexity: {s(doc.complexity)}")
+        if doc.side_effects:
+            lines.append("")
+            lines.append(f"{pad}Side Effects:")
+            lines.append(f"{inner_pad}{s(doc.side_effects)}")
+        if doc.notes:
+            lines.append("")
+            lines.append(f"{pad}Notes:")
+            lines.append(f"{inner_pad}{s(doc.notes)}")
         lines.append(f'{pad}"""')
         lines.append("")
         return "\n".join(lines)
@@ -393,6 +412,10 @@ class DocstringInjector:
             lines.append(f"{pad} * @example")
             for line in doc.example.split("\n"):
                 lines.append(f"{pad} * {s(line)}")
+        if doc.side_effects:
+            lines.append(f"{pad} * @sideEffects {s(doc.side_effects)}")
+        if doc.notes:
+            lines.append(f"{pad} * @notes {s(doc.notes)}")
         lines.append(f"{pad} */")
         lines.append("")
         return "\n".join(lines)

@@ -69,7 +69,7 @@ def _format_context_snippet(contexts: list[RetrievedContext]) -> str:
 
 def build_docstring_prompt(
     func: ParsedFunction,
-    context: RetrievedContext,
+    contexts: list[RetrievedContext],
     style: DocStyle,
     language: str,
     verbosity: str = "standard",
@@ -114,8 +114,9 @@ def build_docstring_prompt(
         f"  - {p['name']}: {p.get('type_annotation', 'unknown')}" for p in func.parameters
     )
 
-    callers = ", ".join(f"{f}()" for _, f in context.callers[:5]) or "none"
-    callees = ", ".join(f"{f}()" for _, f in context.callees[:5]) or "none"
+    primary = contexts[0] if contexts else None
+    callers = ", ".join(f"{f}()" for _, f in (primary.callers[:5] if primary else [])) or "none"
+    callees = ", ".join(f"{f}()" for _, f in (primary.callees[:5] if primary else [])) or "none"
 
     schema_example = json.dumps(
         {
@@ -128,6 +129,8 @@ def build_docstring_prompt(
             "raises": [{"exception": "ValueError", "condition": "When the input is invalid."}],
             "example": "result = my_func(arg1, arg2)",
             "complexity": "O(n) time, O(1) space",
+            "side_effects": "Writes result to disk, or null if none.",
+            "notes": "Thread-safe only if lock held by caller, or null.",
         },
         indent=2,
     )
@@ -135,7 +138,7 @@ def build_docstring_prompt(
     verbosity_guide = {
         "concise": "Be brief. One-sentence summary only. Omit description, example, and complexity unless essential.",
         "standard": "Include summary, parameters, returns, and a short example.",
-        "detailed": "Be thorough. Include summary, full description, all parameters, returns, raises, example, and complexity.",
+        "detailed": "Be thorough. Include summary, full description, all parameters, returns, raises, example, complexity, side_effects if the function mutates state or does I/O, and notes for any non-obvious behaviour or invariants.",
     }
 
     return f"""You are an expert technical writer generating documentation for {language} code.
@@ -158,7 +161,7 @@ Called by: {callers}
 Calls: {callees}
 
 Relevant context from the codebase:
-{_format_context_snippet([context])}
+{_format_context_snippet(contexts)}
 
 Return ONLY a JSON object matching this exact schema (no markdown fences, no extra text):
 {schema_example}
@@ -169,6 +172,8 @@ Rules:
 - If there are no parameters, returns, raises — use empty arrays/null
 - example should show realistic usage with real values
 - complexity is null unless the function has non-trivial algorithmic complexity
+- side_effects is null if the function has no observable side effects
+- notes is null if there is nothing non-obvious to mention
 """
 
 
@@ -405,7 +410,7 @@ def build_drift_check_prompt(func: ParsedFunction, old_docstring: str) -> str:
         prompt = build_drift_check_prompt(parsed_func, \"\"\"Calculates the sum of two numbers.\n\nArgs:\n    a (int): First number.\n    b (int): Second number.\n\nReturns:\n    int: The sum.\"\"\")
         ```
     """
-    return f"""Determine if the existing documentation is still accurate for this function.
+    return f"""Determine whether the existing documentation is still accurate for this function.
 
 Current function code:
 ```{func.language}
@@ -415,14 +420,20 @@ Current function code:
 Existing documentation:
 {old_docstring}
 
-Check if the documentation is:
-1. Accurate for the current parameters (names and types match)
-2. Accurate for the return type
-3. Mentions all important raises/exceptions
-4. Still reflects what the function does
+Check ALL of the following drift types:
+1. SIGNATURE DRIFT — parameter names, types, or count no longer match the code
+2. RETURN DRIFT — return type or description no longer matches what the code returns
+3. BEHAVIOURAL DRIFT — the description says the function does X but the code now does Y
+4. EXCEPTION DRIFT — exceptions documented in Raises are no longer raised, or new ones are raised but undocumented
+5. EXAMPLE DRIFT — any code examples in the documentation would produce different output or fail
+6. SIDE EFFECT DRIFT — documented side effects (I/O, state mutation) no longer match what the code does
+7. ASYNC DRIFT — the function changed between sync and async (or vice versa) and the docs don't reflect it
+
+Be strict: flag as drifted if ANY of the above is true, even partially.
+Do NOT flag as drifted if the docs are merely incomplete or could be more detailed — only flag real inaccuracies.
 
 Return a JSON object:
-{{"is_drifted": true/false, "reason": "explanation of why it drifted, or null if up to date"}}
+{{"is_drifted": true/false, "reason": "one-sentence explanation of the specific drift type found, or null if accurate"}}
 
 Return only the JSON, no extra text.
 """

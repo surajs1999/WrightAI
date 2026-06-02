@@ -26,7 +26,7 @@ interface CoverageItem {
  */
 
 
-function findWrightCli(repoRoot: string): { cmd: string; args: string[] } | null {
+export function findWrightCli(repoRoot: string): { cmd: string; args: string[] } | null {
   // 1. wright in the project's venv
   const venvCandidates = [
     path.join(repoRoot, ".venv", "bin", "wright"),
@@ -74,16 +74,40 @@ function findWrightCli(repoRoot: string): { cmd: string; args: string[] } | null
  * }
  */
 
-function runCli(
+function loadDotEnv(repoRoot: string): Record<string, string> {
+  const envPath = path.join(repoRoot, ".env");
+  const vars: Record<string, string> = {};
+  if (!fs.existsSync(envPath)) return vars;
+  try {
+    for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eqIdx = trimmed.indexOf("=");
+      if (eqIdx <= 0) continue;
+      const key = trimmed.slice(0, eqIdx).trim();
+      let val = trimmed.slice(eqIdx + 1).trim();
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      vars[key] = val;
+    }
+  } catch { /* ignore */ }
+  return vars;
+}
+
+export function runCli(
   cli: { cmd: string; args: string[] },
   repoRoot: string,
   extraArgs: string[],
   tmpOut: string,
   allowExitOne = false,
+  timeoutMs = 90_000,
 ): Promise<string | null> {
   const fullArgs = [...cli.args, ...extraArgs, "--output", tmpOut];
+  // Merge .env from the project root so the CLI subprocess gets ANTHROPIC_API_KEY etc.
+  const env = { ...process.env, ...loadDotEnv(repoRoot) };
   return new Promise(resolve => {
-    cp.execFile(cli.cmd, fullArgs, { cwd: repoRoot, timeout: 90_000 }, (err, _out, stderr) => {
+    cp.execFile(cli.cmd, fullArgs, { cwd: repoRoot, timeout: timeoutMs, env }, (err, _out, stderr) => {
       if (err && !(allowExitOne && err.code === 1)) {
         console.error("[Wright]", stderr || err.message);
         try { fs.unlinkSync(tmpOut); } catch { /* ignore */ }
@@ -145,17 +169,21 @@ function runScan(
  * }
  */
 
-function runDriftScan(repoRoot: string): Promise<{ drifted: number; undocumented: number } | null> {
+function runDriftScan(repoRoot: string): Promise<{ total: number; documented: number; drifted: number; undocumented: number } | null> {
   const os = require("os") as typeof import("os");
   const tmpOut = path.join(os.tmpdir(), `wright-drift-${Date.now()}.json`);
   const cli = findWrightCli(repoRoot);
   if (!cli) return Promise.resolve(null);
-  return runCli(cli, repoRoot, ["drift", repoRoot], tmpOut, false).then(out => {
+  return runCli(cli, repoRoot, ["drift", repoRoot], tmpOut, true, 600_000).then(out => {
     if (!out) return null;
     try {
-      const data = JSON.parse(fs.readFileSync(out, "utf8")) as { drifted: number; undocumented: number };
+      const data = JSON.parse(fs.readFileSync(out, "utf8")) as { total: number; drifted: number; undocumented: number; up_to_date: number };
       try { fs.unlinkSync(out); } catch { /* ignore */ }
-      return { drifted: data.drifted ?? 0, undocumented: data.undocumented ?? 0 };
+      const total = data.total ?? 0;
+      const drifted = data.drifted ?? 0;
+      const undocumented = data.undocumented ?? 0;
+      const documented = (data.up_to_date ?? 0) + drifted;
+      return { total, documented, drifted, undocumented };
     } catch { return null; }
   });
 }
@@ -175,6 +203,15 @@ export class CoverageTreeProvider implements vscode.TreeDataProvider<CoverageIte
 
   refresh(): void { this._onDidChangeTreeData.fire(); }
 
+  /** Immediately update just the Drifted row without re-running the CLI scan. */
+  setDriftedCount(count: number): void {
+    const idx = this._items.findIndex(i => i.label.startsWith("Drifted:"));
+    if (idx >= 0) {
+      this._items[idx] = { label: `Drifted: ${count}`, pct: count === 0 ? 100 : 0, description: "need regeneration" };
+      this.refresh();
+    }
+  }
+
   async loadCoverage(): Promise<void> {
     // The workspace folder the user opened IS the project root — use it directly.
     const repoRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -186,24 +223,22 @@ export class CoverageTreeProvider implements vscode.TreeDataProvider<CoverageIte
 
     await new Promise<void>(resolve => setImmediate(resolve));
 
-    const [result, driftResult] = await Promise.all([
-      runScan(repoRoot),
-      runDriftScan(repoRoot),
-    ]);
+    // Use wright drift for all numbers — fast on reload due to LLM result cache.
+    // First run is slow (LLM per documented function); subsequent runs hit the cache.
+    const driftResult = await runDriftScan(repoRoot);
 
-    if (result) {
-      const { total, documented, files } = result;
+    if (driftResult) {
+      const { total, documented, drifted, undocumented } = driftResult;
       const pct = total > 0 ? (documented / total) * 100 : 100;
-      const drifted = driftResult?.drifted ?? 0;
       this._pct = pct;
       this._total = total;
       this._documented = documented;
       this._items = [
-        { label: `Coverage: ${pct.toFixed(1)}%`,          pct,                                     description: `${files} files` },
-        { label: `Workspace: ${path.basename(repoRoot)}`,  pct: 100,                                description: repoRoot },
-        { label: `Documented: ${documented} / ${total}`,   pct,                                     description: "functions" },
-        { label: `Undocumented: ${total - documented}`,    pct: total - documented === 0 ? 100 : 0,  description: "functions" },
-        { label: `Drifted: ${drifted}`,                    pct: drifted === 0 ? 100 : 0,             description: "need regeneration" },
+        { label: `Coverage: ${pct.toFixed(1)}%`,          pct,                                        description: `${total} functions` },
+        { label: `Workspace: ${path.basename(repoRoot)}`,  pct: 100,                                   description: repoRoot },
+        { label: `Documented: ${documented} / ${total}`,   pct,                                        description: "functions" },
+        { label: `Undocumented: ${undocumented}`,          pct: undocumented === 0 ? 100 : 0,          description: "functions" },
+        { label: `Drifted: ${drifted}`,                    pct: drifted === 0 ? 100 : 0,               description: "need regeneration" },
       ];
     } else {
       this._items = [{ label: "Could not scan workspace", pct: 0, description: "run: pip install wright" }];

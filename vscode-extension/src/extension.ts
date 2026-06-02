@@ -7,7 +7,6 @@ import { generateAndInject } from "./injector";
 import { checkHealth, generateDocstring } from "./client";
 import { WrightHoverProvider } from "./hover";
 import { initGutterDecorations, updateGutterDecorations } from "./gutter";
-import { DRIFTED_FUNCTIONS } from "./codelens";
 
 let statusBarItem: vscode.StatusBarItem;
 
@@ -185,7 +184,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // 4. Register drift decorations
   initDriftDecoration(context);
-  setupDriftOnSave(context, codeLensProvider);
 
   // 5. Coverage tree view — local scan, no backend needed
   const coverageProvider = new CoverageTreeProvider();
@@ -195,6 +193,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       updateStatusBar(statusBarItem, coverageProvider.overallPct, coverageProvider.documented, coverageProvider.total)
     ).catch(console.error);
   refreshCoverage();
+
+  setupDriftOnSave(context, codeLensProvider, () => refreshCoverage());
 
   // 6. Status bar
   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);

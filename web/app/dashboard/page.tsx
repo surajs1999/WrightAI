@@ -385,6 +385,26 @@ export default function DashboardHome() {
         );
       })()}
 
+      {/* Pro upgrade teaser */}
+      <div style={{
+        background: "linear-gradient(135deg, rgba(83,74,183,0.07) 0%, rgba(83,74,183,0.03) 100%)",
+        border: "1px solid rgba(83,74,183,0.18)", borderRadius: 10,
+        padding: "14px 20px", marginBottom: 20,
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
+      }}>
+        <span style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "rgba(175,169,236,0.65)" }}>
+          Pro unlocks semantic drift, codebase chat, auto-PR, and 10× more generations.
+        </span>
+        <a href="/pricing" style={{
+          fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 12.5,
+          color: "#AFA9EC", textDecoration: "none", whiteSpace: "nowrap",
+          padding: "6px 14px", borderRadius: 7,
+          background: "rgba(83,74,183,0.15)", border: "1px solid rgba(127,119,221,0.25)",
+        }}>
+          See plans →
+        </a>
+      </div>
+
       {/* Activity feed */}
       <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 24px" }}>
         <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 14 }}>Repo summary</div>
