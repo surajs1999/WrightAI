@@ -16,6 +16,11 @@ const LINKS = {
     { label: "VS Code Extension", href: "https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai", ext: true },
     { label: "MCP Server", href: "/docs#mcp-reference" },
   ],
+  Legal: [
+    { label: "Terms of Service", href: "/terms-of-service" },
+    { label: "Privacy Policy", href: "/privacy-policy" },
+    { label: "Refund Policy", href: "/refund-policy" },
+  ],
 };
 
 const SOCIALS = [
