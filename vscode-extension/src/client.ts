@@ -4,7 +4,7 @@ import * as vscode from "vscode";
 function getConfig() {
   const cfg = vscode.workspace.getConfiguration("wright");
   return {
-    apiUrl: cfg.get<string>("apiUrl", "https://wrightai-api.fly.dev"),
+    apiUrl: cfg.get<string>("apiUrl", "https://api.wrightai.live"),
     apiKey: cfg.get<string>("apiKey", ""),
     style: cfg.get<string>("style", "google"),
   };
@@ -69,6 +69,39 @@ function buildHeaders(): HeadersInit {
     headers["X-Wright-API-Key"] = apiKey;
   }
   return headers;
+}
+
+/**
+ * Inspects a fetch Response for quota warning/exceeded headers or 429/403 status,
+ * surfaces a VS Code notification, and re-throws when the request should be blocked.
+ */
+export async function handleQuotaResponse(resp: Response): Promise<void> {
+  if (resp.status === 429 || resp.status === 403) {
+    let detail: { message?: string; feature?: string; upgrade_url?: string } = {};
+    try {
+      detail = await resp.clone().json().then((b: { detail?: typeof detail }) => b.detail ?? {});
+    } catch { /* ignore */ }
+
+    const msg = detail.message ?? "You've reached your plan quota. Upgrade to Pro to continue.";
+    const action = await vscode.window.showErrorMessage(
+      `Wright AI: ${msg}`,
+      "Upgrade to Pro",
+      "Dismiss",
+    );
+    if (action === "Upgrade to Pro") {
+      vscode.env.openExternal(vscode.Uri.parse("https://www.wrightai.live/pricing"));
+    }
+    throw new Error(`quota_exceeded:${resp.status}`);
+  }
+
+  // Soft warning — show status bar message, don't block
+  if (resp.headers.get("X-Wright-Quota-Warning") === "true") {
+    const pct = resp.headers.get("X-Wright-Usage-Pct") ?? "?";
+    vscode.window.setStatusBarMessage(
+      `$(warning) Wright AI: ${pct}% of monthly quota used — upgrade soon`,
+      8000,
+    );
+  }
 }
 
 /**
@@ -176,6 +209,7 @@ export async function generateDocstring(
       ...(snippet ? { snippet } : {}),
     }),
   });
+  await handleQuotaResponse(resp);
   if (!resp.ok) {
     throw new Error(`API error: ${resp.status} ${resp.statusText}`);
   }
@@ -250,19 +284,42 @@ export async function getCoverage(
  * driftReport.results.forEach(r => console.log(r.function_name, r.file_path, r.status));
  */
 
+/**
+ * Checks documentation drift for a single file by sending its content to the API.
+ * Uses the server-side ANTHROPIC_API_KEY — no local key required.
+ */
+export async function checkFileDrift(
+  fileContent: string,
+  language: string,
+  filePath: string,
+): Promise<{ results: Array<{ function_name: string; file_path: string; status: string; reason?: string; line?: number }> }> {
+  const { apiUrl } = getConfig();
+  const resp = await fetch(`${apiUrl}/drift-check/file`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify({ file_content: fileContent, file_path: filePath, language }),
+  });
+  await handleQuotaResponse(resp);
+  if (!resp.ok) {
+    throw new Error(`Drift file check API error: ${resp.status}`);
+  }
+  return resp.json() as Promise<{ results: Array<{ function_name: string; file_path: string; status: string; reason?: string; line?: number }> }>;
+}
+
 export async function checkDrift(
-  repoRoot: string
-): Promise<{ drifted: number; undocumented: number; results: Array<{ function_name: string; file_path: string; status: string }> }> {
+  repoRoot: string,
+  filePath?: string,
+): Promise<{ drifted: number; undocumented: number; results: Array<{ function_name: string; file_path: string; status: string; line?: number }> }> {
   const { apiUrl } = getConfig();
   const resp = await fetch(`${apiUrl}/drift-check`, {
     method: "POST",
     headers: buildHeaders(),
-    body: JSON.stringify({ repo_root: repoRoot, since: "HEAD~1" }),
+    body: JSON.stringify({ repo_root: repoRoot, ...(filePath ? { file_path: filePath } : {}) }),
   });
   if (!resp.ok) {
     throw new Error(`Drift check API error: ${resp.status}`);
   }
-  return resp.json() as Promise<{ drifted: number; undocumented: number; results: Array<{ function_name: string; file_path: string; status: string }> }>;
+  return resp.json() as Promise<{ drifted: number; undocumented: number; results: Array<{ function_name: string; file_path: string; status: string; line?: number }> }>;
 }
 
 /**
@@ -303,6 +360,28 @@ export async function checkDrift(
  * }
  */
 
+
+/**
+ * Pushes per-function drift results to the API's Redis function index (fire-and-forget).
+ * Called after each local CLI drift run so the dashboard sees results without a second LLM pass.
+ */
+export async function syncDriftResults(
+  apiUrl: string,
+  apiKey: string,
+  repoName: string,
+  results: Array<{ file_path: string; func_name: string; status: string; reason?: string }>
+): Promise<void> {
+  if (!apiKey || !results.length) return;
+  try {
+    await fetch(`${apiUrl}/drift-check/sync`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Wright-API-Key": apiKey },
+      body: JSON.stringify({ repo_name: repoName, results }),
+    });
+  } catch {
+    // fire-and-forget — never block the editor
+  }
+}
 
 export async function* streamChat(
   question: string,

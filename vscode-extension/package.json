@@ -2,16 +2,16 @@
   "name": "wrightai",
   "displayName": "WrightAI — AI Code Documentation",
   "description": "AI-powered code documentation for VS Code. Generate docstrings, track coverage, detect drift, and chat with your codebase. Supports Python, JavaScript, TypeScript, Java, Go, and Rust.",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "publisher": "WrightAI",
-  "license": "MIT",
+  "license": "AGPL-3.0-or-later",
   "readme": "README.md",
   "icon": "icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/surajs1999/WrightAI"
   },
-  "homepage": "https://wrightai-web.fly.dev/",
+  "homepage": "https://www.wrightai.live/",
   "bugs": {
     "url": "https://github.com/surajs1999/WrightAI/issues"
   },
@@ -102,7 +102,7 @@
       "properties": {
         "wright.apiUrl": {
           "type": "string",
-          "default": "https://wrightai-api.fly.dev",
+          "default": "https://api.wrightai.live",
           "description": "WrightAI API server URL"
         },
         "wright.apiKey": {

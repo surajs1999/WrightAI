@@ -1,0 +1,36 @@
+.gcloudignore
+.git
+.gitignore
+
+# Node
+web/node_modules/
+vscode-extension/node_modules/
+**/node_modules/
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Local env and secrets
+.env
+.env.local
+.env.*.local
+
+# Test and dev artifacts
+**/.pytest_cache/
+**/*.db
+**/.wright/
+
+# Build outputs
+web/.next/
+web/out/
+vscode-extension/out/
+vscode-extension/*.vsix
+
+# Misc
+.DS_Store
+scripts/
