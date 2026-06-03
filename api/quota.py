@@ -11,11 +11,12 @@ from typing import Literal
 # Data models
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class PlanLimits:
     id: str
     display_name: str
-    docs_per_month: int          # -1 = unlimited
+    docs_per_month: int  # -1 = unlimited
     chat_messages_per_month: int
     drift_checks_per_month: int
     repos_limit: int
@@ -30,12 +31,12 @@ class PlanLimits:
 @dataclass
 class QuotaResult:
     allowed: bool
-    warning: bool       # True when ≥80% consumed and not yet at limit
+    warning: bool  # True when ≥80% consumed and not yet at limit
     used: int
-    limit: int          # -1 = unlimited
+    limit: int  # -1 = unlimited
     plan: str
-    pct: int = 0        # 0–100; 0 when unlimited
-    overage: bool = False           # True when allowed via soft overage (Pro)
+    pct: int = 0  # 0–100; 0 when unlimited
+    overage: bool = False  # True when allowed via soft overage (Pro)
     upgrade_url: str = "https://www.wrightai.live/pricing"
 
     def __post_init__(self) -> None:
@@ -69,8 +70,10 @@ _UNLIMITED_RESULT = QuotaResult(allowed=True, warning=False, used=0, limit=-1, p
 # DB helpers (lazy, fail-open)
 # ---------------------------------------------------------------------------
 
+
 def _db():
     from api.user_store import _db as _get_db
+
     return _get_db()
 
 
@@ -156,6 +159,7 @@ def _trigger_email_alert(api_key: str, pct: int, used: int, limit: int) -> None:
     """Fire-and-forget: dispatch quota alert email via Celery (non-blocking)."""
     try:
         from api.tasks.email_tasks import send_quota_alert
+
         send_quota_alert.delay(api_key, pct, used, limit)
     except Exception:
         pass  # Never let email failures affect quota enforcement
@@ -195,10 +199,10 @@ def check_quota(
     limits = get_plan_limits(plan_id)
 
     limit_map: dict[Feature, int] = {
-        "docs_generated":   limits.docs_per_month,
-        "chat_message":     limits.chat_messages_per_month,
+        "docs_generated": limits.docs_per_month,
+        "chat_message": limits.chat_messages_per_month,
         "drift_checks_run": limits.drift_checks_per_month,
-        "repo_connect":     limits.repos_limit,
+        "repo_connect": limits.repos_limit,
     }
     limit = limit_map.get(feature, -1)
 
@@ -218,7 +222,11 @@ def check_quota(
     if user_id is None:
         return QuotaResult(allowed=True, warning=False, used=0, limit=limit, plan=plan_id)
 
-    used = _count_connected_repos(api_key) if feature == "repo_connect" else _count_monthly_events(user_id, feature)
+    used = (
+        _count_connected_repos(api_key)
+        if feature == "repo_connect"
+        else _count_monthly_events(user_id, feature)
+    )
 
     warning = int(limit * 0.8) <= used < limit
     blocked = used >= limit
@@ -269,9 +277,9 @@ def check_feature_flag(
     limits = get_plan_limits(plan_id)
 
     flag_map: dict[FlagFeature, bool] = {
-        "semantic_drift":          limits.semantic_drift_enabled,
-        "auto_pr":                 limits.auto_pr_enabled,
-        "github_action_comments":  limits.github_action_comments_enabled,
+        "semantic_drift": limits.semantic_drift_enabled,
+        "auto_pr": limits.auto_pr_enabled,
+        "github_action_comments": limits.github_action_comments_enabled,
     }
     enabled = flag_map.get(feature, False)
 
@@ -323,14 +331,14 @@ def get_full_quota_status(api_key: str) -> dict:
         "plan": plan_id,
         "plan_display": limits.display_name,
         "features": {
-            "semantic_drift":          limits.semantic_drift_enabled,
-            "auto_pr":                 limits.auto_pr_enabled,
-            "github_action_comments":  limits.github_action_comments_enabled,
+            "semantic_drift": limits.semantic_drift_enabled,
+            "auto_pr": limits.auto_pr_enabled,
+            "github_action_comments": limits.github_action_comments_enabled,
         },
         "quotas": {
             "docs_generated": _quota_entry(docs_used, limits.docs_per_month),
-            "chat_messages":  _quota_entry(chat_used, limits.chat_messages_per_month),
-            "repos":          _quota_entry(repos_used, limits.repos_limit),
+            "chat_messages": _quota_entry(chat_used, limits.chat_messages_per_month),
+            "repos": _quota_entry(repos_used, limits.repos_limit),
         },
         "upgrade_url": "https://www.wrightai.live/pricing",
     }
@@ -339,6 +347,7 @@ def get_full_quota_status(api_key: str) -> dict:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _blocked_detail(feature: str, used: int, limit: int, plan: str) -> dict:
     label = feature.replace("_", " ")

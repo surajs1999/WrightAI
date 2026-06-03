@@ -14,7 +14,7 @@ from core.parser.tree_sitter_parser import ParsedFile, ParsedFunction, ParsedCla
 # Keyed by content hash — no user identity, shared globally across all callers.
 # Falls back silently to SQLite-only if REDIS_URL is unset or unreachable.
 
-_redis_client: object = None   # None = not tried; False = unavailable; Redis = connected
+_redis_client: object = None  # None = not tried; False = unavailable; Redis = connected
 _REDIS_LLM_TTL = int(os.getenv("WRIGHT_CACHE_TTL_DAYS", "30")) * 86400
 
 
@@ -275,12 +275,14 @@ class ASTCache:
         reason: str | None,
     ) -> None:
         """Write an LLM result to SQLite only. Used by set_function_result and Redis backfill."""
-        entry_json = json.dumps({
-            "src_hash": _hash(source),
-            "doc_hash": _hash(docstring),
-            "status": status,
-            "reason": reason,
-        })
+        entry_json = json.dumps(
+            {
+                "src_hash": _hash(source),
+                "doc_hash": _hash(docstring),
+                "status": status,
+                "reason": reason,
+            }
+        )
         now = time.time()
         with self._connect() as conn:
             conn.execute(
@@ -322,7 +324,9 @@ class ASTCache:
                 if cached:
                     val = json.loads(cached)
                     # backfill SQLite so next offline run is instant
-                    self._write_sqlite_result(file_path, func_name, source, docstring, val["status"], val.get("reason"))
+                    self._write_sqlite_result(
+                        file_path, func_name, source, docstring, val["status"], val.get("reason")
+                    )
                     return val["status"], val.get("reason")
             except Exception:
                 pass

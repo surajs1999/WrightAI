@@ -421,6 +421,7 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
     asyncio.create_task(_index_repo(str(repo_path)))
 
     from api.usage_store import record_event
+
     record_event(request.headers.get("X-Wright-API-Key", ""), "repo_connect", repo_name=repo_slug)
 
     repo_id = f"{user_id}/{repo_slug}"
@@ -609,6 +610,7 @@ async def sync_repo(repo_name: str, request: Request) -> dict:
 
     asyncio.create_task(_index_repo(str(repo_path)))
     from api.usage_store import record_event
+
     record_event(request.headers.get("X-Wright-API-Key", ""), "repo_sync", repo_name=repo_name)
     return {"synced": True, "repo": repo_name}
 
@@ -648,5 +650,6 @@ async def trigger_index(repo_name: str, request: Request) -> dict:
         asyncio.create_task(_index_repo(repo_root))
 
     from api.usage_store import record_event
+
     record_event(request.headers.get("X-Wright-API-Key", ""), "repo_index", repo_name=repo_name)
     return {"started": not already, "indexing": True}

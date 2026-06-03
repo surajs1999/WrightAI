@@ -15,8 +15,8 @@ router = APIRouter(prefix="/drift-check", tags=["drift"], dependencies=[Depends(
 
 # ── Async Redis helper (function index — per-user, per-repo) ──────────────────
 
-_aredis: object = None   # None = not tried; False = unavailable; Redis = connected
-_REPO_INDEX_TTL = 7 * 86400   # 7 days, refreshed on every write
+_aredis: object = None  # None = not tried; False = unavailable; Redis = connected
+_REPO_INDEX_TTL = 7 * 86400  # 7 days, refreshed on every write
 
 
 async def _get_aredis() -> "aioredis.Redis | None":
@@ -43,11 +43,13 @@ async def _write_func_index(user_id: str, repo_name: str, results: list[dict]) -
     key = f"wright:repo:v1:{user_id}:{repo_name}"
     now = datetime.now(timezone.utc).isoformat()
     mapping = {
-        f"{item['file_path']}:{item['func_name']}": json.dumps({
-            "status": item["status"],
-            "reason": item.get("reason"),
-            "checked_at": now,
-        })
+        f"{item['file_path']}:{item['func_name']}": json.dumps(
+            {
+                "status": item["status"],
+                "reason": item.get("reason"),
+                "checked_at": now,
+            }
+        )
         for item in results
     }
     try:
@@ -84,9 +86,10 @@ class DriftCheckResponse(BaseModel):
 
 # ── on-save endpoint: accepts raw file content, no local filesystem access needed ──
 
+
 class DriftCheckFileRequest(BaseModel):
     file_content: str
-    file_path: str   # logical path used for display / result matching only
+    file_path: str  # logical path used for display / result matching only
     language: str = "python"
 
 
@@ -96,8 +99,10 @@ class DriftCheckFileResponse(BaseModel):
 
 _LANG_SUFFIX: dict[str, str] = {
     "python": ".py",
-    "javascript": ".js", "javascriptreact": ".jsx",
-    "typescript": ".ts", "typescriptreact": ".tsx",
+    "javascript": ".js",
+    "javascriptreact": ".jsx",
+    "typescript": ".ts",
+    "typescriptreact": ".tsx",
     "java": ".java",
     "go": ".go",
     "rust": ".rs",
@@ -155,7 +160,9 @@ async def check_drift_file(
                     line=func.start_line,
                 )
             async with sem:
-                is_drifted, reason, tokens = await gateway.check_drift(func, func.existing_docstring)
+                is_drifted, reason, tokens = await gateway.check_drift(
+                    func, func.existing_docstring
+                )
             token_totals.append(tokens)
             # Let exceptions propagate — a failed LLM call should not be silently
             # treated as up_to_date (which would hide real drift)
@@ -182,6 +189,7 @@ async def check_drift_file(
             pass
 
     from api.usage_store import record_event
+
     record_event(
         http_request.headers.get("X-Wright-API-Key", ""),
         "drift_checks_run",
@@ -237,6 +245,7 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
     anthropic_key = os.getenv("ANTHROPIC_API_KEY")
     if anthropic_key and _semantic_ok:
         from core.llm.gateway import LLMGateway
+
         gateway = LLMGateway(anthropic_key=anthropic_key)
         sem = _asyncio.Semaphore(5)
         if request.file_path and os.path.exists(request.file_path):
@@ -288,10 +297,11 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
 
 # ── Redis function index: sync + read ─────────────────────────────────────────
 
+
 class DriftSyncItem(BaseModel):
     file_path: str
     func_name: str
-    status: str          # 'drifted' | 'up_to_date' | 'undocumented'
+    status: str  # 'drifted' | 'up_to_date' | 'undocumented'
     reason: str | None = None
 
 
@@ -318,8 +328,15 @@ async def sync_drift_results(request: DriftSyncRequest, http_request: Request) -
     await _write_func_index(
         user_id,
         request.repo_name,
-        [{"file_path": r.file_path, "func_name": r.func_name, "status": r.status, "reason": r.reason}
-         for r in request.results],
+        [
+            {
+                "file_path": r.file_path,
+                "func_name": r.func_name,
+                "status": r.status,
+                "reason": r.reason,
+            }
+            for r in request.results
+        ],
     )
     return {"ok": True}
 
@@ -354,12 +371,14 @@ async def get_drift_results(repo_name: str, http_request: Request) -> dict:
         # field = "{file_path}:{func_name}" — rpartition splits on last ':'
         file_part, _, func_name = field.rpartition(":")
         entry = json.loads(value)
-        results.append({
-            "file_path": file_part,
-            "func_name": func_name,
-            "status": entry["status"],
-            "reason": entry.get("reason"),
-            "checked_at": entry.get("checked_at"),
-        })
+        results.append(
+            {
+                "file_path": file_part,
+                "func_name": func_name,
+                "status": entry["status"],
+                "reason": entry.get("reason"),
+                "checked_at": entry.get("checked_at"),
+            }
+        )
 
     return {"results": results}

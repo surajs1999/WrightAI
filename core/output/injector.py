@@ -55,9 +55,9 @@ class DocstringInjector:
                 actual_names = [p["name"] for p in func.parameters]
                 actual_set = set(actual_names)
                 by_name = {p.name: p for p in docstring.parameters if p.name in actual_set}
-                docstring = docstring.model_copy(update={
-                    "parameters": [by_name[n] for n in actual_names if n in by_name]
-                })
+                docstring = docstring.model_copy(
+                    update={"parameters": [by_name[n] for n in actual_names if n in by_name]}
+                )
 
             formatted = self.format_docstring(docstring, style, func.language, indent)
 

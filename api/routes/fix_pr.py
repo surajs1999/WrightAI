@@ -366,6 +366,7 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
         raise HTTPException(status_code=500, detail=f"PR creation failed: {resp.text}")
 
     from api.usage_store import record_event
+
     record_event(
         request.headers.get("X-Wright-API-Key", ""),
         "fix_pr",

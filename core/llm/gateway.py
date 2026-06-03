@@ -35,7 +35,9 @@ _CHAT_SYSTEM = (
 
 class LLMGateway:
     PRIMARY_MODEL = "claude-sonnet-4-6"
-    DRIFT_MODEL = "claude-haiku-4-5-20251001"  # drift check is simple true/false JSON — no need for Sonnet
+    DRIFT_MODEL = (
+        "claude-haiku-4-5-20251001"  # drift check is simple true/false JSON — no need for Sonnet
+    )
     FALLBACK_MODEL = "gpt-4o"
 
     def __init__(self, anthropic_key: str, openai_key: str | None = None) -> None:
@@ -61,6 +63,7 @@ class LLMGateway:
         """Returns (schema, tokens_used). When quality='high', runs a LangGraph critic/rewriter loop (up to 2 retries); otherwise single-shot. contexts is the list returned by retrieve_for_function."""
         if quality == "high":
             from core.llm.graph import run_doc_gen_graph
+
             doc, tokens = await run_doc_gen_graph(self, func, contexts, style, verbosity)
             return doc, tokens
         prompt = build_docstring_prompt(func, contexts, style, func.language, verbosity)
@@ -93,7 +96,9 @@ class LLMGateway:
         for i, msg in enumerate(history_list):
             # Cache the last history turn so the entire prior conversation is reused
             if i == len(history_list) - 1:
-                content: Any = [{"type": "text", "text": msg["content"], "cache_control": {"type": "ephemeral"}}]
+                content: Any = [
+                    {"type": "text", "text": msg["content"], "cache_control": {"type": "ephemeral"}}
+                ]
             else:
                 content = msg["content"]
             messages.append({"role": msg["role"], "content": content})
@@ -128,7 +133,13 @@ class LLMGateway:
             response = await self._anthropic.messages.create(
                 model=self.PRIMARY_MODEL,
                 max_tokens=200,
-                system=[{"type": "text", "text": "You generate concise follow-up question suggestions. Return only a JSON array.", "cache_control": {"type": "ephemeral"}}],
+                system=[
+                    {
+                        "type": "text",
+                        "text": "You generate concise follow-up question suggestions. Return only a JSON array.",
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
                 messages=[{"role": "user", "content": prompt}],
             )
             text = response.content[0].text.strip()
@@ -153,7 +164,9 @@ class LLMGateway:
         messages: list[dict[str, Any]] = []
         for i, msg in enumerate(history_list):
             if i == len(history_list) - 1:
-                content: Any = [{"type": "text", "text": msg["content"], "cache_control": {"type": "ephemeral"}}]
+                content: Any = [
+                    {"type": "text", "text": msg["content"], "cache_control": {"type": "ephemeral"}}
+                ]
             else:
                 content = msg["content"]
             messages.append({"role": msg["role"], "content": content})
@@ -171,7 +184,9 @@ class LLMGateway:
 
     async def check_drift(self, func: ParsedFunction, old_docstring: str) -> tuple[bool, str, int]:
         prompt = build_drift_check_prompt(func, old_docstring)
-        response_text, tokens = await self._call_claude_tracked(prompt, _DOCSTRING_SYSTEM, model=self.DRIFT_MODEL)
+        response_text, tokens = await self._call_claude_tracked(
+            prompt, _DOCSTRING_SYSTEM, model=self.DRIFT_MODEL
+        )
         try:
             data = json.loads(response_text.strip())
             is_drifted = bool(data.get("is_drifted", False))
@@ -180,10 +195,19 @@ class LLMGateway:
         except (json.JSONDecodeError, KeyError):
             return False, "Could not parse drift check response", tokens
 
-    async def _call_claude_tracked(self, prompt: str, system: str, model: str | None = None) -> tuple[str, int]:
+    async def _call_claude_tracked(
+        self, prompt: str, system: str, model: str | None = None
+    ) -> tuple[str, int]:
         """Like _call_claude but also returns the real input+output token count from Anthropic."""
         cached_system = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
-        messages = [{"role": "user", "content": [{"type": "text", "text": prompt, "cache_control": {"type": "ephemeral"}}]}]
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt, "cache_control": {"type": "ephemeral"}}
+                ],
+            }
+        ]
         for attempt in range(5):
             try:
                 response = await self._anthropic.messages.create(
@@ -213,9 +237,18 @@ class LLMGateway:
                     raise RuntimeError(f"Anthropic API error: {e}") from e
         raise RuntimeError("Exhausted retries calling Anthropic API")
 
-    async def _call_claude(self, prompt: str, system: str, retry_context: str | None = None, model: str | None = None) -> str:
+    async def _call_claude(
+        self, prompt: str, system: str, retry_context: str | None = None, model: str | None = None
+    ) -> str:
         cached_system = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
-        messages: list[dict[str, Any]] = [{"role": "user", "content": [{"type": "text", "text": prompt, "cache_control": {"type": "ephemeral"}}]}]
+        messages: list[dict[str, Any]] = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt, "cache_control": {"type": "ephemeral"}}
+                ],
+            }
+        ]
         if retry_context:
             messages.append({"role": "assistant", "content": retry_context})
             messages.append(

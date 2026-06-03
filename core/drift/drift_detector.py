@@ -192,7 +192,9 @@ class DriftDetector:
         current_funcs = _collect_all_funcs(current_parsed)
         cached_funcs = _collect_all_funcs(cached) if cached else {}
 
-        async def _llm_check(func_name: str, func: ParsedFunction, old_sig: str | None) -> DriftResult:
+        async def _llm_check(
+            func_name: str, func: ParsedFunction, old_sig: str | None
+        ) -> DriftResult:
             async with sem:
                 is_drifted, reason, _tokens = await gateway.check_drift(
                     func, func.existing_docstring or ""
@@ -200,7 +202,12 @@ class DriftDetector:
             status = "drifted" if is_drifted else "up_to_date"
             # Persist result so the next run with identical source+docstring skips LLM.
             cache.set_function_result(
-                file_path, func_name, func.source, func.existing_docstring or "", status, reason if is_drifted else None
+                file_path,
+                func_name,
+                func.source,
+                func.existing_docstring or "",
+                status,
+                reason if is_drifted else None,
             )
             return DriftResult(
                 function_name=func_name,
@@ -215,15 +222,21 @@ class DriftDetector:
         tasks = []
         for func_name, func in current_funcs.items():
             if func.existing_docstring is None:
-                results.append(DriftResult(
-                    function_name=func_name,
-                    file_path=file_path,
-                    status="undocumented",
-                    reason="New function with no documentation" if func_name not in cached_funcs else None,
-                    old_signature=_signature_str(cached_funcs[func_name]) if func_name in cached_funcs else None,
-                    new_signature=_signature_str(func),
-                    line=func.start_line,
-                ))
+                results.append(
+                    DriftResult(
+                        function_name=func_name,
+                        file_path=file_path,
+                        status="undocumented",
+                        reason="New function with no documentation"
+                        if func_name not in cached_funcs
+                        else None,
+                        old_signature=_signature_str(cached_funcs[func_name])
+                        if func_name in cached_funcs
+                        else None,
+                        new_signature=_signature_str(func),
+                        line=func.start_line,
+                    )
+                )
                 continue
 
             old_func = cached_funcs.get(func_name)
@@ -231,15 +244,17 @@ class DriftDetector:
 
             # Fast path 1: signature change is definite drift — no LLM needed
             if old_func and self._signature_changed(old_func, func):
-                results.append(DriftResult(
-                    function_name=func_name,
-                    file_path=file_path,
-                    status="drifted",
-                    reason="Function signature changed since documentation was written",
-                    old_signature=old_sig,
-                    new_signature=_signature_str(func),
-                    line=func.start_line,
-                ))
+                results.append(
+                    DriftResult(
+                        function_name=func_name,
+                        file_path=file_path,
+                        status="drifted",
+                        reason="Function signature changed since documentation was written",
+                        old_signature=old_sig,
+                        new_signature=_signature_str(func),
+                        line=func.start_line,
+                    )
+                )
                 continue
 
             # Fast path 2: source+docstring match last LLM result — return cached status.
@@ -250,15 +265,17 @@ class DriftDetector:
             )
             if cached_result is not None:
                 status, reason = cached_result
-                results.append(DriftResult(
-                    function_name=func_name,
-                    file_path=file_path,
-                    status=status,
-                    reason=reason,
-                    old_signature=old_sig,
-                    new_signature=_signature_str(func),
-                    line=func.start_line,
-                ))
+                results.append(
+                    DriftResult(
+                        function_name=func_name,
+                        file_path=file_path,
+                        status=status,
+                        reason=reason,
+                        old_signature=old_sig,
+                        new_signature=_signature_str(func),
+                        line=func.start_line,
+                    )
+                )
                 continue
 
             tasks.append((func_name, func, old_sig))
@@ -373,10 +390,17 @@ class DriftDetector:
     _VAGUE_RETURN_TYPES = frozenset({"None", "none", "", "Any", "object"})
 
     # Decorators that change the function's interface or behaviour in a doc-relevant way
-    _MEANINGFUL_DECORATORS = frozenset({
-        "property", "staticmethod", "classmethod", "abstractmethod",
-        "cached_property", "override", "final",
-    })
+    _MEANINGFUL_DECORATORS = frozenset(
+        {
+            "property",
+            "staticmethod",
+            "classmethod",
+            "abstractmethod",
+            "cached_property",
+            "override",
+            "final",
+        }
+    )
 
     @staticmethod
     def _norm_decorator(d: str) -> str:
@@ -410,8 +434,12 @@ class DriftDetector:
             return True
 
         # 5. Meaningful decorators changed (e.g. @staticmethod added/removed)
-        old_decs = {self._norm_decorator(d) for d in (old_func.decorators or [])} & self._MEANINGFUL_DECORATORS
-        new_decs = {self._norm_decorator(d) for d in (new_func.decorators or [])} & self._MEANINGFUL_DECORATORS
+        old_decs = {
+            self._norm_decorator(d) for d in (old_func.decorators or [])
+        } & self._MEANINGFUL_DECORATORS
+        new_decs = {
+            self._norm_decorator(d) for d in (new_func.decorators or [])
+        } & self._MEANINGFUL_DECORATORS
         if old_decs != new_decs:
             return True
 

@@ -95,16 +95,18 @@ class HybridRetriever:
                     is_async=False,
                     decorators=[],
                 )
-                all_results.append(RetrievedContext(
-                    function=ctx_func,
-                    chunk=chunk,
-                    callers=[],
-                    callees=[],
-                    vector_score=vector_score,
-                    graph_score=graph_score,
-                    combined_score=self._combine_scores(vector_score, graph_score),
-                    total_tokens=chunk.token_count,
-                ))
+                all_results.append(
+                    RetrievedContext(
+                        function=ctx_func,
+                        chunk=chunk,
+                        callers=[],
+                        callees=[],
+                        vector_score=vector_score,
+                        graph_score=graph_score,
+                        combined_score=self._combine_scores(vector_score, graph_score),
+                        total_tokens=chunk.token_count,
+                    )
+                )
 
         # Ensure the function itself is always first (as primary context with callers/callees)
         primary_chunk: CodeChunk | None = None
@@ -144,7 +146,7 @@ class HybridRetriever:
 
         # Fetch source for top 2 callers and top 2 callees from the store
         related: list[RetrievedContext] = []
-        for file_path, func_name in (callers[:2] + callees[:2]):
+        for file_path, func_name in callers[:2] + callees[:2]:
             if f"{file_path}::{func_name}" in seen_chunk_ids:
                 continue
             results = self._store.search(
@@ -187,16 +189,18 @@ class HybridRetriever:
             )
             vs = 1.0 - r.distance
             gs = pagerank.get(f"{r.file_path}::{r.name}", 0.0)
-            related.append(RetrievedContext(
-                function=ctx_func,
-                chunk=chunk,
-                callers=[],
-                callees=[],
-                vector_score=vs,
-                graph_score=gs,
-                combined_score=self._combine_scores(vs, gs),
-                total_tokens=chunk.token_count,
-            ))
+            related.append(
+                RetrievedContext(
+                    function=ctx_func,
+                    chunk=chunk,
+                    callers=[],
+                    callees=[],
+                    vector_score=vs,
+                    graph_score=gs,
+                    combined_score=self._combine_scores(vs, gs),
+                    total_tokens=chunk.token_count,
+                )
+            )
 
         # Sort remaining by combined score, prepend primary
         all_results.sort(key=lambda c: c.combined_score, reverse=True)

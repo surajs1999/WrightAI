@@ -12,6 +12,7 @@ Celery tasks:
   email.quota_alert        — dedup-checked quota warning / exceeded email
   email.onboarding_drip    — daily beat task for day-7 and day-14 nudges
 """
+
 from __future__ import annotations
 
 import os
@@ -19,13 +20,14 @@ from datetime import datetime, timedelta, timezone
 
 from api.tasks.celery_app import celery_app
 
-_FROM_NAME  = "Wright AI"
+_FROM_NAME = "Wright AI"
 _FROM_EMAIL = os.getenv("BREVO_FROM_EMAIL", "hello@wrightai.live")
 
 
 # ---------------------------------------------------------------------------
 # Brevo client (lazy, fail-open) — SDK v4
 # ---------------------------------------------------------------------------
+
 
 def _brevo_client():
     """Return a configured brevo.Brevo client, or None if BREVO_API_KEY is not set."""
@@ -34,6 +36,7 @@ def _brevo_client():
         return None
     try:
         import brevo
+
         return brevo.Brevo(api_key=api_key)
     except ImportError:
         return None
@@ -43,6 +46,7 @@ def _brevo_client():
 # Base send task
 # ---------------------------------------------------------------------------
 
+
 @celery_app.task(name="email.send", bind=True, max_retries=3, default_retry_delay=60)
 def send_email(self, to: str, subject: str, html: str) -> bool:
     """Send a transactional email via Brevo. Retries up to 3× on failure."""
@@ -51,6 +55,7 @@ def send_email(self, to: str, subject: str, html: str) -> bool:
         return False
     try:
         import brevo
+
         client.transactional_emails.send_transac_email(
             sender=brevo.SendTransacEmailRequestSender(name=_FROM_NAME, email=_FROM_EMAIL),
             to=[brevo.SendTransacEmailRequestToItem(email=to)],
@@ -70,6 +75,7 @@ def _fire(to: str, subject: str, html: str) -> None:
 # ---------------------------------------------------------------------------
 # HTML template helpers
 # ---------------------------------------------------------------------------
+
 
 def _wrap(body: str) -> str:
     """Wrap email body in a consistent branded shell."""
@@ -108,7 +114,7 @@ def _wrap(body: str) -> str:
 def _btn(label: str, url: str, color: str = "#534AB7") -> str:
     return (
         f'<a href="{url}" style="display:inline-block;padding:11px 26px;'
-        f'background:{color};color:#ffffff;text-decoration:none;border-radius:8px;'
+        f"background:{color};color:#ffffff;text-decoration:none;border-radius:8px;"
         f'font-size:14px;font-weight:600;letter-spacing:-0.01em;">{label}</a>'
     )
 
@@ -125,7 +131,7 @@ def _bar(pct: int, color: str = "#EF9F27") -> str:
     return (
         f'<div style="background:#f0eefa;border-radius:999px;height:8px;margin-bottom:24px;overflow:hidden;">'
         f'<div style="background:{color};height:100%;width:{min(pct, 100)}%;border-radius:999px;"></div>'
-        f'</div>'
+        f"</div>"
     )
 
 
@@ -133,12 +139,15 @@ def _bar(pct: int, color: str = "#EF9F27") -> str:
 # Email composers
 # ---------------------------------------------------------------------------
 
+
 def send_welcome(to: str, first_name: str = "") -> None:
     """Send the welcome / onboarding email immediately after sign-up."""
     name = first_name.strip() or "there"
     body = (
         _h2(f"Welcome to Wright AI, {name}")
-        + _p("You're set up and ready to auto-document your codebase. Here's how to get your first docstring in under 2 minutes:")
+        + _p(
+            "You're set up and ready to auto-document your codebase. Here's how to get your first docstring in under 2 minutes:"
+        )
         + """
         <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:28px;">
           <tr><td style="padding:10px 0;border-bottom:1px solid #f0eefa;">
@@ -156,7 +165,10 @@ def send_welcome(to: str, first_name: str = "") -> None:
         </table>
         """
         + f'<p style="margin:0 0 24px;">{_btn("Go to Dashboard →", "https://www.wrightai.live/dashboard")}</p>'
-        + _p("You're on the <strong>Free plan</strong> — 100 doc generations per month, no credit card needed. The CLI and MCP server are always free with your own Anthropic key.", mb=0)
+        + _p(
+            "You're on the <strong>Free plan</strong> — 100 doc generations per month, no credit card needed. The CLI and MCP server are always free with your own Anthropic key.",
+            mb=0,
+        )
     )
     _fire(to, "Welcome to Wright AI — first docstring in 2 minutes", _wrap(body))
 
@@ -166,8 +178,10 @@ def send_quota_warning(to: str, used: int, limit: int, pct: int) -> None:
     remaining = limit - used
     body = (
         _h2(f"You've used {pct}% of your monthly generations")
-        + _p(f"You have <strong>{remaining} doc generation{'s' if remaining != 1 else ''} left</strong> this month. "
-             "When you hit 100% the hosted API pauses until the 1st — but your CLI keeps working with your own Anthropic key.")
+        + _p(
+            f"You have <strong>{remaining} doc generation{'s' if remaining != 1 else ''} left</strong> this month. "
+            "When you hit 100% the hosted API pauses until the 1st — but your CLI keeps working with your own Anthropic key."
+        )
         + _bar(pct, "#EF9F27")
         + "<p style='margin:0 0 8px;font-size:14px;font-weight:600;color:#1a1630;'>Pro gives you 10× more, plus:</p>"
         + """<ul style="margin:0 0 24px;padding-left:20px;font-size:14px;color:#4a4868;line-height:2.1;">
@@ -187,8 +201,10 @@ def send_quota_exceeded(to: str) -> None:
     """Send the hard-limit hit email."""
     body = (
         _h2("You've hit your monthly limit")
-        + _p("You've used all 100 of your free doc generations this month. "
-             "The hosted API is paused until the 1st — but <strong>the CLI still works</strong> if you have your own Anthropic key (<code>ANTHROPIC_API_KEY</code>).")
+        + _p(
+            "You've used all 100 of your free doc generations this month. "
+            "The hosted API is paused until the 1st — but <strong>the CLI still works</strong> if you have your own Anthropic key (<code>ANTHROPIC_API_KEY</code>)."
+        )
         + _bar(100, "#E24B4A")
         + "<p style='margin:0 0 8px;font-size:14px;font-weight:600;color:#1a1630;'>Upgrade now to keep going without interruption:</p>"
         + """<ul style="margin:0 0 24px;padding-left:20px;font-size:14px;color:#4a4868;line-height:2.1;">
@@ -244,15 +260,21 @@ def send_day7_nudge(to: str, docs_count: int) -> None:
         + f'<p style="margin:0 0 20px;">{_btn("Upgrade to Pro — $18/mo →", "https://www.wrightai.live/pricing")}</p>'
         + _p("No long-term commitment. Cancel any time from your billing portal.", mb=0)
     )
-    _fire(to, f"Wright AI: you've documented {docs_count} functions — here's what Pro adds", _wrap(body))
+    _fire(
+        to,
+        f"Wright AI: you've documented {docs_count} functions — here's what Pro adds",
+        _wrap(body),
+    )
 
 
 def send_day14_nudge(to: str, docs_count: int) -> None:
     """Day-14 onboarding nudge — more direct upgrade pitch."""
     body = (
         _h2(f"Two weeks, {docs_count} documented functions")
-        + _p("If you've used Wright AI for two weeks, you know what it does. "
-             "Pro removes the ceiling and adds the features that matter for an active codebase — for less than one lunch.")
+        + _p(
+            "If you've used Wright AI for two weeks, you know what it does. "
+            "Pro removes the ceiling and adds the features that matter for an active codebase — for less than one lunch."
+        )
         + """
         <div style="background:#f5f3ff;border:1px solid #d8d3f5;border-radius:10px;padding:20px 24px;margin-bottom:24px;">
           <p style="margin:0 0 6px;font-size:15px;font-weight:700;color:#534AB7;">Pro — $14/month billed annually</p>
@@ -262,7 +284,10 @@ def send_day14_nudge(to: str, docs_count: int) -> None:
         </div>
         """
         + f'<p style="margin:0 0 20px;">{_btn("Start Pro — cancel any time →", "https://www.wrightai.live/pricing")}</p>'
-        + _p('Still not sure? <a href="mailto:surajsahoo19991012@gmail.com" style="color:#534AB7;">Reply to this email</a> — I read every one.', mb=0)
+        + _p(
+            'Still not sure? <a href="mailto:surajsahoo19991012@gmail.com" style="color:#534AB7;">Reply to this email</a> — I read every one.',
+            mb=0,
+        )
     )
     _fire(to, "Two weeks with Wright AI — is Pro right for you?", _wrap(body))
 
@@ -270,6 +295,7 @@ def send_day14_nudge(to: str, docs_count: int) -> None:
 # ---------------------------------------------------------------------------
 # Celery task: dedup-checked quota alert
 # ---------------------------------------------------------------------------
+
 
 @celery_app.task(name="email.quota_alert")
 def send_quota_alert(api_key: str, pct: int, used: int, limit: int) -> None:
@@ -283,13 +309,16 @@ def send_quota_alert(api_key: str, pct: int, used: int, limit: int) -> None:
 
     try:
         from api.user_store import _db
+
         db = _db()
         month_key = datetime.now(tz=timezone.utc).strftime("%Y-%m")
 
-        row_result = db.table("users") \
-            .select("email, quota_warning_sent_month, quota_exceeded_sent_month") \
-            .eq("api_key", api_key) \
+        row_result = (
+            db.table("users")
+            .select("email, quota_warning_sent_month, quota_exceeded_sent_month")
+            .eq("api_key", api_key)
             .execute()
+        )
         if not row_result.data:
             return
 
@@ -301,17 +330,15 @@ def send_quota_alert(api_key: str, pct: int, used: int, limit: int) -> None:
         if pct >= 100:
             if user.get("quota_exceeded_sent_month") != month_key:
                 send_quota_exceeded(email)
-                db.table("users") \
-                    .update({"quota_exceeded_sent_month": month_key}) \
-                    .eq("api_key", api_key) \
-                    .execute()
+                db.table("users").update({"quota_exceeded_sent_month": month_key}).eq(
+                    "api_key", api_key
+                ).execute()
         elif pct >= 80:
             if user.get("quota_warning_sent_month") != month_key:
                 send_quota_warning(email, used, limit, pct)
-                db.table("users") \
-                    .update({"quota_warning_sent_month": month_key}) \
-                    .eq("api_key", api_key) \
-                    .execute()
+                db.table("users").update({"quota_warning_sent_month": month_key}).eq(
+                    "api_key", api_key
+                ).execute()
     except Exception:
         pass  # Fail-open: never break a quota check because of email issues
 
@@ -319,6 +346,7 @@ def send_quota_alert(api_key: str, pct: int, used: int, limit: int) -> None:
 # ---------------------------------------------------------------------------
 # Celery task: daily onboarding drip (run via Celery Beat)
 # ---------------------------------------------------------------------------
+
 
 @celery_app.task(name="email.onboarding_drip")
 def run_onboarding_drip() -> dict:
@@ -331,25 +359,28 @@ def run_onboarding_drip() -> dict:
     """
     try:
         from api.user_store import _db
+
         db = _db()
         now = datetime.now(tz=timezone.utc)
         sent7 = 0
         sent14 = 0
 
         for days, col, min_docs, send_fn in [
-            (7,  "onboarding_day7_sent",  3, send_day7_nudge),
+            (7, "onboarding_day7_sent", 3, send_day7_nudge),
             (14, "onboarding_day14_sent", 5, send_day14_nudge),
         ]:
             cutoff = (now - timedelta(days=days)).date().isoformat()
-            result = db.table("users") \
-                .select("api_key, email") \
-                .eq("plan", "free") \
-                .eq(col, False) \
-                .gte("created_at", f"{cutoff}T00:00:00Z") \
-                .lt("created_at", f"{cutoff}T23:59:59Z") \
+            result = (
+                db.table("users")
+                .select("api_key, email")
+                .eq("plan", "free")
+                .eq(col, False)
+                .gte("created_at", f"{cutoff}T00:00:00Z")
+                .lt("created_at", f"{cutoff}T23:59:59Z")
                 .execute()
+            )
 
-            for u in (result.data or []):
+            for u in result.data or []:
                 docs = _count_all_docs(db, u["api_key"])
                 if docs >= min_docs:
                     send_fn(u["email"], docs)
@@ -371,11 +402,13 @@ def _count_all_docs(db, api_key: str) -> int:
         if not id_result.data:
             return 0
         user_id = id_result.data[0]["id"]
-        count_result = db.table("usage_events") \
-            .select("id", count="exact") \
-            .eq("user_id", user_id) \
-            .eq("event_type", "docs_generated") \
+        count_result = (
+            db.table("usage_events")
+            .select("id", count="exact")
+            .eq("user_id", user_id)
+            .eq("event_type", "docs_generated")
             .execute()
+        )
         return count_result.count or 0
     except Exception:
         return 0

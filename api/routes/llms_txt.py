@@ -447,6 +447,7 @@ async def generate_llms_txt(body: LlmsTxtRequest, http_request: Request) -> dict
     token_estimate = len(content) // 4
 
     from api.usage_store import record_event
+
     record_event(
         http_request.headers.get("X-Wright-API-Key", ""),
         "llms_txt_generated",

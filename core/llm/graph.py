@@ -32,10 +32,12 @@ def _render_docstring_text(doc: DocstringSchema) -> str:
     if doc.description:
         parts.append(doc.description)
     if doc.parameters:
-        parts.append("Parameters: " + ", ".join(
-            f"{p.name} ({p.type_hint or 'unknown'}): {p.description}"
-            for p in doc.parameters
-        ))
+        parts.append(
+            "Parameters: "
+            + ", ".join(
+                f"{p.name} ({p.type_hint or 'unknown'}): {p.description}" for p in doc.parameters
+            )
+        )
     if doc.returns:
         parts.append(f"Returns ({doc.returns.type_hint or 'unknown'}): {doc.returns.description}")
     if doc.raises:
@@ -50,8 +52,11 @@ def _render_docstring_text(doc: DocstringSchema) -> str:
 def _make_generate_node(gateway: LLMGateway) -> Any:
     async def generate_node(state: DocGenState) -> dict:
         prompt = build_docstring_prompt(
-            state["func"], state["contexts"], state["style"],
-            state["func"].language, state["verbosity"],
+            state["func"],
+            state["contexts"],
+            state["style"],
+            state["func"].language,
+            state["verbosity"],
         )
         # Append critique correction on rewrites
         if state.get("critique"):
@@ -60,12 +65,14 @@ def _make_generate_node(gateway: LLMGateway) -> Any:
                 "Fix the above issue and regenerate the JSON."
             )
         from core.llm.gateway import _DOCSTRING_SYSTEM
+
         response_text, tokens = await gateway._call_claude_tracked(prompt, _DOCSTRING_SYSTEM)
         doc = gateway._parse_structured_output(response_text)
         return {
             "doc": doc,
             "tokens_used": state.get("tokens_used", 0) + tokens,
         }
+
     return generate_node
 
 
@@ -73,25 +80,31 @@ def _make_critic_node(gateway: LLMGateway) -> Any:
     async def critic_node(state: DocGenState) -> dict:
         doc = state["doc"]
         if doc is None:
-            return {"critique": "No document was generated.", "tokens_used": state.get("tokens_used", 0)}
+            return {
+                "critique": "No document was generated.",
+                "tokens_used": state.get("tokens_used", 0),
+            }
         doc_text = _render_docstring_text(doc)
         prompt = build_drift_check_prompt(state["func"], doc_text)
         response_text, tokens = await gateway._call_claude_tracked(
             prompt,
             "You are a precise documentation quality checker. "
-            "Return ONLY valid JSON with keys is_drifted (bool) and reason (str or null)."
+            "Return ONLY valid JSON with keys is_drifted (bool) and reason (str or null).",
         )
         critique: str | None = None
         try:
             data = json.loads(response_text.strip())
             if data.get("is_drifted"):
-                critique = data.get("reason") or "Documentation does not accurately describe the function."
+                critique = (
+                    data.get("reason") or "Documentation does not accurately describe the function."
+                )
         except (json.JSONDecodeError, KeyError):
             pass
         return {
             "critique": critique,
             "tokens_used": state.get("tokens_used", 0) + tokens,
         }
+
     return critic_node
 
 

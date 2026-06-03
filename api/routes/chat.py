@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from api.auth import verify_api_key
-from api.quota import check_feature_flag, check_quota
+from api.quota import check_quota
 
 router = APIRouter(prefix="/chat", tags=["chat"], dependencies=[Depends(verify_api_key)])
 

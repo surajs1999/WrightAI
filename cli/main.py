@@ -270,7 +270,11 @@ def generate(
     verbosity: str = typer.Option("standard", "--verbosity", help="concise/standard/detailed"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview without writing"),
     watch: bool = typer.Option(False, "--watch", help="Watch for changes"),
-    quality: str = typer.Option("standard", "--quality", help="standard/high — 'high' enables critic/rewriter loop (uses more tokens)"),
+    quality: str = typer.Option(
+        "standard",
+        "--quality",
+        help="standard/high — 'high' enables critic/rewriter loop (uses more tokens)",
+    ),
 ) -> None:
     """
     Generates and injects docstrings for all undocumented functions in a specified file or directory using an LLM-backed pipeline.
@@ -398,7 +402,11 @@ def generate(
                             )
                             contexts = retriever.retrieve_for_function(func)
                             doc, _tokens = await gateway.generate_docstring(
-                                func, contexts, effective_style, verbosity=verbosity, quality=quality
+                                func,
+                                contexts,
+                                effective_style,
+                                verbosity=verbosity,
+                                quality=quality,
                             )
                             result = injector.inject(
                                 file_path, func, doc, effective_style, dry_run=dry_run
@@ -546,7 +554,11 @@ def drift(
     ),
     output: Optional[str] = typer.Option(None, "--output", help="Write JSON report to file"),
     auto_pr: bool = typer.Option(False, "--auto-pr", help="Open GitHub PR with fixes"),
-    file: Optional[str] = typer.Option(None, "--file", help="Check a single file only (fast; used by the VS Code extension on save)"),
+    file: Optional[str] = typer.Option(
+        None,
+        "--file",
+        help="Check a single file only (fast; used by the VS Code extension on save)",
+    ),
 ) -> None:
     """
     Checks all functions in a repository for documentation drift and optionally auto-fixes or reports issues.
@@ -589,6 +601,7 @@ def drift(
         t = progress.add_task("Checking drift...", total=None)
         if anthropic_key:
             from core.llm.gateway import LLMGateway
+
             gateway = LLMGateway(anthropic_key=anthropic_key)
             if file:
                 file_abs = os.path.abspath(file)

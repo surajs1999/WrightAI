@@ -92,6 +92,7 @@ def get_or_create_user(workos_user_id: str, email: str) -> User:
     # Send welcome email asynchronously — never block sign-up
     try:
         from api.tasks.email_tasks import send_welcome
+
         send_welcome(email)
     except Exception:
         pass

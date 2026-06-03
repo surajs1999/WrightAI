@@ -15,12 +15,13 @@ from api.auth import verify_api_key
 router = APIRouter(prefix="/billing", tags=["billing"])
 
 _PADDLE_API_URL = os.getenv("PADDLE_API_URL", "https://api.paddle.com")
-_FRONTEND_URL   = os.getenv("FRONTEND_URL", "https://www.wrightai.live")
+_FRONTEND_URL = os.getenv("FRONTEND_URL", "https://www.wrightai.live")
 
 
 # ---------------------------------------------------------------------------
 # Paddle helpers
 # ---------------------------------------------------------------------------
+
 
 def _headers() -> dict[str, str]:
     key = os.getenv("PADDLE_API_KEY", "")
@@ -31,11 +32,14 @@ def _headers() -> dict[str, str]:
 
 def _db():
     from api.user_store import _db as _get_db
+
     return _get_db()
 
 
 def _get_or_create_paddle_customer(api_key: str) -> str:
-    result = _db().table("users").select("paddle_customer_id, email").eq("api_key", api_key).execute()
+    result = (
+        _db().table("users").select("paddle_customer_id, email").eq("api_key", api_key).execute()
+    )
     if not result.data:
         raise HTTPException(status_code=401, detail="User not found")
 
@@ -51,10 +55,14 @@ def _get_or_create_paddle_customer(api_key: str) -> str:
         timeout=10,
     )
     if not resp.is_success:
-        raise HTTPException(status_code=502, detail=f"Failed to create Paddle customer: {resp.text}")
+        raise HTTPException(
+            status_code=502, detail=f"Failed to create Paddle customer: {resp.text}"
+        )
 
     customer_id = resp.json()["data"]["id"]
-    _db().table("users").update({"paddle_customer_id": customer_id}).eq("api_key", api_key).execute()
+    _db().table("users").update({"paddle_customer_id": customer_id}).eq(
+        "api_key", api_key
+    ).execute()
     return customer_id
 
 
@@ -76,6 +84,7 @@ def _get_paddle_price_id(plan_id: str, interval: str) -> str:
 # Request schemas
 # ---------------------------------------------------------------------------
 
+
 class CheckoutRequest(BaseModel):
     plan: str = "pro"
     interval: str = "monthly"
@@ -89,20 +98,21 @@ class PortalRequest(BaseModel):
 # Routes
 # ---------------------------------------------------------------------------
 
+
 @router.post("/checkout", dependencies=[Depends(verify_api_key)])
 async def create_checkout_session(body: CheckoutRequest, request: Request) -> dict:
     """Create a Paddle hosted checkout and return its URL."""
     api_key = request.headers.get("X-Wright-API-Key", "")
     customer_id = _get_or_create_paddle_customer(api_key)
-    price_id    = _get_paddle_price_id(body.plan, body.interval)
+    price_id = _get_paddle_price_id(body.plan, body.interval)
 
     resp = httpx.post(
         f"{_PADDLE_API_URL}/transactions",
         headers=_headers(),
         json={
-            "items":        [{"price_id": price_id, "quantity": 1}],
-            "customer_id":  customer_id,
-            "custom_data":  {"api_key": api_key, "plan": body.plan},
+            "items": [{"price_id": price_id, "quantity": 1}],
+            "customer_id": customer_id,
+            "custom_data": {"api_key": api_key, "plan": body.plan},
             "checkout": {
                 "url": f"{_FRONTEND_URL}/pricing?cancelled=true",
             },
@@ -124,7 +134,7 @@ async def create_checkout_session(body: CheckoutRequest, request: Request) -> di
 async def create_billing_portal(body: PortalRequest, request: Request) -> dict:
     """Generate a Paddle customer portal URL for subscription management."""
     api_key = request.headers.get("X-Wright-API-Key", "")
-    result  = _db().table("users").select("paddle_customer_id").eq("api_key", api_key).execute()
+    result = _db().table("users").select("paddle_customer_id").eq("api_key", api_key).execute()
 
     if not result.data or not result.data[0].get("paddle_customer_id"):
         raise HTTPException(status_code=400, detail="No active subscription found")
@@ -138,8 +148,10 @@ async def create_billing_portal(body: PortalRequest, request: Request) -> dict:
     if not resp.is_success:
         raise HTTPException(status_code=502, detail="Failed to create portal session")
 
-    auth_code  = resp.json()["data"]["customer_auth_token"]
-    portal_url = f"https://customer.paddle.com/?customer_auth_code={auth_code}&return={body.return_url}"
+    auth_code = resp.json()["data"]["customer_auth_token"]
+    portal_url = (
+        f"https://customer.paddle.com/?customer_auth_code={auth_code}&return={body.return_url}"
+    )
     return {"portal_url": portal_url}
 
 
@@ -153,9 +165,9 @@ async def paddle_webhook(request: Request) -> JSONResponse:
       subscription.updated      → sync status / plan changes
       subscription.canceled     → downgrade to free
     """
-    payload   = await request.body()
+    payload = await request.body()
     signature = request.headers.get("Paddle-Signature", "")
-    secret    = os.getenv("PADDLE_WEBHOOK_SECRET", "")
+    secret = os.getenv("PADDLE_WEBHOOK_SECRET", "")
 
     if secret and signature:
         parts = {}
@@ -166,9 +178,7 @@ async def paddle_webhook(request: Request) -> JSONResponse:
         ts = parts.get("ts", "")
         h1 = parts.get("h1", "")
         signed_payload = f"{ts}:{payload.decode()}"
-        expected = hmac.new(
-            secret.encode(), signed_payload.encode(), hashlib.sha256
-        ).hexdigest()
+        expected = hmac.new(secret.encode(), signed_payload.encode(), hashlib.sha256).hexdigest()
         if not hmac.compare_digest(expected, h1):
             raise HTTPException(status_code=400, detail="Invalid Paddle signature")
 
@@ -178,7 +188,7 @@ async def paddle_webhook(request: Request) -> JSONResponse:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
     event_type = event.get("event_type", "")
-    data       = event.get("data", {})
+    data = event.get("data", {})
 
     if event_type == "transaction.completed":
         _handle_transaction_completed(data)
@@ -194,22 +204,25 @@ async def paddle_webhook(request: Request) -> JSONResponse:
 # Webhook event handlers
 # ---------------------------------------------------------------------------
 
+
 def _handle_transaction_completed(data: dict) -> None:
-    custom_data     = data.get("custom_data") or {}
-    api_key         = custom_data.get("api_key", "")
-    plan_id         = custom_data.get("plan", "pro")
+    custom_data = data.get("custom_data") or {}
+    api_key = custom_data.get("api_key", "")
+    plan_id = custom_data.get("plan", "pro")
     subscription_id = data.get("subscription_id", "")
-    customer_id     = data.get("customer_id", "")
+    customer_id = data.get("customer_id", "")
 
     if not api_key or not api_key.startswith("wai_"):
         return
 
-    _db().table("users").update({
-        "plan":                   plan_id,
-        "paddle_customer_id":     customer_id,
-        "paddle_subscription_id": subscription_id,
-        "subscription_status":    "active",
-    }).eq("api_key", api_key).execute()
+    _db().table("users").update(
+        {
+            "plan": plan_id,
+            "paddle_customer_id": customer_id,
+            "paddle_subscription_id": subscription_id,
+            "subscription_status": "active",
+        }
+    ).eq("api_key", api_key).execute()
 
 
 def _handle_subscription_updated(data: dict) -> None:
@@ -217,17 +230,19 @@ def _handle_subscription_updated(data: dict) -> None:
     if not customer_id:
         return
 
-    status      = data.get("status", "inactive")
+    status = data.get("status", "inactive")
     custom_data = data.get("custom_data") or {}
-    plan_id     = custom_data.get("plan", "pro")
+    plan_id = custom_data.get("plan", "pro")
     next_billed = data.get("next_billed_at")
 
-    _db().table("users").update({
-        "plan":                   plan_id if status == "active" else "free",
-        "subscription_status":    status,
-        "paddle_subscription_id": data.get("id", ""),
-        **({"current_period_end": next_billed} if next_billed else {}),
-    }).eq("paddle_customer_id", customer_id).execute()
+    _db().table("users").update(
+        {
+            "plan": plan_id if status == "active" else "free",
+            "subscription_status": status,
+            "paddle_subscription_id": data.get("id", ""),
+            **({"current_period_end": next_billed} if next_billed else {}),
+        }
+    ).eq("paddle_customer_id", customer_id).execute()
 
 
 def _handle_subscription_canceled(data: dict) -> None:
@@ -235,9 +250,11 @@ def _handle_subscription_canceled(data: dict) -> None:
     if not customer_id:
         return
 
-    _db().table("users").update({
-        "plan":                   "free",
-        "subscription_status":    "cancelled",
-        "paddle_subscription_id": None,
-        "current_period_end":     None,
-    }).eq("paddle_customer_id", customer_id).execute()
+    _db().table("users").update(
+        {
+            "plan": "free",
+            "subscription_status": "cancelled",
+            "paddle_subscription_id": None,
+            "current_period_end": None,
+        }
+    ).eq("paddle_customer_id", customer_id).execute()

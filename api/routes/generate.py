@@ -42,7 +42,9 @@ class JobStatusResponse(BaseModel):
 
 
 @router.post("", response_model=GenerateResponse)
-async def generate_docstring(request: GenerateRequest, http_request: Request, response: Response) -> GenerateResponse:
+async def generate_docstring(
+    request: GenerateRequest, http_request: Request, response: Response
+) -> GenerateResponse:
     """
     Generates an AI-powered docstring for a specified Python function by parsing the source file, building a dependency graph, retrieving hybrid context, and injecting the result via an LLM gateway.
 
