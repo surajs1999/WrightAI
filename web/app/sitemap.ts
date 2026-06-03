@@ -68,10 +68,34 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.9,
     })),
     {
+      url: `${BASE}/pricing`,
+      lastModified: LAST_UPDATED,
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    },
+    {
       url: `${BASE}/login`,
       lastModified: new Date("2025-01-01"),
       changeFrequency: "yearly" as const,
       priority: 0.3,
+    },
+    {
+      url: `${BASE}/privacy-policy`,
+      lastModified: new Date("2025-01-01"),
+      changeFrequency: "yearly" as const,
+      priority: 0.2,
+    },
+    {
+      url: `${BASE}/terms-of-service`,
+      lastModified: new Date("2025-01-01"),
+      changeFrequency: "yearly" as const,
+      priority: 0.2,
+    },
+    {
+      url: `${BASE}/refund-policy`,
+      lastModified: new Date("2025-01-01"),
+      changeFrequency: "yearly" as const,
+      priority: 0.2,
     },
   ];
 }

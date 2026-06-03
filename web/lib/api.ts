@@ -1,5 +1,5 @@
 export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "https://wrightai-api.fly.dev";
+  process.env.NEXT_PUBLIC_API_URL ?? "https://api.wrightai.live";
 
 export const APP_URL =
   process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";

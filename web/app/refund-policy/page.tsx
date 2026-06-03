@@ -1,139 +1,206 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import Footer from "@/components/landing/Footer";
 
 const LAST_UPDATED = "June 3, 2026";
 
+const SECTIONS = [
+  "Free Plan",
+  "7-Day Money-Back Guarantee",
+  "Renewals",
+  "Annual Plans",
+  "Exceptional Circumstances",
+  "How Refunds Are Processed",
+  "Chargebacks",
+  "Contact",
+];
+
+function toId(title: string) {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
 export default function RefundPolicyPage() {
+  const [scrolled, setScrolled] = useState(false);
+  const [activeId, setActiveId] = useState(toId(SECTIONS[0]));
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    const observers: IntersectionObserver[] = [];
+    SECTIONS.forEach(title => {
+      const el = document.getElementById(toId(title));
+      if (!el) return;
+      const obs = new IntersectionObserver(
+        ([entry]) => { if (entry.isIntersecting) setActiveId(toId(title)); },
+        { rootMargin: "-20% 0px -70% 0px" }
+      );
+      obs.observe(el);
+      observers.push(obs);
+    });
+    return () => observers.forEach(o => o.disconnect());
+  }, []);
+
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
 
-      {/* Header */}
-      <header style={{
-        position: "sticky", top: 0, zIndex: 50,
-        background: "rgba(6,4,15,0.92)", backdropFilter: "blur(20px)",
-        borderBottom: "1px solid rgba(175,169,236,0.08)",
+      {/* Navbar */}
+      <div style={{
+        position: "fixed", top: 0, left: 0, right: 0, zIndex: 50,
         height: 60,
+        background: scrolled ? "rgba(8,6,18,0.88)" : "transparent",
+        backdropFilter: scrolled ? "blur(20px) saturate(180%)" : "none",
+        borderBottom: scrolled ? "1px solid var(--border)" : "1px solid transparent",
+        transition: "all 0.3s ease",
         display: "flex", alignItems: "center",
       }}>
-        <div style={{ maxWidth: 1100, width: "100%", margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ maxWidth: 1200, width: "100%", margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8 }}>
             <Image src="/wright-logo.svg" alt="Wright AI" width={24} height={24} style={{ height: 24, width: "auto", opacity: 0.9 }} />
-            <span style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 15, color: "var(--text)", letterSpacing: "-0.02em" }}>
-              Wright AI
-            </span>
+            <span style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 15, color: "var(--text)", letterSpacing: "-0.02em" }}>Wright AI</span>
           </Link>
-          <Link
-            href="/"
-            style={{
-              fontFamily: "var(--font-body)", fontSize: 13.5, color: "var(--text-muted)",
-              textDecoration: "none", padding: "6px 14px", borderRadius: 7,
-              border: "1px solid rgba(175,169,236,0.12)",
-            }}
-          >
-            ← Back to Home
+          <Link href="/dashboard" style={{ padding: "8px 18px", borderRadius: 8, background: "linear-gradient(135deg, #534AB7 0%, #7F77DD 100%)", fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 13.5, color: "#fff", textDecoration: "none", boxShadow: "0 4px 14px rgba(83,74,183,0.3)" }}>
+            Start for free →
           </Link>
         </div>
-      </header>
+      </div>
 
-      {/* Content */}
-      <main style={{ maxWidth: 760, margin: "0 auto", padding: "64px 24px 120px" }}>
+      {/* Layout */}
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "60px 24px 0", display: "flex", gap: 0 }}>
 
-        {/* Hero */}
-        <div style={{ marginBottom: 48 }}>
-          <div style={{
-            display: "inline-flex", alignItems: "center", gap: 6,
-            padding: "5px 12px", borderRadius: 999,
-            background: "rgba(83,74,183,0.1)", border: "1px solid rgba(127,119,221,0.2)",
-            marginBottom: 20,
-          }}>
-            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#AFA9EC", letterSpacing: "0.08em" }}>Legal</span>
-          </div>
-          <h1 style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 40, color: "var(--text)", letterSpacing: "-0.04em", lineHeight: 1.1, marginBottom: 16 }}>
-            Refund Policy
-          </h1>
-          <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--text-muted)", lineHeight: 1.7 }}>
-            Last updated: {LAST_UPDATED}
-          </p>
-        </div>
-
-        <div style={{ height: 1, background: "rgba(175,169,236,0.08)", marginBottom: 48 }} />
-
-        {/* Summary callout */}
-        <div style={{
-          padding: "20px 24px", borderRadius: 12, marginBottom: 40,
-          background: "rgba(29,158,117,0.06)", border: "1px solid rgba(29,158,117,0.2)",
-          borderLeft: "3px solid #1D9E75",
+        {/* Sidebar */}
+        <aside style={{
+          width: 220, flexShrink: 0,
+          position: "sticky", top: 60,
+          height: "calc(100vh - 60px)",
+          overflowY: "auto",
+          padding: "48px 0 48px",
+          borderRight: "1px solid rgba(175,169,236,0.06)",
         }}>
-          <p style={{ fontFamily: "var(--font-body)", fontSize: 14.5, color: "var(--text-muted)", lineHeight: 1.75, margin: 0 }}>
-            <strong style={{ color: "var(--text)" }}>Short version:</strong>{" "}We offer a 7-day money-back guarantee on all new paid subscriptions. If you&apos;re not satisfied within your first 7 days, contact us and we&apos;ll issue a full refund — no questions asked.
+          <p style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "rgba(175,169,236,0.35)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16, padding: "0 20px" }}>
+            On this page
           </p>
-        </div>
+          {SECTIONS.map((title, i) => {
+            const id = toId(title);
+            const isActive = activeId === id;
+            return (
+              <a
+                key={id}
+                href={`#${id}`}
+                style={{
+                  display: "block",
+                  fontFamily: "var(--font-body)", fontSize: 13,
+                  color: isActive ? "#AFA9EC" : "var(--text-muted)",
+                  padding: "6px 20px",
+                  textDecoration: "none",
+                  borderLeft: isActive ? "2px solid #534AB7" : "2px solid transparent",
+                  background: isActive ? "rgba(83,74,183,0.07)" : "transparent",
+                  transition: "all 0.15s",
+                  lineHeight: 1.4,
+                }}
+                onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = "var(--text)"; }}
+                onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
+              >
+                <span style={{ opacity: 0.4, fontFamily: "var(--font-mono)", fontSize: 10, marginRight: 6 }}>{String(i + 1).padStart(2, "0")}</span>
+                {title}
+              </a>
+            );
+          })}
 
-        <Section title="1. Free Plan">
-          <P>Wright AI offers a free tier that includes the VS Code extension, CLI, and MCP server. No payment information is required and no charges apply to free plan users.</P>
-        </Section>
+          <div style={{ margin: "32px 20px 0", paddingTop: 24, borderTop: "1px solid rgba(175,169,236,0.07)" }}>
+            <p style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "rgba(175,169,236,0.3)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 12 }}>Also see</p>
+            {[{ label: "Terms of Service", href: "/terms-of-service" }, { label: "Privacy Policy", href: "/privacy-policy" }].map(l => (
+              <Link key={l.href} href={l.href} style={{ display: "block", fontFamily: "var(--font-body)", fontSize: 12.5, color: "rgba(175,169,236,0.4)", textDecoration: "none", marginBottom: 8, transition: "color 0.15s" }}
+                onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "#AFA9EC")}
+                onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "rgba(175,169,236,0.4)")}
+              >{l.label} →</Link>
+            ))}
+          </div>
+        </aside>
 
-        <Section title="2. 7-Day Money-Back Guarantee">
-          <P>If you subscribe to a paid plan and are not satisfied with the Service for any reason, you may request a full refund within <strong style={{ color: "var(--text)" }}>7 days</strong> of your initial purchase date.</P>
-          <P>To request a refund, email us at <a href="mailto:hello@wrightai.live" style={{ color: "#AFA9EC", textDecoration: "none" }}>hello@wrightai.live</a> with the subject line "Refund Request" and include your account email address. We will process your refund within 5–10 business days.</P>
-          <P>The 7-day guarantee applies only to the first payment on a new subscription. It does not apply to subsequent renewals or plan upgrades.</P>
-        </Section>
+        {/* Main content */}
+        <main style={{ flex: 1, minWidth: 0, padding: "48px 0 120px 56px", maxWidth: 720 }}>
 
-        <Section title="3. Renewals">
-          <P>Subscriptions renew automatically at the end of each billing period (monthly or annually). We do not offer refunds for renewal charges unless the renewal occurred due to a billing error.</P>
-          <P>To avoid being charged for a renewal, you must cancel your subscription at least 24 hours before your billing date. You can cancel at any time from the <Link href="/dashboard" style={{ color: "#AFA9EC", textDecoration: "none" }}>dashboard</Link> under Settings → Billing.</P>
-        </Section>
-
-        <Section title="4. Annual Plans">
-          <P>Annual subscriptions are eligible for the 7-day money-back guarantee on the first payment. After the 7-day window, annual plans are non-refundable but you retain access to the Service for the remainder of your billing period.</P>
-          <P>If you cancel an annual plan after 7 days, your subscription will remain active until the end of the paid period and will not auto-renew.</P>
-        </Section>
-
-        <Section title="5. Exceptional Circumstances">
-          <P>Outside the 7-day window, we may grant refunds at our sole discretion in exceptional circumstances, such as:</P>
-          <BulletList items={[
-            "A billing error or duplicate charge on our part",
-            "Extended service downtime that prevented you from using the product",
-            "Extenuating personal circumstances reviewed on a case-by-case basis",
-          ]} />
-          <P>Requests for exceptional refunds are not guaranteed and will be evaluated individually.</P>
-        </Section>
-
-        <Section title="6. How Refunds Are Processed">
-          <P>Refunds are returned to the original payment method used at the time of purchase. Processing times vary by payment provider but typically take 5–10 business days to appear on your statement.</P>
-          <P>We use Paddle as our payment processor. For billing disputes or if you believe a charge is incorrect, you can also contact Paddle directly, though reaching out to us first will typically result in a faster resolution.</P>
-        </Section>
-
-        <Section title="7. Chargebacks">
-          <P>If you initiate a chargeback through your bank or card provider without first contacting us, your account may be suspended pending resolution. We encourage you to contact us directly — most issues can be resolved quickly and we are happy to help.</P>
-        </Section>
-
-        <Section title="8. Contact">
-          <P>For refund requests or billing questions, reach out to us at:</P>
-          <div style={{
-            marginTop: 16, padding: "20px 24px", borderRadius: 10,
-            background: "rgba(83,74,183,0.07)", border: "1px solid rgba(127,119,221,0.15)",
-          }}>
-            <p style={{ fontFamily: "var(--font-body)", fontSize: 14.5, color: "var(--text-muted)", lineHeight: 1.8, margin: 0 }}>
-              Wright AI<br />
-              <a href="mailto:hello@wrightai.live" style={{ color: "#AFA9EC", textDecoration: "none" }}>hello@wrightai.live</a>
+          {/* Hero */}
+          <div style={{ marginBottom: 48 }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 999, background: "rgba(83,74,183,0.1)", border: "1px solid rgba(127,119,221,0.2)", marginBottom: 20 }}>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#AFA9EC", letterSpacing: "0.08em" }}>Legal</span>
+            </div>
+            <h1 style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 40, color: "var(--text)", letterSpacing: "-0.04em", lineHeight: 1.1, marginBottom: 16 }}>
+              Refund Policy
+            </h1>
+            <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--text-muted)", lineHeight: 1.7 }}>
+              Last updated: {LAST_UPDATED}
             </p>
           </div>
-          <P>We typically respond to refund requests within one business day.</P>
-        </Section>
 
-        {/* Legal links */}
-        <div style={{ marginTop: 56, display: "flex", gap: 16, flexWrap: "wrap" }}>
-          <Link href="/terms-of-service" style={{ fontFamily: "var(--font-body)", fontSize: 13.5, color: "var(--text-muted)", textDecoration: "none" }}>
-            Terms of Service →
-          </Link>
-          <Link href="/privacy-policy" style={{ fontFamily: "var(--font-body)", fontSize: 13.5, color: "var(--text-muted)", textDecoration: "none" }}>
-            Privacy Policy →
-          </Link>
-        </div>
+          <div style={{ height: 1, background: "rgba(175,169,236,0.08)", marginBottom: 48 }} />
 
-      </main>
+          {/* Summary callout */}
+          <div style={{ padding: "20px 24px", borderRadius: 12, marginBottom: 40, background: "rgba(29,158,117,0.06)", border: "1px solid rgba(29,158,117,0.2)", borderLeft: "3px solid #1D9E75" }}>
+            <p style={{ fontFamily: "var(--font-body)", fontSize: 14.5, color: "var(--text-muted)", lineHeight: 1.75, margin: 0 }}>
+              <strong style={{ color: "var(--text)" }}>Short version:</strong>{" "}We offer a 7-day money-back guarantee on all new paid subscriptions. If you&apos;re not satisfied within your first 7 days, contact us and we&apos;ll issue a full refund — no questions asked.
+            </p>
+          </div>
+
+          <Section title="1. Free Plan">
+            <P>Wright AI offers a free tier that includes the VS Code extension, CLI, and MCP server. No payment information is required and no charges apply to free plan users.</P>
+          </Section>
+
+          <Section title="2. 7-Day Money-Back Guarantee">
+            <P>If you subscribe to a paid plan and are not satisfied with the Service for any reason, you may request a full refund within <strong style={{ color: "var(--text)" }}>7 days</strong> of your initial purchase date.</P>
+            <P>To request a refund, email us at <a href="mailto:hello@wrightai.live" style={{ color: "#AFA9EC", textDecoration: "none" }}>hello@wrightai.live</a> with the subject line &quot;Refund Request&quot; and include your account email address. We will process your refund within 5–10 business days.</P>
+            <P>The 7-day guarantee applies only to the first payment on a new subscription. It does not apply to subsequent renewals or plan upgrades.</P>
+          </Section>
+
+          <Section title="3. Renewals">
+            <P>Subscriptions renew automatically at the end of each billing period (monthly or annually). We do not offer refunds for renewal charges unless the renewal occurred due to a billing error.</P>
+            <P>To avoid being charged for a renewal, you must cancel your subscription at least 24 hours before your billing date. You can cancel at any time from the <Link href="/dashboard" style={{ color: "#AFA9EC", textDecoration: "none" }}>dashboard</Link> under Settings → Billing.</P>
+          </Section>
+
+          <Section title="4. Annual Plans">
+            <P>Annual subscriptions are eligible for the 7-day money-back guarantee on the first payment. After the 7-day window, annual plans are non-refundable but you retain access to the Service for the remainder of your billing period.</P>
+            <P>If you cancel an annual plan after 7 days, your subscription will remain active until the end of the paid period and will not auto-renew.</P>
+          </Section>
+
+          <Section title="5. Exceptional Circumstances">
+            <P>Outside the 7-day window, we may grant refunds at our sole discretion in exceptional circumstances, such as:</P>
+            <BulletList items={[
+              "A billing error or duplicate charge on our part",
+              "Extended service downtime that prevented you from using the product",
+              "Extenuating personal circumstances reviewed on a case-by-case basis",
+            ]} />
+            <P>Requests for exceptional refunds are not guaranteed and will be evaluated individually.</P>
+          </Section>
+
+          <Section title="6. How Refunds Are Processed">
+            <P>Refunds are returned to the original payment method used at the time of purchase. Processing times vary by payment provider but typically take 5–10 business days to appear on your statement.</P>
+            <P>We use Paddle as our payment processor. For billing disputes or if you believe a charge is incorrect, you can also contact Paddle directly, though reaching out to us first will typically result in a faster resolution.</P>
+          </Section>
+
+          <Section title="7. Chargebacks">
+            <P>If you initiate a chargeback through your bank or card provider without first contacting us, your account may be suspended pending resolution. We encourage you to contact us directly — most issues can be resolved quickly and we are happy to help.</P>
+          </Section>
+
+          <Section title="8. Contact">
+            <P>For refund requests or billing questions, reach out to us at:</P>
+            <div style={{ marginTop: 16, padding: "20px 24px", borderRadius: 10, background: "rgba(83,74,183,0.07)", border: "1px solid rgba(127,119,221,0.15)" }}>
+              <p style={{ fontFamily: "var(--font-body)", fontSize: 14.5, color: "var(--text-muted)", lineHeight: 1.8, margin: 0 }}>
+                Wright AI<br />
+                <a href="mailto:hello@wrightai.live" style={{ color: "#AFA9EC", textDecoration: "none" }}>hello@wrightai.live</a>
+              </p>
+            </div>
+            <P>We typically respond to refund requests within one business day.</P>
+          </Section>
+
+        </main>
+      </div>
 
       <Footer />
     </div>
@@ -141,12 +208,11 @@ export default function RefundPolicyPage() {
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const label = title.replace(/^\d+\.\s*/, "");
+  const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
   return (
-    <div style={{ marginBottom: 40 }}>
-      <h2 style={{
-        fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 20,
-        color: "var(--text)", letterSpacing: "-0.02em", marginBottom: 14,
-      }}>
+    <div id={id} style={{ marginBottom: 44, paddingTop: 8 }}>
+      <h2 style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 20, color: "var(--text)", letterSpacing: "-0.02em", marginBottom: 14 }}>
         {title}
       </h2>
       {children}

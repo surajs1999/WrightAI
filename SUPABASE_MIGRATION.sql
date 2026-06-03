@@ -71,7 +71,28 @@ CREATE INDEX IF NOT EXISTS idx_users_plan ON users(plan);
 CREATE INDEX IF NOT EXISTS idx_users_stripe_customer ON users(stripe_customer_id);
 
 
--- 3. Helpful view: current month usage per user
+-- 3. Email tracking + overage columns
+--    Run this block after the initial migration if you already applied the first version.
+
+-- Plans table: overage rate for Pro soft-limit billing
+ALTER TABLE plans
+  ADD COLUMN IF NOT EXISTS overage_rate_per_doc DECIMAL(10,5) NOT NULL DEFAULT 0;
+
+UPDATE plans SET overage_rate_per_doc = 0.008 WHERE id = 'pro';
+
+-- Users table: email dedup tracking (stores YYYY-MM of last send to avoid duplicates)
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS quota_warning_sent_month  TEXT,
+  ADD COLUMN IF NOT EXISTS quota_exceeded_sent_month TEXT,
+  ADD COLUMN IF NOT EXISTS onboarding_day7_sent      BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS onboarding_day14_sent     BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Index for fast onboarding drip queries (daily Celery beat task)
+CREATE INDEX IF NOT EXISTS idx_users_plan_created ON users(plan, created_at);
+CREATE INDEX IF NOT EXISTS idx_users_onboarding   ON users(plan, onboarding_day7_sent, onboarding_day14_sent);
+
+
+-- 4. Helpful view: current month usage per user
 --    Use this in Supabase dashboard to monitor usage by plan.
 CREATE OR REPLACE VIEW monthly_usage_summary AS
 SELECT

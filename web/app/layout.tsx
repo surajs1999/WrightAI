@@ -101,7 +101,7 @@ export const metadata: Metadata = {
  * @example
  * <RootLayout><HomePage /></RootLayout>
  */
-const jsonLd = {
+const softwareAppSchema = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   name: "Wright AI",
@@ -121,6 +121,89 @@ const jsonLd = {
     name: "Wright AI",
     url: SITE_URL,
   },
+};
+
+const organizationSchema = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Wright AI",
+  url: SITE_URL,
+  logo: `${SITE_URL}/wright-logo.svg`,
+  description:
+    "Wright AI builds AI-powered code documentation tools for developers. Auto-generate docstrings, detect documentation drift, and expose your codebase to AI assistants via MCP.",
+  sameAs: [
+    "https://github.com/surajs1999/WrightAI",
+    "https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai",
+    "https://pypi.org/project/wright/",
+  ],
+  contactPoint: {
+    "@type": "ContactPoint",
+    email: "surajsahoo19991012@gmail.com",
+    contactType: "customer support",
+  },
+};
+
+const homepageFaqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: [
+    {
+      "@type": "Question",
+      name: "What is Wright AI?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Wright AI is an AI code documentation tool that automatically generates docstrings for Python, TypeScript, JavaScript, Go, and Rust. It detects documentation drift when code changes, and exposes your codebase to AI assistants like Claude Code, Cursor, and Copilot via an MCP server.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Is Wright AI free?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes. The VS Code extension, CLI tool, and MCP server are completely free to use. Sign in at wrightai.live with GitHub or Google to get your personal API key.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "What programming languages does Wright AI support?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Wright AI supports Python, TypeScript, JavaScript, Go, and Rust. It generates language-native documentation formats: Google/NumPy/JSDoc/epytext style docstrings for Python, JSDoc for TypeScript and JavaScript, godoc line comments for Go, and rustdoc /// comments for Rust.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "How do I install Wright AI?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Install the VS Code extension from the VS Code Marketplace (search WrightAI), or install the CLI with: pip install wright. For the CLI, add your Anthropic API key to a .env file, then run wright init . to get started.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "What is documentation drift?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Documentation drift occurs when a function's code changes — parameters renamed, return types changed — but the docstring is not updated to match. Wright AI detects drift automatically on every file save in VS Code, and the CLI command wright drift . reports all stale docstrings across your entire codebase.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Does Wright AI work with GitHub Actions?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes. Add the Wright AI GitHub Action to your workflow to enforce documentation coverage thresholds on every pull request, auto-generate missing docstrings, or detect drift in CI. It supports coverage, generate, and drift modes.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "What is the MCP server and how does it work?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "The Wright AI MCP server exposes your codebase documentation to AI assistants (Claude Code, Cursor, Copilot) via the Model Context Protocol. Once configured in your .mcp.json, AI tools can search your docs, retrieve function documentation, and list undocumented functions — all without leaving the editor.",
+      },
+    },
+  ],
 };
 
 /**
@@ -149,7 +232,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareAppSchema) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(homepageFaqSchema) }}
         />
       </head>
       <body>{children}</body>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useConnectedRepos } from "@/hooks/useConnectedRepos";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://wrightai-api.fly.dev";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://api.wrightai.live";
 
 type Tool = "claude" | "cursor" | "continue" | "windsurf";
 

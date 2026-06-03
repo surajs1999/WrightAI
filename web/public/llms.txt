@@ -1,0 +1,42 @@
+# Wright AI
+
+> AI-powered code documentation tool. Auto-generates docstrings, detects documentation drift, and exposes your codebase to AI assistants via MCP.
+
+Wright AI automatically generates, maintains, and serves code documentation using Claude AI. It supports Python, TypeScript, JavaScript, Go, and Rust across four surfaces: a VS Code extension, a CLI tool, a GitHub Action, and an MCP server.
+
+## Key Pages
+
+- [Home](https://www.wrightai.live): Product overview, install instructions, and feature highlights
+- [Documentation](https://www.wrightai.live/docs): Full reference for the CLI, VS Code extension, GitHub Action, and MCP server
+- [Pricing](https://www.wrightai.live/pricing): Free and paid plan details
+- [Python Docstring Generator](https://www.wrightai.live/python): Auto-generate Python docstrings in Google, NumPy, or epytext style
+- [TypeScript JSDoc Generator](https://www.wrightai.live/typescript): Auto-generate JSDoc comments for TypeScript functions and classes
+- [JavaScript Documentation Generator](https://www.wrightai.live/javascript): Auto-generate JSDoc for JavaScript projects
+- [Go Documentation Generator](https://www.wrightai.live/go): Auto-generate godoc-style line comments for Go functions
+- [Rust Documentation Generator](https://www.wrightai.live/rust): Auto-generate rustdoc /// comments for Rust functions
+
+## Legal
+
+- [Privacy Policy](https://www.wrightai.live/privacy-policy)
+- [Terms of Service](https://www.wrightai.live/terms-of-service)
+- [Refund Policy](https://www.wrightai.live/refund-policy)
+
+## Product
+
+- Name: Wright AI
+- License: AGPL-3.0 (free); commercial license available
+- Pricing: Free to start — VS Code extension, CLI, and MCP server are fully free
+- Install (CLI): pip install wright
+- Install (VS Code): https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai
+- Source: https://github.com/surajs1999/WrightAI
+- Package: https://pypi.org/project/wright/
+
+## Features
+
+- Auto-generate docstrings for Python, TypeScript, JavaScript, Go, and Rust
+- Documentation drift detection — flags stale docstrings when function signatures change
+- VS Code CodeLens, gutter icons, and diff preview
+- GitHub Action for CI coverage enforcement
+- MCP server for Claude Code, Cursor, and Copilot integration
+- llms.txt generation for your own codebase
+- Codebase chat with file:line citations

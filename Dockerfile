@@ -11,8 +11,11 @@ COPY core/ core/
 COPY api/ api/
 COPY cli/ cli/
 COPY mcp_server/ mcp_server/
+COPY start.sh /start.sh
+COPY start_worker.sh /start_worker.sh
 
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir -e . && \
+    chmod +x /start.sh /start_worker.sh
 
 ENV WRIGHT_API_PORT=8080
 ENV CHROMA_PATH=/data/chroma
@@ -23,4 +26,4 @@ RUN mkdir -p /data
 
 EXPOSE 8080
 
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8080", "--log-level", "info"]
+CMD ["/start.sh"]

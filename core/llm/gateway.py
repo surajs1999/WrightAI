@@ -88,9 +88,15 @@ class LLMGateway:
         """Yield raw text chunks from Claude, then yield citations as a final sentinel."""
         context_prompt = build_chat_prompt(question, contexts)
 
-        messages: list[dict[str, str]] = []
-        for msg in history or []:
-            messages.append({"role": msg["role"], "content": msg["content"]})
+        history_list = list(history or [])
+        messages: list[dict[str, Any]] = []
+        for i, msg in enumerate(history_list):
+            # Cache the last history turn so the entire prior conversation is reused
+            if i == len(history_list) - 1:
+                content: Any = [{"type": "text", "text": msg["content"], "cache_control": {"type": "ephemeral"}}]
+            else:
+                content = msg["content"]
+            messages.append({"role": msg["role"], "content": content})
         messages.append({"role": "user", "content": context_prompt})
 
         cited_paths = list({ctx.chunk.file_path for ctx in contexts})
@@ -99,7 +105,7 @@ class LLMGateway:
         async with self._anthropic.messages.stream(
             model=self.PRIMARY_MODEL,
             max_tokens=2048,
-            system=_CHAT_SYSTEM,
+            system=[{"type": "text", "text": _CHAT_SYSTEM, "cache_control": {"type": "ephemeral"}}],
             messages=messages,
         ) as stream:
             async for text in stream.text_stream:
@@ -122,7 +128,7 @@ class LLMGateway:
             response = await self._anthropic.messages.create(
                 model=self.PRIMARY_MODEL,
                 max_tokens=200,
-                system="You generate concise follow-up question suggestions. Return only a JSON array.",
+                system=[{"type": "text", "text": "You generate concise follow-up question suggestions. Return only a JSON array.", "cache_control": {"type": "ephemeral"}}],
                 messages=[{"role": "user", "content": prompt}],
             )
             text = response.content[0].text.strip()
@@ -143,15 +149,20 @@ class LLMGateway:
     ) -> tuple[str, list[str]]:
         context_prompt = build_chat_prompt(question, contexts)
 
-        messages: list[dict[str, str]] = []
-        for msg in history or []:
-            messages.append({"role": msg["role"], "content": msg["content"]})
+        history_list = list(history or [])
+        messages: list[dict[str, Any]] = []
+        for i, msg in enumerate(history_list):
+            if i == len(history_list) - 1:
+                content: Any = [{"type": "text", "text": msg["content"], "cache_control": {"type": "ephemeral"}}]
+            else:
+                content = msg["content"]
+            messages.append({"role": msg["role"], "content": content})
         messages.append({"role": "user", "content": context_prompt})
 
         response = await self._anthropic.messages.create(
             model=self.PRIMARY_MODEL,
             max_tokens=2048,
-            system=_CHAT_SYSTEM,
+            system=[{"type": "text", "text": _CHAT_SYSTEM, "cache_control": {"type": "ephemeral"}}],
             messages=messages,
         )
         answer = response.content[0].text
@@ -171,16 +182,23 @@ class LLMGateway:
 
     async def _call_claude_tracked(self, prompt: str, system: str, model: str | None = None) -> tuple[str, int]:
         """Like _call_claude but also returns the real input+output token count from Anthropic."""
-        messages: list[dict[str, str]] = [{"role": "user", "content": prompt}]
+        cached_system = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+        messages = [{"role": "user", "content": [{"type": "text", "text": prompt, "cache_control": {"type": "ephemeral"}}]}]
         for attempt in range(5):
             try:
                 response = await self._anthropic.messages.create(
                     model=model or self.PRIMARY_MODEL,
                     max_tokens=2048,
-                    system=system,
+                    system=cached_system,
                     messages=messages,
                 )
-                tokens = response.usage.input_tokens + response.usage.output_tokens
+                usage = response.usage
+                tokens = (
+                    usage.input_tokens
+                    + usage.output_tokens
+                    + getattr(usage, "cache_creation_input_tokens", 0)
+                    + getattr(usage, "cache_read_input_tokens", 0)
+                )
                 return response.content[0].text, tokens
             except anthropic.RateLimitError:
                 if attempt == 4:
@@ -196,7 +214,8 @@ class LLMGateway:
         raise RuntimeError("Exhausted retries calling Anthropic API")
 
     async def _call_claude(self, prompt: str, system: str, retry_context: str | None = None, model: str | None = None) -> str:
-        messages: list[dict[str, str]] = [{"role": "user", "content": prompt}]
+        cached_system = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+        messages: list[dict[str, Any]] = [{"role": "user", "content": [{"type": "text", "text": prompt, "cache_control": {"type": "ephemeral"}}]}]
         if retry_context:
             messages.append({"role": "assistant", "content": retry_context})
             messages.append(
@@ -212,7 +231,7 @@ class LLMGateway:
                 response = await self._anthropic.messages.create(
                     model=model or self.PRIMARY_MODEL,
                     max_tokens=2048,
-                    system=system,
+                    system=cached_system,
                     messages=messages,
                 )
                 return response.content[0].text

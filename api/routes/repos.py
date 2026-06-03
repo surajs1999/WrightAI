@@ -164,7 +164,7 @@ def load_token(user_dir: Path, repo_slug: str) -> str | None:
 router = APIRouter(prefix="/repos", tags=["repos"], dependencies=[Depends(verify_api_key)])
 
 _REPOS_BASE = Path(os.getenv("REPOS_PATH", "/data/repos"))
-_API_URL = os.getenv("WRIGHT_API_URL", "https://wrightai-api.fly.dev")
+_API_URL = os.getenv("WRIGHT_API_URL", "https://api.wrightai.live")
 
 
 def _register_github_webhook(github_token: str, git_url: str, api_key: str) -> None:

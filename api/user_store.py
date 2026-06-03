@@ -87,7 +87,16 @@ def get_or_create_user(workos_user_id: str, email: str) -> User:
     )
 
     row = insert.data[0]
-    return User(**{k: row[k] for k in User.__dataclass_fields__})
+    user = User(**{k: row[k] for k in User.__dataclass_fields__})
+
+    # Send welcome email asynchronously — never block sign-up
+    try:
+        from api.tasks.email_tasks import send_welcome
+        send_welcome(email)
+    except Exception:
+        pass
+
+    return user
 
 
 def rotate_api_key(old_api_key: str) -> User | None:

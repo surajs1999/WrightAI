@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import Footer from "@/components/landing/Footer";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -488,7 +489,14 @@ function Table({ headers, rows }: { headers: string[]; rows: React.ReactNode[][]
  */
 export default function DocsPage() {
   const [activeId, setActiveId] = useState("what-is-wright");
+  const [scrolled, setScrolled] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   // Track active section via IntersectionObserver
   useEffect(() => {
@@ -512,12 +520,14 @@ export default function DocsPage() {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
 
-      {/* ── Top bar ── */}
-      <header style={{
+      {/* ── Navbar ── */}
+      <div style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 50,
-        background: "rgba(6,4,15,0.92)", backdropFilter: "blur(20px)",
-        borderBottom: "1px solid rgba(175,169,236,0.08)",
         height: 60,
+        background: scrolled ? "rgba(8,6,18,0.88)" : "transparent",
+        backdropFilter: scrolled ? "blur(20px) saturate(180%)" : "none",
+        borderBottom: scrolled ? "1px solid var(--border)" : "1px solid transparent",
+        transition: "all 0.3s ease",
         display: "flex", alignItems: "center",
       }}>
         <div style={{ maxWidth: 1400, width: "100%", margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -567,7 +577,7 @@ export default function DocsPage() {
             </Link>
           </div>
         </div>
-      </header>
+      </div>
 
       {/* ── Layout ── */}
       <div style={{ maxWidth: 1400, margin: "0 auto", padding: "60px 24px 0", display: "flex", gap: 0 }}>
@@ -1417,6 +1427,7 @@ wright-mcp
         </div>
 
       </div>
+      <Footer />
     </div>
   );
 }

@@ -250,7 +250,7 @@ async def github_login(request: Request) -> RedirectResponse:
         raise HTTPException(status_code=503, detail="GitHub OAuth not configured")
     api_key = request.headers.get("X-Wright-API-Key", "")
     state = base64.urlsafe_b64encode(api_key.encode()).decode()
-    backend_url = os.getenv("BACKEND_URL", "https://wrightai-api.fly.dev")
+    backend_url = os.getenv("BACKEND_URL", "https://api.wrightai.live")
     redirect_uri = f"{backend_url}/auth/github/callback"
     url = (
         f"https://github.com/login/oauth/authorize"

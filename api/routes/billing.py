@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
 import os
 
-import stripe
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -11,23 +14,19 @@ from api.auth import verify_api_key
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
+_PADDLE_API_URL = os.getenv("PADDLE_API_URL", "https://api.paddle.com")
+_FRONTEND_URL   = os.getenv("FRONTEND_URL", "https://www.wrightai.live")
+
+
 # ---------------------------------------------------------------------------
-# Stripe helpers
+# Paddle helpers
 # ---------------------------------------------------------------------------
 
-def _stripe() -> None:
-    """Configure Stripe with the secret key from env (called once per request)."""
-    key = os.getenv("STRIPE_SECRET_KEY", "")
+def _headers() -> dict[str, str]:
+    key = os.getenv("PADDLE_API_KEY", "")
     if not key:
-        raise HTTPException(status_code=503, detail="Stripe not configured")
-    stripe.api_key = key
-
-
-def _webhook_secret() -> str:
-    secret = os.getenv("STRIPE_WEBHOOK_SECRET", "")
-    if not secret:
-        raise HTTPException(status_code=503, detail="Stripe webhook secret not configured")
-    return secret
+        raise HTTPException(status_code=503, detail="Paddle not configured")
+    return {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
 
 
 def _db():
@@ -35,40 +34,51 @@ def _db():
     return _get_db()
 
 
-def _get_or_create_stripe_customer(api_key: str) -> str:
-    """Return existing Stripe customer ID, or create one and persist it."""
-    result = _db().table("users").select("stripe_customer_id, email").eq("api_key", api_key).execute()
+def _get_or_create_paddle_customer(api_key: str) -> str:
+    result = _db().table("users").select("paddle_customer_id, email").eq("api_key", api_key).execute()
     if not result.data:
         raise HTTPException(status_code=401, detail="User not found")
+
     row = result.data[0]
-    customer_id = row.get("stripe_customer_id")
+    customer_id = row.get("paddle_customer_id")
     if customer_id:
         return customer_id
-    customer = stripe.Customer.create(email=row["email"], metadata={"api_key": api_key})
-    _db().table("users").update({"stripe_customer_id": customer.id}).eq("api_key", api_key).execute()
-    return customer.id
+
+    resp = httpx.post(
+        f"{_PADDLE_API_URL}/customers",
+        headers=_headers(),
+        json={"email": row["email"]},
+        timeout=10,
+    )
+    if not resp.is_success:
+        raise HTTPException(status_code=502, detail=f"Failed to create Paddle customer: {resp.text}")
+
+    customer_id = resp.json()["data"]["id"]
+    _db().table("users").update({"paddle_customer_id": customer_id}).eq("api_key", api_key).execute()
+    return customer_id
 
 
-def _get_stripe_price_id(plan_id: str, interval: str) -> str:
-    """Look up the Stripe price ID from the plans table."""
-    col = "stripe_price_id_annual" if interval == "annual" else "stripe_price_id_monthly"
+def _get_paddle_price_id(plan_id: str, interval: str) -> str:
+    col = "paddle_price_id_annual" if interval == "annual" else "paddle_price_id_monthly"
     result = _db().table("plans").select(col).eq("id", plan_id).execute()
     if not result.data or not result.data[0].get(col):
         raise HTTPException(
             status_code=400,
-            detail=f"Stripe price ID not configured for plan '{plan_id}' ({interval}). "
-                   "Add stripe_price_id_monthly / stripe_price_id_annual in the Supabase plans table.",
+            detail=(
+                f"Paddle price ID not configured for plan '{plan_id}' ({interval}). "
+                "Add paddle_price_id_monthly / paddle_price_id_annual in the Supabase plans table."
+            ),
         )
     return result.data[0][col]
 
 
 # ---------------------------------------------------------------------------
-# Request / response schemas
+# Request schemas
 # ---------------------------------------------------------------------------
 
 class CheckoutRequest(BaseModel):
-    plan: str = "pro"          # plan ID in the plans table
-    interval: str = "monthly"  # 'monthly' | 'annual'
+    plan: str = "pro"
+    interval: str = "monthly"
 
 
 class PortalRequest(BaseModel):
@@ -79,82 +89,103 @@ class PortalRequest(BaseModel):
 # Routes
 # ---------------------------------------------------------------------------
 
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://www.wrightai.live")
-
-
 @router.post("/checkout", dependencies=[Depends(verify_api_key)])
 async def create_checkout_session(body: CheckoutRequest, request: Request) -> dict:
-    """Create a Stripe Checkout session and return its URL."""
-    _stripe()
+    """Create a Paddle hosted checkout and return its URL."""
     api_key = request.headers.get("X-Wright-API-Key", "")
-    customer_id = _get_or_create_stripe_customer(api_key)
-    price_id = _get_stripe_price_id(body.plan, body.interval)
+    customer_id = _get_or_create_paddle_customer(api_key)
+    price_id    = _get_paddle_price_id(body.plan, body.interval)
 
-    session = stripe.checkout.Session.create(
-        customer=customer_id,
-        payment_method_types=["card"],
-        line_items=[{"price": price_id, "quantity": 1}],
-        mode="subscription",
-        # Pass the API key so we can identify the user in the webhook
-        client_reference_id=api_key,
-        success_url=f"{FRONTEND_URL}/dashboard?upgraded=true",
-        cancel_url=f"{FRONTEND_URL}/pricing?cancelled=true",
-        subscription_data={
-            "metadata": {"api_key": api_key, "plan": body.plan},
+    resp = httpx.post(
+        f"{_PADDLE_API_URL}/transactions",
+        headers=_headers(),
+        json={
+            "items":        [{"price_id": price_id, "quantity": 1}],
+            "customer_id":  customer_id,
+            "custom_data":  {"api_key": api_key, "plan": body.plan},
+            "checkout": {
+                "url": f"{_FRONTEND_URL}/pricing?cancelled=true",
+            },
         },
-        allow_promotion_codes=True,
+        timeout=15,
     )
-    return {"checkout_url": session.url, "session_id": session.id}
+    if not resp.is_success:
+        raise HTTPException(status_code=502, detail=f"Paddle error: {resp.text}")
+
+    data = resp.json()["data"]
+    checkout_url = (data.get("checkout") or {}).get("url", "")
+    if not checkout_url:
+        raise HTTPException(status_code=502, detail="No checkout URL returned from Paddle")
+
+    return {"checkout_url": checkout_url, "transaction_id": data["id"]}
 
 
 @router.post("/portal", dependencies=[Depends(verify_api_key)])
 async def create_billing_portal(body: PortalRequest, request: Request) -> dict:
-    """Create a Stripe Customer Portal session so users can manage/cancel their plan."""
-    _stripe()
+    """Generate a Paddle customer portal URL for subscription management."""
     api_key = request.headers.get("X-Wright-API-Key", "")
-    result = _db().table("users").select("stripe_customer_id").eq("api_key", api_key).execute()
-    if not result.data or not result.data[0].get("stripe_customer_id"):
+    result  = _db().table("users").select("paddle_customer_id").eq("api_key", api_key).execute()
+
+    if not result.data or not result.data[0].get("paddle_customer_id"):
         raise HTTPException(status_code=400, detail="No active subscription found")
 
-    session = stripe.billing_portal.Session.create(
-        customer=result.data[0]["stripe_customer_id"],
-        return_url=body.return_url,
+    customer_id = result.data[0]["paddle_customer_id"]
+    resp = httpx.post(
+        f"{_PADDLE_API_URL}/customers/{customer_id}/auth-token",
+        headers=_headers(),
+        timeout=10,
     )
-    return {"portal_url": session.url}
+    if not resp.is_success:
+        raise HTTPException(status_code=502, detail="Failed to create portal session")
+
+    auth_code  = resp.json()["data"]["customer_auth_token"]
+    portal_url = f"https://customer.paddle.com/?customer_auth_code={auth_code}&return={body.return_url}"
+    return {"portal_url": portal_url}
 
 
 @router.post("/webhook")
-async def stripe_webhook(request: Request) -> JSONResponse:
+async def paddle_webhook(request: Request) -> JSONResponse:
     """
-    Stripe webhook handler. Verifies signature then updates user plan in Supabase.
+    Paddle webhook handler. Verifies signature then updates user plan in Supabase.
 
     Events handled:
-    - checkout.session.completed   → upgrade user to paid plan
-    - customer.subscription.updated → sync plan / status changes
-    - customer.subscription.deleted → downgrade to free
+      transaction.completed     → upgrade user to paid plan
+      subscription.updated      → sync status / plan changes
+      subscription.canceled     → downgrade to free
     """
-    _stripe()
-    payload = await request.body()
-    sig = request.headers.get("stripe-signature", "")
+    payload   = await request.body()
+    signature = request.headers.get("Paddle-Signature", "")
+    secret    = os.getenv("PADDLE_WEBHOOK_SECRET", "")
+
+    if secret and signature:
+        parts = {}
+        for part in signature.split(";"):
+            if "=" in part:
+                k, v = part.split("=", 1)
+                parts[k] = v
+        ts = parts.get("ts", "")
+        h1 = parts.get("h1", "")
+        signed_payload = f"{ts}:{payload.decode()}"
+        expected = hmac.new(
+            secret.encode(), signed_payload.encode(), hashlib.sha256
+        ).hexdigest()
+        if not hmac.compare_digest(expected, h1):
+            raise HTTPException(status_code=400, detail="Invalid Paddle signature")
 
     try:
-        event = stripe.Webhook.construct_event(payload, sig, _webhook_secret())
-    except stripe.error.SignatureVerificationError:
-        raise HTTPException(status_code=400, detail="Invalid Stripe signature")
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        event = json.loads(payload)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
-    event_type: str = event["type"]
-    data = event["data"]["object"]
+    event_type = event.get("event_type", "")
+    data       = event.get("data", {})
 
-    if event_type == "checkout.session.completed":
-        _handle_checkout_completed(data)
-
-    elif event_type == "customer.subscription.updated":
+    if event_type == "transaction.completed":
+        _handle_transaction_completed(data)
+    elif event_type == "subscription.updated":
         _handle_subscription_updated(data)
-
-    elif event_type == "customer.subscription.deleted":
-        _handle_subscription_deleted(data)
+    elif event_type == "subscription.canceled":
+        _handle_subscription_canceled(data)
 
     return JSONResponse({"received": True})
 
@@ -163,72 +194,50 @@ async def stripe_webhook(request: Request) -> JSONResponse:
 # Webhook event handlers
 # ---------------------------------------------------------------------------
 
-def _handle_checkout_completed(session: dict) -> None:
-    api_key: str = session.get("client_reference_id", "")
-    subscription_id: str = session.get("subscription", "")
-    customer_id: str = session.get("customer", "")
+def _handle_transaction_completed(data: dict) -> None:
+    custom_data     = data.get("custom_data") or {}
+    api_key         = custom_data.get("api_key", "")
+    plan_id         = custom_data.get("plan", "pro")
+    subscription_id = data.get("subscription_id", "")
+    customer_id     = data.get("customer_id", "")
 
     if not api_key or not api_key.startswith("wai_"):
         return
 
-    # Determine the plan from subscription metadata
-    plan_id = "pro"
-    if subscription_id:
-        try:
-            sub = stripe.Subscription.retrieve(subscription_id)
-            plan_id = sub.get("metadata", {}).get("plan", "pro")
-            period_end = sub.get("current_period_end")
-        except Exception:
-            period_end = None
-    else:
-        period_end = None
-
-    import datetime as dt
-    period_end_iso = (
-        dt.datetime.fromtimestamp(period_end, tz=dt.timezone.utc).isoformat()
-        if period_end else None
-    )
-
     _db().table("users").update({
-        "plan": plan_id,
-        "stripe_customer_id": customer_id,
-        "stripe_subscription_id": subscription_id,
-        "subscription_status": "active",
-        **({"current_period_end": period_end_iso} if period_end_iso else {}),
+        "plan":                   plan_id,
+        "paddle_customer_id":     customer_id,
+        "paddle_subscription_id": subscription_id,
+        "subscription_status":    "active",
     }).eq("api_key", api_key).execute()
 
 
-def _handle_subscription_updated(sub: dict) -> None:
-    customer_id: str = sub.get("customer", "")
+def _handle_subscription_updated(data: dict) -> None:
+    customer_id = data.get("customer_id", "")
     if not customer_id:
         return
 
-    status: str = sub.get("status", "inactive")
-    plan_id = sub.get("metadata", {}).get("plan", "pro")
-    period_end = sub.get("current_period_end")
+    status      = data.get("status", "inactive")
+    custom_data = data.get("custom_data") or {}
+    plan_id     = custom_data.get("plan", "pro")
+    next_billed = data.get("next_billed_at")
 
-    import datetime as dt
-    period_end_iso = (
-        dt.datetime.fromtimestamp(period_end, tz=dt.timezone.utc).isoformat()
-        if period_end else None
-    )
-
-    update: dict = {
-        "plan": plan_id if status == "active" else "free",
-        "subscription_status": status,
-        "stripe_subscription_id": sub.get("id", ""),
-        **({"current_period_end": period_end_iso} if period_end_iso else {}),
-    }
-    _db().table("users").update(update).eq("stripe_customer_id", customer_id).execute()
-
-
-def _handle_subscription_deleted(sub: dict) -> None:
-    customer_id: str = sub.get("customer", "")
-    if not customer_id:
-        return
     _db().table("users").update({
-        "plan": "free",
-        "subscription_status": "cancelled",
-        "stripe_subscription_id": None,
-        "current_period_end": None,
-    }).eq("stripe_customer_id", customer_id).execute()
+        "plan":                   plan_id if status == "active" else "free",
+        "subscription_status":    status,
+        "paddle_subscription_id": data.get("id", ""),
+        **({"current_period_end": next_billed} if next_billed else {}),
+    }).eq("paddle_customer_id", customer_id).execute()
+
+
+def _handle_subscription_canceled(data: dict) -> None:
+    customer_id = data.get("customer_id", "")
+    if not customer_id:
+        return
+
+    _db().table("users").update({
+        "plan":                   "free",
+        "subscription_status":    "cancelled",
+        "paddle_subscription_id": None,
+        "current_period_end":     None,
+    }).eq("paddle_customer_id", customer_id).execute()

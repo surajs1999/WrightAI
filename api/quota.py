@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
@@ -24,16 +24,18 @@ class PlanLimits:
     auto_pr_enabled: bool
     github_action_comments_enabled: bool
     llms_txt_enabled: bool
+    overage_rate_per_doc: float = 0.0  # $/doc above quota; 0 = hard block
 
 
 @dataclass
 class QuotaResult:
     allowed: bool
-    warning: bool          # True when >80% of limit consumed
+    warning: bool       # True when ≥80% consumed and not yet at limit
     used: int
-    limit: int             # -1 = unlimited
+    limit: int          # -1 = unlimited
     plan: str
-    pct: int = 0           # 0-100; 0 when unlimited
+    pct: int = 0        # 0–100; 0 when unlimited
+    overage: bool = False           # True when allowed via soft overage (Pro)
     upgrade_url: str = "https://www.wrightai.live/pricing"
 
     def __post_init__(self) -> None:
@@ -42,7 +44,7 @@ class QuotaResult:
 
 
 # ---------------------------------------------------------------------------
-# Free-plan defaults (used as fallback when DB is unavailable)
+# Free-plan defaults (fallback when DB is unavailable — fail-open)
 # ---------------------------------------------------------------------------
 
 _FREE_LIMITS = PlanLimits(
@@ -57,9 +59,11 @@ _FREE_LIMITS = PlanLimits(
     auto_pr_enabled=False,
     github_action_comments_enabled=False,
     llms_txt_enabled=True,
+    overage_rate_per_doc=0.0,
 )
 
 _UNLIMITED_RESULT = QuotaResult(allowed=True, warning=False, used=0, limit=-1, plan="unknown")
+
 
 # ---------------------------------------------------------------------------
 # DB helpers (lazy, fail-open)
@@ -88,6 +92,7 @@ def get_plan_limits(plan_id: str) -> PlanLimits:
                 auto_pr_enabled=row["auto_pr_enabled"],
                 github_action_comments_enabled=row["github_action_comments_enabled"],
                 llms_txt_enabled=row["llms_txt_enabled"],
+                overage_rate_per_doc=float(row.get("overage_rate_per_doc") or 0.0),
             )
     except Exception:
         pass
@@ -147,6 +152,15 @@ def _count_connected_repos(api_key: str) -> int:
         return 0
 
 
+def _trigger_email_alert(api_key: str, pct: int, used: int, limit: int) -> None:
+    """Fire-and-forget: dispatch quota alert email via Celery (non-blocking)."""
+    try:
+        from api.tasks.email_tasks import send_quota_alert
+        send_quota_alert.delay(api_key, pct, used, limit)
+    except Exception:
+        pass  # Never let email failures affect quota enforcement
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -164,13 +178,16 @@ def check_quota(
     Check whether this API key is within its monthly quota for feature.
 
     Only enforces for wai_ keys (hosted service). CLI/MCP users with a
-    server-level static key bypass quota enforcement entirely.
+    server-level static key bypass quota enforcement entirely (fail-open).
 
-    Returns a QuotaResult; raises HTTP 429 when blocked and raise_on_blocked=True.
+    Pro users with overage_rate_per_doc > 0 are allowed past their limit
+    (soft overage) — usage is still tracked for end-of-period billing.
+
+    Returns QuotaResult; raises HTTP 429/403 when blocked and raise_on_blocked=True.
+    Fires a Celery email task at ≥80% and ≥100% usage (dedup handled in task).
     """
     from fastapi import HTTPException
 
-    # Quota only applies to user-issued hosted-service keys
     if not api_key or not api_key.startswith("wai_"):
         return _UNLIMITED_RESULT
 
@@ -185,33 +202,45 @@ def check_quota(
     }
     limit = limit_map.get(feature, -1)
 
-    # Unlimited
     if limit == -1:
         return QuotaResult(allowed=True, warning=False, used=0, limit=-1, plan=plan_id)
 
-    # Zero means feature is disabled on this plan
+    # Zero means feature completely disabled on this plan (e.g. chat on Free)
     if limit == 0:
-        result = QuotaResult(allowed=False, warning=False, used=0, limit=0, plan=plan_id)
         if raise_on_blocked:
             raise HTTPException(
                 status_code=403,
                 detail=_blocked_detail(feature, 0, 0, plan_id),
             )
-        return result
+        return QuotaResult(allowed=False, warning=False, used=0, limit=0, plan=plan_id)
 
     user_id = _resolve_user_id(api_key)
     if user_id is None:
         return QuotaResult(allowed=True, warning=False, used=0, limit=limit, plan=plan_id)
 
-    if feature == "repo_connect":
-        used = _count_connected_repos(api_key)
-    else:
-        used = _count_monthly_events(user_id, feature)
+    used = _count_connected_repos(api_key) if feature == "repo_connect" else _count_monthly_events(user_id, feature)
 
-    warning = used >= int(limit * 0.8) and used < limit
+    warning = int(limit * 0.8) <= used < limit
     blocked = used >= limit
 
-    result = QuotaResult(allowed=not blocked, warning=warning, used=used, limit=limit, plan=plan_id)
+    # Pro soft overage: allow past limit and track for billing
+    overage = False
+    if blocked and feature == "docs_generated" and limits.overage_rate_per_doc > 0:
+        blocked = False
+        overage = True
+
+    result = QuotaResult(
+        allowed=not blocked,
+        warning=warning,
+        used=used,
+        limit=limit,
+        plan=plan_id,
+        overage=overage,
+    )
+
+    # Fire email alert at ≥80% (dedup handled inside Celery task)
+    if result.pct >= 80:
+        _trigger_email_alert(api_key, result.pct, used, limit)
 
     if blocked and raise_on_blocked:
         raise HTTPException(
@@ -240,9 +269,9 @@ def check_feature_flag(
     limits = get_plan_limits(plan_id)
 
     flag_map: dict[FlagFeature, bool] = {
-        "semantic_drift":             limits.semantic_drift_enabled,
-        "auto_pr":                    limits.auto_pr_enabled,
-        "github_action_comments":     limits.github_action_comments_enabled,
+        "semantic_drift":          limits.semantic_drift_enabled,
+        "auto_pr":                 limits.auto_pr_enabled,
+        "github_action_comments":  limits.github_action_comments_enabled,
     }
     enabled = flag_map.get(feature, False)
 
@@ -262,7 +291,7 @@ def check_feature_flag(
 
 def get_full_quota_status(api_key: str) -> dict:
     """
-    Return a dict describing the user's plan and all quota usage.
+    Return a merged dict describing the user's plan and all quota usage.
     Used by the /usage endpoint to power the dashboard.
     """
     if not api_key or not api_key.startswith("wai_"):
@@ -294,14 +323,14 @@ def get_full_quota_status(api_key: str) -> dict:
         "plan": plan_id,
         "plan_display": limits.display_name,
         "features": {
-            "semantic_drift": limits.semantic_drift_enabled,
-            "auto_pr": limits.auto_pr_enabled,
-            "github_action_comments": limits.github_action_comments_enabled,
+            "semantic_drift":          limits.semantic_drift_enabled,
+            "auto_pr":                 limits.auto_pr_enabled,
+            "github_action_comments":  limits.github_action_comments_enabled,
         },
         "quotas": {
-            "docs_generated":   _quota_entry(docs_used, limits.docs_per_month),
-            "chat_messages":    _quota_entry(chat_used, limits.chat_messages_per_month),
-            "repos":            _quota_entry(repos_used, limits.repos_limit),
+            "docs_generated": _quota_entry(docs_used, limits.docs_per_month),
+            "chat_messages":  _quota_entry(chat_used, limits.chat_messages_per_month),
+            "repos":          _quota_entry(repos_used, limits.repos_limit),
         },
         "upgrade_url": "https://www.wrightai.live/pricing",
     }

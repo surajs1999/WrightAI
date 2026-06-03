@@ -43,7 +43,7 @@ dependencies = [
     "workos>=4.0.0",
     "python-jose[cryptography]>=3.3.0",
     "supabase>=2.0.0",
-    "stripe>=8.0.0",
+    "brevo-python>=1.0.0",
 ]
 keywords = [
   "docstring",
@@ -71,9 +71,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://wrightai-web.fly.dev"
+Homepage = "https://wrightai.live"
 Repository = "https://github.com/surajs1999/WrightAI"
-Documentation = "https://wrightai-web.fly.dev/docs"
+Documentation = "https://wrightai.live/docs"
 "Bug Tracker" = "https://github.com/surajs1999/WrightAI/issues"
 Changelog = "https://github.com/surajs1999/WrightAI/blob/main/CHANGELOG.md"
 

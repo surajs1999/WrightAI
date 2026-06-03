@@ -6,9 +6,10 @@ import Image from "next/image";
 const LINKS = {
   Product: [
     { label: "Features", href: "#features" },
+    { label: "Getting Started", href: "#install" },
     { label: "Dashboard", href: "/dashboard" },
-    { label: "Changelog", href: "https://github.com/surajs1999/WrightAI/releases", ext: true },
-    { label: "Roadmap", href: "https://github.com/surajs1999/WrightAI/issues", ext: true },
+    { label: "Pricing", href: "/pricing" },
+    { label: "Support", href: "/dashboard/help" },
   ],
   Resources: [
     { label: "Documentation", href: "/docs" },

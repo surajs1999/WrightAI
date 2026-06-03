@@ -80,7 +80,6 @@ export default function Navbar() {
             { label: "Features", href: "#features" },
             { label: "Pricing", href: "/pricing" },
             { label: "Docs", href: "/docs" },
-            { label: "Changelog", href: "https://github.com/surajs1999/WrightAI/releases" },
             { label: "Get Started", href: "#install" },
           ].map(          /**
            * Renders a styled anchor element with dynamic hover effects and conditional external link attributes based on link properties.
