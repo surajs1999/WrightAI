@@ -1,0 +1,68 @@
+name: Deploy Web → Cloud Run
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "cloudrun-web.yaml"
+      - ".github/workflows/deploy-web.yml"
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write   # required for Workload Identity Federation
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            --build-arg NEXT_PUBLIC_API_URL=https://api.wrightai.live \
+            --build-arg NEXT_PUBLIC_APP_URL=https://wrightai.live \
+            --build-arg NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }} \
+            --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }} \
+            -t asia-southeast1-docker.pkg.dev/wrightai/wrightai/web:${{ github.sha }} \
+            -t asia-southeast1-docker.pkg.dev/wrightai/wrightai/web:latest \
+            ./web
+
+      - name: Push image to Artifact Registry
+        run: |
+          docker push asia-southeast1-docker.pkg.dev/wrightai/wrightai/web:${{ github.sha }}
+          docker push asia-southeast1-docker.pkg.dev/wrightai/wrightai/web:latest
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run services replace cloudrun-web.yaml \
+            --region=asia-southeast1
+
+      - name: Allow unauthenticated access
+        run: |
+          gcloud run services add-iam-policy-binding wrightai-web \
+            --region=asia-southeast1 \
+            --member="allUsers" \
+            --role="roles/run.invoker"
+
+      - name: Print deployed URL
+        run: |
+          URL=$(gcloud run services describe wrightai-web \
+            --region=asia-southeast1 \
+            --format="value(status.url)")
+          echo "✓ Deployed: $URL"

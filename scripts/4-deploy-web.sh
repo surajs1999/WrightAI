@@ -1,26 +1,62 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Deploys the Next.js web app to Vercel.
-# Requires: npm i -g vercel
+# Deploys the Next.js web app to Cloud Run (asia-southeast1).
+# Requires: gcloud CLI authenticated, docker
+# Env vars required: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-API_URL="${1:-https://api.wrightai.live}"
+PROJECT_ID="wrightai"
+REGION="asia-southeast1"
+IMAGE="asia-southeast1-docker.pkg.dev/${PROJECT_ID}/wrightai/web:latest"
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 WEB_DIR="$ROOT_DIR/web"
 
-echo "→ Deploying web to Vercel (API URL: $API_URL)"
+SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL:-}"
+SUPABASE_ANON_KEY="${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}"
 
-# Vercel CLI deploy — will prompt for project link on first run
-cd "$WEB_DIR"
+if [[ -z "$SUPABASE_URL" || -z "$SUPABASE_ANON_KEY" ]]; then
+  echo "ERROR: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set."
+  exit 1
+fi
 
-vercel deploy --prod \
-  --env NEXT_PUBLIC_API_URL="$API_URL" \
-  --build-env NEXT_PUBLIC_API_URL="$API_URL"
+gcloud config set project "$PROJECT_ID"
+
+echo "→ Authenticating Docker with Artifact Registry"
+gcloud auth configure-docker "${REGION}-docker.pkg.dev"
+
+echo "→ Building web Docker image"
+docker build \
+  --build-arg NEXT_PUBLIC_API_URL=https://api.wrightai.live \
+  --build-arg NEXT_PUBLIC_APP_URL=https://wrightai.live \
+  --build-arg NEXT_PUBLIC_SUPABASE_URL="$SUPABASE_URL" \
+  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+  -t "$IMAGE" \
+  "$WEB_DIR"
+
+echo "→ Pushing image to Artifact Registry"
+docker push "$IMAGE"
+
+echo "→ Deploying to Cloud Run"
+gcloud run services replace "$ROOT_DIR/cloudrun-web.yaml" \
+  --region="$REGION"
+
+echo "→ Allowing unauthenticated access (public web)"
+gcloud run services add-iam-policy-binding wrightai-web \
+  --region="$REGION" \
+  --member="allUsers" \
+  --role="roles/run.invoker"
 
 echo ""
-echo "✓ Web deployed to Vercel."
+WEB_URL=$(gcloud run services describe wrightai-web \
+  --region="$REGION" \
+  --format="value(status.url)")
+echo "✓ Web deployed at: $WEB_URL"
 echo ""
-echo "If this is a first-time deploy, also set NEXT_PUBLIC_API_URL in the"
-echo "Vercel dashboard: Project → Settings → Environment Variables"
+echo "Next steps:"
+echo "  1. In Cloudflare: add CNAME wrightai.live → $WEB_URL (proxy enabled)"
+echo "  2. Or map domain directly in Cloud Run:"
+echo "     gcloud run domain-mappings create --service=wrightai-web --domain=wrightai.live --region=$REGION"
+echo "  3. Disable Netlify site once DNS is pointed at Cloud Run"
+
 echo ""
 echo "Next: run scripts/5-cutover.sh"
