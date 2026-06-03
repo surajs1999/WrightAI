@@ -3,7 +3,9 @@
 import Link from "next/link";
 import Image from "next/image";
 
-const LINKS = {
+type NavLink = { label: string; href: string; ext?: boolean };
+
+const LINKS: Record<string, NavLink[]> = {
   Product: [
     { label: "Features", href: "#features" },
     { label: "Getting Started", href: "#install" },
