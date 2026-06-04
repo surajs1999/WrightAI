@@ -2,12 +2,21 @@ from __future__ import annotations
 
 import os
 import secrets
+import threading
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from supabase import Client, create_client
 
 _client: Client | None = None
+
+# ---------------------------------------------------------------------------
+# In-process user cache — eliminates one SELECT + one UPDATE per request
+# ---------------------------------------------------------------------------
+_user_cache: dict[str, tuple["User | None", float]] = {}
+_user_cache_lock = threading.Lock()
+_USER_CACHE_TTL = 300.0  # 5 minutes
 
 
 def _db() -> Client:
@@ -129,37 +138,45 @@ def rotate_api_key(old_api_key: str) -> User | None:
     updated = db.table("users").update({"api_key": new_key}).eq("api_key", old_api_key).execute()
     if not updated.data:
         return None
+    with _user_cache_lock:
+        _user_cache.pop(old_api_key, None)
     row = updated.data[0]
     return User(**{k: row[k] for k in User.__dataclass_fields__})
 
 
 def get_user_by_api_key(api_key: str) -> User | None:
-    """
-    Retrieves a User object from the database by API key and updates the last_used_at timestamp to the current UTC time.
+    """Return cached user for api_key, falling back to Supabase on miss or TTL expiry."""
+    now = time.monotonic()
+    with _user_cache_lock:
+        if api_key in _user_cache:
+            user, ts = _user_cache[api_key]
+            if now - ts < _USER_CACHE_TTL:
+                return user
 
-    Queries the 'users' table for a row matching the provided API key. If a match is found, the last_used_at field is updated to the current UTC timestamp before returning a User dataclass instance populated from the matched row. If no match is found, None is returned. This function is used by authentication middleware (verify_api_key), key rotation (rotate_api_key), and user-facing endpoints (user_me, github_webhook).
-
-    Args:
-        api_key (str): The API key string to look up in the 'users' table's api_key column.
-
-    Returns:
-        User | None: A User dataclass instance populated with all fields from the matched database row if the API key exists, or None if no matching record is found.
-
-    Example:
-        ```
-        user = get_user_by_api_key("sk_1234567890abcdef")
-        if user:
-            print(user.email)
-        else:
-            print("Invalid API key")
-        ```
-    """
     db = _db()
     result = db.table("users").select("*").eq("api_key", api_key).execute()
-    if not result.data:
-        return None
-    row = result.data[0]
-    db.table("users").update({"last_used_at": datetime.now(timezone.utc).isoformat()}).eq(
-        "api_key", api_key
-    ).execute()
-    return User(**{k: row[k] for k in User.__dataclass_fields__})
+    user = None
+    if result.data:
+        row = result.data[0]
+        user = User(**{k: row[k] for k in User.__dataclass_fields__})
+        # last_used_at is analytics-only — fire-and-forget so it never blocks auth
+        threading.Thread(target=_touch_last_used, args=(api_key,), daemon=True).start()
+
+    with _user_cache_lock:
+        _user_cache[api_key] = (user, now)
+    return user
+
+
+def _touch_last_used(api_key: str) -> None:
+    try:
+        _db().table("users").update({"last_used_at": datetime.now(timezone.utc).isoformat()}).eq(
+            "api_key", api_key
+        ).execute()
+    except Exception:
+        pass
+
+
+def invalidate_user_cache(api_key: str) -> None:
+    """Drop cached entry after key rotation so the new key takes effect immediately."""
+    with _user_cache_lock:
+        _user_cache.pop(api_key, None)

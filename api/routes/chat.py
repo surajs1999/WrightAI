@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 
@@ -42,14 +43,14 @@ async def chat(request: ChatRequest, http_request: Request) -> StreamingResponse
         response = await chat(ChatRequest(question='How does authentication work?', repo_root='/path/to/repo', conversation_history=[]))
         ```
     """
-    from core.llm.gateway import LLMGateway
+    from api.embedder import get_gateway
     from api.usage_store import record_event
 
     api_key = http_request.headers.get("X-Wright-API-Key", "")
 
     # Gate: chat_messages_per_month == 0 on free → 403; >0 enforces monthly cap
     quota = check_quota(api_key, "chat_message", raise_on_blocked=True)
-    gateway = LLMGateway(anthropic_key=os.getenv("ANTHROPIC_API_KEY", ""))
+    gateway = get_gateway()
     history = [{"role": m.role, "content": m.content} for m in request.conversation_history]
 
     # Retrieval is best-effort — if embeddings are unavailable (no Voyage/OpenAI
@@ -57,14 +58,14 @@ async def chat(request: ChatRequest, http_request: Request) -> StreamingResponse
     # answers from the question alone.
     contexts = []
     try:
-        from core.embeddings.chroma_store import ChromaStore
-        from core.embeddings.voyage_embeddings import VoyageEmbedder
+        from api.chroma_cache import get as get_chroma
+        from api.embedder import get_embedder
         from core.parser.dep_graph import DependencyGraph
         from core.retrieval.hybrid_retriever import HybridRetriever
 
-        embedder = VoyageEmbedder(api_key=os.getenv("VOYAGE_API_KEY", ""))
+        embedder = get_embedder()
         chroma_path = os.getenv("CHROMA_PATH", os.path.join(request.repo_root, ".wright", "chroma"))
-        chroma = ChromaStore(persist_path=chroma_path, repo_root=request.repo_root)
+        chroma = get_chroma(chroma_path, request.repo_root)
         dep_graph = DependencyGraph()
         retriever = HybridRetriever(chroma, dep_graph, embedder)
         contexts = retriever.retrieve_for_query(request.question, n=5)
@@ -86,6 +87,14 @@ async def chat(request: ChatRequest, http_request: Request) -> StreamingResponse
             elif kind == "followups":
                 yield f"data: {json.dumps({'type': 'followups', 'questions': payload})}\n\n"
         yield "data: [DONE]\n\n"
-        record_event(api_key, "chat_message", repo_name=os.path.basename(request.repo_root))
+        # Fire-and-forget: don't block event loop cleanup waiting for a DB write
+        asyncio.create_task(
+            asyncio.to_thread(
+                record_event,
+                api_key,
+                "chat_message",
+                repo_name=os.path.basename(request.repo_root),
+            )
+        )
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

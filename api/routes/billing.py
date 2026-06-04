@@ -36,7 +36,7 @@ def _db():
     return _get_db()
 
 
-def _get_or_create_paddle_customer(api_key: str) -> str:
+async def _get_or_create_paddle_customer(api_key: str) -> str:
     result = (
         _db().table("users").select("paddle_customer_id, email").eq("api_key", api_key).execute()
     )
@@ -48,12 +48,13 @@ def _get_or_create_paddle_customer(api_key: str) -> str:
     if customer_id:
         return customer_id
 
-    resp = httpx.post(
-        f"{_PADDLE_API_URL}/customers",
-        headers=_headers(),
-        json={"email": row["email"]},
-        timeout=10,
-    )
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{_PADDLE_API_URL}/customers",
+            headers=_headers(),
+            json={"email": row["email"]},
+            timeout=10,
+        )
     if not resp.is_success:
         raise HTTPException(
             status_code=502, detail=f"Failed to create Paddle customer: {resp.text}"
@@ -103,22 +104,23 @@ class PortalRequest(BaseModel):
 async def create_checkout_session(body: CheckoutRequest, request: Request) -> dict:
     """Create a Paddle hosted checkout and return its URL."""
     api_key = request.headers.get("X-Wright-API-Key", "")
-    customer_id = _get_or_create_paddle_customer(api_key)
+    customer_id = await _get_or_create_paddle_customer(api_key)
     price_id = _get_paddle_price_id(body.plan, body.interval)
 
-    resp = httpx.post(
-        f"{_PADDLE_API_URL}/transactions",
-        headers=_headers(),
-        json={
-            "items": [{"price_id": price_id, "quantity": 1}],
-            "customer_id": customer_id,
-            "custom_data": {"api_key": api_key, "plan": body.plan},
-            "checkout": {
-                "url": f"{_FRONTEND_URL}/pricing?cancelled=true",
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{_PADDLE_API_URL}/transactions",
+            headers=_headers(),
+            json={
+                "items": [{"price_id": price_id, "quantity": 1}],
+                "customer_id": customer_id,
+                "custom_data": {"api_key": api_key, "plan": body.plan},
+                "checkout": {
+                    "url": f"{_FRONTEND_URL}/pricing?cancelled=true",
+                },
             },
-        },
-        timeout=15,
-    )
+            timeout=15,
+        )
     if not resp.is_success:
         raise HTTPException(status_code=502, detail=f"Paddle error: {resp.text}")
 
@@ -140,11 +142,12 @@ async def create_billing_portal(body: PortalRequest, request: Request) -> dict:
         raise HTTPException(status_code=400, detail="No active subscription found")
 
     customer_id = result.data[0]["paddle_customer_id"]
-    resp = httpx.post(
-        f"{_PADDLE_API_URL}/customers/{customer_id}/auth-token",
-        headers=_headers(),
-        timeout=10,
-    )
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{_PADDLE_API_URL}/customers/{customer_id}/auth-token",
+            headers=_headers(),
+            timeout=10,
+        )
     if not resp.is_success:
         raise HTTPException(status_code=502, detail="Failed to create portal session")
 

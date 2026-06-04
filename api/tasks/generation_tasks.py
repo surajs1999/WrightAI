@@ -31,10 +31,10 @@ def generate_file_docs(self, file_path: str, repo_root: str, style: str, dry_run
 
     Complexity: O(n*m) where n is the number of undocumented functions and m is the average time for LLM generation and hybrid retrieval per function.
     """
+    from api.chroma_cache import get as get_chroma
+    from api.embedder import get_embedder
     from core.config import load_config
-    from core.embeddings.chroma_store import ChromaStore
-    from core.embeddings.voyage_embeddings import VoyageEmbedder
-    from core.llm.gateway import LLMGateway
+    from api.embedder import get_gateway
     from core.llm.prompts import DocStyle
     from core.output.injector import DocstringInjector
     from core.parser.dep_graph import DependencyGraph
@@ -43,10 +43,10 @@ def generate_file_docs(self, file_path: str, repo_root: str, style: str, dry_run
 
     config = load_config(repo_root)
     parser = CodeParser()
-    gateway = LLMGateway(anthropic_key=os.getenv("ANTHROPIC_API_KEY", ""))
-    embedder = VoyageEmbedder(api_key=os.getenv("VOYAGE_API_KEY", ""))
+    gateway = get_gateway()
+    embedder = get_embedder()
     chroma_path = os.getenv("CHROMA_PATH", os.path.join(repo_root, ".wright", "chroma"))
-    chroma = ChromaStore(persist_path=chroma_path, repo_root=repo_root)
+    chroma = get_chroma(chroma_path, repo_root)
     dep_graph = DependencyGraph()
     injector = DocstringInjector()
     doc_style = DocStyle(style) if style else config.style

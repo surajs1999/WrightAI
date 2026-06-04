@@ -176,10 +176,10 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
     api_key = request.headers.get("X-Wright-API-Key", "")
     check_feature_flag(api_key, "auto_pr", raise_on_blocked=True)
 
+    from api.chroma_cache import get as get_chroma
+    from api.embedder import get_embedder
     from core.config import load_config
-    from core.embeddings.chroma_store import ChromaStore
-    from core.embeddings.voyage_embeddings import VoyageEmbedder
-    from core.llm.gateway import LLMGateway
+    from api.embedder import get_gateway
     from core.llm.prompts import DocStyle
     from core.output.injector import DocstringInjector
     from core.parser.dep_graph import DependencyGraph
@@ -238,10 +238,10 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
     # Set up AI pipeline
     load_config(str(repo_path))
     parser = CodeParser()
-    gateway = LLMGateway(anthropic_key=os.getenv("ANTHROPIC_API_KEY", ""))
-    embedder = VoyageEmbedder(api_key=os.getenv("VOYAGE_API_KEY", ""))
+    gateway = get_gateway()
+    embedder = get_embedder()
     chroma_path = os.getenv("CHROMA_PATH", str(repo_path / ".wright" / "chroma"))
-    chroma = ChromaStore(persist_path=chroma_path, repo_root=str(repo_path))
+    chroma = get_chroma(chroma_path, str(repo_path))
     injector = DocstringInjector()
     doc_style = DocStyle(body.style)
 

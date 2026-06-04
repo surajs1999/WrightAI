@@ -22,26 +22,10 @@ _indexing: set[str] = set()
 
 
 def _chroma_for(repo_root: str):
-    """
-    Creates and returns a ChromaStore instance configured for the given repository root.
-
-    Resolves the Chroma persistence path from the CHROMA_PATH environment variable, falling back to a default path of '<repo_root>/.wright/chroma', then instantiates and returns a ChromaStore with that path and the provided repository root. This factory helper is used by both _index_repo() and index_status() to obtain a consistent ChromaStore for a given repository.
-
-    Args:
-        repo_root (str): Absolute or relative path to the root directory of the repository for which the ChromaStore should be created.
-
-    Returns:
-        ChromaStore: A ChromaStore instance persisted at the resolved Chroma path and scoped to the given repository root.
-
-    Example:
-        ```
-        store = _chroma_for('/home/user/my_project')
-        ```
-    """
-    from core.embeddings.chroma_store import ChromaStore
+    from api.chroma_cache import get as get_chroma
 
     chroma_path = os.getenv("CHROMA_PATH", os.path.join(repo_root, ".wright", "chroma"))
-    return ChromaStore(persist_path=chroma_path, repo_root=repo_root)
+    return get_chroma(chroma_path, repo_root)
 
 
 async def _index_repo(repo_root: str) -> None:
@@ -93,6 +77,15 @@ async def _index_repo(repo_root: str) -> None:
         chroma = _chroma_for(repo_root)
         await loop.run_in_executor(None, chroma.upsert_chunks, chunks, embeddings)
         _logger.info("Indexed %d chunks for %s", len(chunks), repo_root)
+        # Drop the cache entry so the next /chat request reloads from disk and
+        # sees the freshly written embeddings rather than the pre-index snapshot.
+        from api.chroma_cache import invalidate as invalidate_chroma
+
+        chroma_path = os.getenv("CHROMA_PATH", os.path.join(repo_root, ".wright", "chroma"))
+        invalidate_chroma(chroma_path, repo_root)
+        # Persist /tmp/chroma → /data/chroma so next container start and the
+        # Celery worker both see the fresh embeddings.
+        asyncio.create_task(asyncio.to_thread(_backup_chroma_to_gcs))
     except Exception as e:
         _logger.error("Indexing failed for %s: %s", repo_root, e)
     finally:
@@ -163,8 +156,119 @@ def load_token(user_dir: Path, repo_slug: str) -> str | None:
 
 router = APIRouter(prefix="/repos", tags=["repos"], dependencies=[Depends(verify_api_key)])
 
-_REPOS_BASE = Path(os.getenv("REPOS_PATH", "/data/repos"))
+_REPOS_TMP = Path(os.getenv("REPOS_TMP_PATH", "/tmp/repos"))  # fast local SSD (working copy)
+_REPOS_GCS = Path(os.getenv("REPOS_PATH", "/data/repos"))  # GCS Fuse (persistence backup)
+_REPOS_BASE = _REPOS_TMP  # all active operations use /tmp
 _API_URL = os.getenv("WRIGHT_API_URL", "https://api.wrightai.live")
+
+_REPO_META_TTL = 90 * 86400  # 90 days — refreshed on every write
+
+# ── Redis repo metadata helpers ───────────────────────────────────────────────
+
+
+def _redis_conn():
+    """Return a sync Redis client, or None if unavailable."""
+    import redis as _r
+
+    url = os.getenv("REDIS_URL")
+    if not url:
+        return None
+    try:
+        c = _r.Redis.from_url(url, socket_connect_timeout=1, decode_responses=True)
+        c.ping()
+        return c
+    except Exception:
+        return None
+
+
+def _redis_save_repo(user_id: str, repo_slug: str, meta: dict) -> None:
+    r = _redis_conn()
+    if not r:
+        return
+    try:
+        key = f"wright:repos:v1:{user_id}"
+        r.hset(key, repo_slug, json.dumps(meta))
+        r.expire(key, _REPO_META_TTL)
+    except Exception:
+        pass
+
+
+def _redis_delete_repo(user_id: str, repo_slug: str) -> None:
+    r = _redis_conn()
+    if not r:
+        return
+    try:
+        r.hdel(f"wright:repos:v1:{user_id}", repo_slug)
+    except Exception:
+        pass
+
+
+def _redis_list_repos(user_id: str) -> dict[str, dict]:
+    """Return {repo_slug: meta} from Redis, empty dict if unavailable."""
+    r = _redis_conn()
+    if not r:
+        return {}
+    try:
+        raw = r.hgetall(f"wright:repos:v1:{user_id}")
+        return {slug: json.loads(v) for slug, v in raw.items()}
+    except Exception:
+        return {}
+
+
+# ── GCS backup / restore helpers ─────────────────────────────────────────────
+
+
+def _backup_to_gcs(user_id: str, repo_slug: str) -> None:
+    """Copy repo from /tmp to GCS in a background thread."""
+    src = _REPOS_TMP / user_id / repo_slug
+    dst = _REPOS_GCS / user_id / repo_slug
+    if not src.exists():
+        return
+    try:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if dst.exists():
+            shutil.rmtree(str(dst))
+        shutil.copytree(str(src), str(dst))
+        _logger.info("GCS backup complete: %s/%s", user_id, repo_slug)
+    except Exception as e:
+        _logger.warning("GCS backup failed for %s/%s: %s", user_id, repo_slug, e)
+
+
+def _backup_chroma_to_gcs() -> None:
+    """Copy /tmp/chroma → /data/chroma so the next container start warms up with
+    fresh embeddings and the Celery worker (CHROMA_PATH=/data/chroma) can read them.
+
+    Note: this is a full replace, not a merge. Two API containers indexing
+    simultaneously could overwrite each other — acceptable at current scale, but
+    the long-term fix is per-user chroma paths or a managed vector DB (Qdrant Cloud).
+    """
+    src = Path("/tmp/chroma")
+    dst = Path("/data/chroma")
+    if not src.exists():
+        return
+    try:
+        if dst.exists():
+            shutil.rmtree(str(dst))
+        shutil.copytree(str(src), str(dst))
+        _logger.info("ChromaDB GCS backup complete")
+    except Exception as e:
+        _logger.warning("ChromaDB GCS backup failed: %s", e)
+
+
+def _restore_from_gcs(user_id: str, repo_slug: str) -> bool:
+    """Copy repo from GCS to /tmp if missing locally. Returns True if restored."""
+    dst = _REPOS_TMP / user_id / repo_slug
+    src = _REPOS_GCS / user_id / repo_slug
+    if dst.exists() or not src.exists():
+        return dst.exists()
+    try:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(str(src), str(dst))
+        _logger.info("Restored %s/%s from GCS", user_id, repo_slug)
+        return True
+    except Exception as e:
+        _logger.warning("GCS restore failed for %s/%s: %s", user_id, repo_slug, e)
+        return False
 
 
 def _register_github_webhook(github_token: str, git_url: str, api_key: str) -> None:
@@ -409,12 +513,29 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
     )
     actual_branch = branch_result.stdout.strip() or body.branch
 
+    clean_url = re.sub(r"https://[^@]+@", "https://", body.git_url)
+
     if github_token:
         _save_token(user_dir, repo_slug, github_token)
-        # Auto-register webhook so every push triggers a sync — fire-and-forget
-        api_key = request.headers.get("X-Wright-API-Key", "")
-        clean_url = re.sub(r"https://[^@]+@", "https://", body.git_url)
-        _register_github_webhook(github_token, clean_url, api_key)
+        # Register webhook in background — don't block the response
+        api_key_header = request.headers.get("X-Wright-API-Key", "")
+        asyncio.create_task(
+            asyncio.to_thread(_register_github_webhook, github_token, clean_url, api_key_header)
+        )
+
+    # Save repo metadata to Redis for fast list_repos on cold start
+    _redis_save_repo(
+        user_id,
+        repo_slug,
+        {
+            "git_url": clean_url,
+            "branch": actual_branch,
+            "local_path": str(repo_path),
+        },
+    )
+
+    # Back up repo files to GCS in background for cold-start persistence
+    asyncio.create_task(asyncio.to_thread(_backup_to_gcs, user_id, repo_slug))
 
     # Kick off indexing in the background — chat will be ready by the time
     # the user navigates there. Does nothing if VOYAGE_API_KEY is not set.
@@ -428,7 +549,7 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
     return RepoInfo(
         id=repo_id,
         name=repo_slug,
-        git_url=re.sub(r"https://[^@]+@", "https://", body.git_url),
+        git_url=clean_url,
         local_path=str(repo_path),
         branch=actual_branch,
     )
@@ -457,13 +578,35 @@ async def list_repos(request: Request) -> list[RepoInfo]:
     Complexity: O(n) time where n is the number of directories in the user's repository folder; O(n) space for storing the resulting RepoInfo list.
     """
     user_id = _user_id_from_request(request)
-    user_dir = _REPOS_BASE / user_id
+
+    # Primary: read repo list from Redis (instant, no filesystem scan)
+    redis_repos = _redis_list_repos(user_id)
+
+    if redis_repos:
+        repos = []
+        for slug, meta in redis_repos.items():
+            local_path = _REPOS_TMP / user_id / slug
+            # If not in /tmp (cold start), trigger background restore from GCS
+            if not local_path.exists():
+                asyncio.create_task(asyncio.to_thread(_restore_from_gcs, user_id, slug))
+            repos.append(
+                RepoInfo(
+                    id=f"{user_id}/{slug}",
+                    name=slug,
+                    git_url=meta.get("git_url", ""),
+                    local_path=str(local_path),
+                    branch=meta.get("branch", "main"),
+                )
+            )
+        return repos
+
+    # Fallback: scan /tmp filesystem (Redis unavailable or first run after migration)
+    user_dir = _REPOS_TMP / user_id
     if not user_dir.exists():
         return []
     repos = []
     for repo_path in user_dir.iterdir():
         if repo_path.is_dir() and (repo_path / ".git").exists():
-            # Read remote URL
             try:
                 result = subprocess.run(
                     ["git", "-C", str(repo_path), "remote", "get-url", "origin"],
@@ -471,7 +614,6 @@ async def list_repos(request: Request) -> list[RepoInfo]:
                     text=True,
                     timeout=10,
                 )
-                # Strip embedded OAuth token (https://token@github.com/...)
                 git_url = re.sub(r"https://[^@]+@", "https://", result.stdout.strip())
             except Exception:
                 git_url = ""
@@ -511,10 +653,18 @@ async def delete_repo(repo_name: str, request: Request) -> dict:
         ```
     """
     user_id = _user_id_from_request(request)
-    repo_path = _REPOS_BASE / user_id / repo_name
-    if not repo_path.exists():
+    repo_path = _REPOS_TMP / user_id / repo_name
+    gcs_path = _REPOS_GCS / user_id / repo_name
+
+    if not repo_path.exists() and not gcs_path.exists():
         raise HTTPException(status_code=404, detail="Repo not found")
-    shutil.rmtree(repo_path)
+
+    if repo_path.exists():
+        shutil.rmtree(repo_path)
+    if gcs_path.exists():
+        asyncio.create_task(asyncio.to_thread(shutil.rmtree, str(gcs_path)))
+
+    _redis_delete_repo(user_id, repo_name)
     return {"deleted": repo_name}
 
 

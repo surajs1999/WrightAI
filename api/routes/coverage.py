@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -52,9 +53,12 @@ async def get_coverage(
     from core.config import load_config
     from core.parser.tree_sitter_parser import CodeParser
 
-    config = load_config(repo_root)
+    loop = asyncio.get_event_loop()
+    config = await loop.run_in_executor(None, load_config, repo_root)
     parser = CodeParser()
-    parsed_files = parser.parse_directory(repo_root, exclude=config.exclude)
+    parsed_files = await loop.run_in_executor(
+        None, parser.parse_directory, repo_root, config.exclude
+    )
 
     total = 0
     documented = 0
@@ -92,10 +96,13 @@ async def get_coverage(
     if http_request:
         from api.usage_store import record_event
 
-        record_event(
-            http_request.headers.get("X-Wright-API-Key", ""),
-            "coverage_scans",
-            repo_name=os.path.basename(repo_root),
+        asyncio.create_task(
+            asyncio.to_thread(
+                record_event,
+                http_request.headers.get("X-Wright-API-Key", ""),
+                "coverage_scans",
+                repo_name=os.path.basename(repo_root),
+            )
         )
 
     return CoverageResponse(

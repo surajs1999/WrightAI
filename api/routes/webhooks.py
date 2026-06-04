@@ -15,7 +15,8 @@ _logger = logging.getLogger("wright.webhooks")
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
-_REPOS_BASE = Path(os.getenv("REPOS_PATH", "/data/repos"))
+# Repos live on local NVMe under REPOS_TMP_PATH — same as repos.py _REPOS_BASE
+_REPOS_BASE = Path(os.getenv("REPOS_TMP_PATH", "/tmp/repos"))
 
 
 def _verify_signature(body: bytes, signature_header: str | None, secret: str) -> bool:
@@ -117,7 +118,8 @@ async def github_webhook(
 
     git_env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "echo"}
     try:
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             ["git", "-C", str(repo_path), "pull", "--ff-only"],
             capture_output=True,
             timeout=120,

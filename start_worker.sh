@@ -25,6 +25,7 @@ print('[worker] Health check server listening on :8080')
 
 exec celery -A api.tasks.celery_app worker \
   --beat \
+  --schedule=/data/celerybeat-schedule \
   --loglevel=info \
   --concurrency=4 \
   --pool=prefork

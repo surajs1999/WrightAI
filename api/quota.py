@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import threading
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -77,13 +79,42 @@ def _db():
     return _get_db()
 
 
+# ---------------------------------------------------------------------------
+# Quota caches — eliminate 4 Supabase round-trips on every hot-path request
+# ---------------------------------------------------------------------------
+
+_quota_lock = threading.Lock()
+
+# api_key → (plan_id, ts)  — plan changes are rare, 5-min TTL is fine
+_plan_id_cache: dict[str, tuple[str, float]] = {}
+_PLAN_ID_TTL = 300.0
+
+# plan_id → (PlanLimits, ts)  — plan config almost never changes
+_plan_limits_cache: dict[str, tuple[PlanLimits, float]] = {}
+_PLAN_LIMITS_TTL = 3600.0
+
+# api_key → (user_id, ts)  — user_id is immutable once created
+_user_id_cache: dict[str, tuple[str | None, float]] = {}
+_USER_ID_TTL = 86400.0
+
+# (user_id, event_type) → (count, ts)  — short TTL: quota must be roughly fresh
+_usage_count_cache: dict[tuple[str, str], tuple[int, float]] = {}
+_USAGE_COUNT_TTL = 30.0
+
+
 def get_plan_limits(plan_id: str) -> PlanLimits:
-    """Fetch plan limits from the Supabase plans table; fall back to free on error."""
+    """Fetch plan limits, cached for 1 hour — plan config is nearly static."""
+    now = time.monotonic()
+    with _quota_lock:
+        if plan_id in _plan_limits_cache:
+            limits, ts = _plan_limits_cache[plan_id]
+            if now - ts < _PLAN_LIMITS_TTL:
+                return limits
     try:
         result = _db().table("plans").select("*").eq("id", plan_id).execute()
         if result.data:
             row = result.data[0]
-            return PlanLimits(
+            limits = PlanLimits(
                 id=row["id"],
                 display_name=row["display_name"],
                 docs_per_month=row["docs_per_month"],
@@ -97,35 +128,65 @@ def get_plan_limits(plan_id: str) -> PlanLimits:
                 llms_txt_enabled=row["llms_txt_enabled"],
                 overage_rate_per_doc=float(row.get("overage_rate_per_doc") or 0.0),
             )
+            with _quota_lock:
+                _plan_limits_cache[plan_id] = (limits, now)
+            return limits
     except Exception:
         pass
     return _FREE_LIMITS
 
 
 def get_user_plan(api_key: str) -> str:
-    """Return the plan ID for a user identified by their API key."""
+    """Return the plan ID, cached for 5 minutes."""
     if not api_key or not api_key.startswith("wai_"):
         return "free"
+    now = time.monotonic()
+    with _quota_lock:
+        if api_key in _plan_id_cache:
+            plan_id, ts = _plan_id_cache[api_key]
+            if now - ts < _PLAN_ID_TTL:
+                return plan_id
     try:
         result = _db().table("users").select("plan").eq("api_key", api_key).execute()
         if result.data:
-            return result.data[0].get("plan", "free") or "free"
+            plan_id = result.data[0].get("plan", "free") or "free"
+            with _quota_lock:
+                _plan_id_cache[api_key] = (plan_id, now)
+            return plan_id
     except Exception:
         pass
     return "free"
 
 
 def _resolve_user_id(api_key: str) -> str | None:
+    """Return user_id, cached indefinitely — it never changes once created."""
+    now = time.monotonic()
+    with _quota_lock:
+        if api_key in _user_id_cache:
+            user_id, ts = _user_id_cache[api_key]
+            if now - ts < _USER_ID_TTL:
+                return user_id
     try:
         result = _db().table("users").select("id").eq("api_key", api_key).execute()
         if result.data:
-            return result.data[0]["id"]
+            user_id = result.data[0]["id"]
+            with _quota_lock:
+                _user_id_cache[api_key] = (user_id, now)
+            return user_id
     except Exception:
         pass
     return None
 
 
 def _count_monthly_events(user_id: str, event_type: str) -> int:
+    """Count this month's events, cached for 30s — short enough to catch overages."""
+    now = time.monotonic()
+    cache_key = (user_id, event_type)
+    with _quota_lock:
+        if cache_key in _usage_count_cache:
+            count, ts = _usage_count_cache[cache_key]
+            if now - ts < _USAGE_COUNT_TTL:
+                return count
     try:
         month_start = datetime.now(timezone.utc).strftime("%Y-%m") + "-01T00:00:00+00:00"
         result = (
@@ -137,7 +198,10 @@ def _count_monthly_events(user_id: str, event_type: str) -> int:
             .gte("created_at", month_start)
             .execute()
         )
-        return result.count or len(result.data or [])
+        count = result.count or len(result.data or [])
+        with _quota_lock:
+            _usage_count_cache[cache_key] = (count, now)
+        return count
     except Exception:
         return 0
 
