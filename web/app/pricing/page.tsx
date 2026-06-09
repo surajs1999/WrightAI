@@ -202,6 +202,7 @@ export default function PricingPage() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [tableOpen, setTableOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [userInfo, setUserInfo] = useState<{ email?: string; api_key?: string } | null>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -209,8 +210,15 @@ export default function PricingPage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Load Paddle.js — overlay used in production; localhost falls back to redirect
-  // since Paddle blocks iframes on non-approved domains.
+  // Pre-fetch user info on load so handleProCheckout stays synchronous
+  useEffect(() => {
+    fetch("/api/proxy/user/me")
+      .then(r => { if (r.status === 401) return null; return r.ok ? r.json() : null; })
+      .then(me => setUserInfo(me ?? {}))
+      .catch(() => setUserInfo({}));
+  }, []);
+
+  // Load Paddle.js
   useEffect(() => {
     const token = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN;
     if (!token) return;
@@ -232,46 +240,32 @@ export default function PricingPage() {
     document.head.appendChild(script);
   }, []);
 
-  async function handleProCheckout(planId: string) {
+  // Synchronous click handler — no await before Paddle.Checkout.open so the
+  // browser preserves the user-gesture context required for overlay iframes.
+  function handleProCheckout(planId: string) {
+    if (userInfo === null) {
+      window.location.href = `/dashboard?redirect=/pricing`;
+      return;
+    }
+    const priceId = PRICE_IDS[planId]?.[interval];
+    if (!priceId) { setCheckoutError("Plan not found — please try again."); return; }
+    if (!window.Paddle) { setCheckoutError("Checkout not ready — please refresh and try again."); return; }
+
     setCheckoutLoading(true);
     setCheckoutError(null);
-    try {
-      // Fetch user info to pre-fill checkout and pass api_key to webhook
-      const meRes = await fetch("/api/proxy/user/me");
-      if (meRes.status === 401) {
-        window.location.href = `/dashboard?redirect=/pricing`;
-        return;
-      }
-      const me = await meRes.json().catch(() => ({})) as { email?: string; api_key?: string };
 
-      const priceId = PRICE_IDS[planId]?.[interval];
-      if (!priceId) {
-        setCheckoutError("Plan not found — please try again.");
-        return;
-      }
+    sessionStorage.setItem("wright_checkout_plan", planId);
+    sessionStorage.setItem("wright_checkout_interval", interval);
+    sessionStorage.removeItem("wright_checkout_attempts");
 
-      if (!window.Paddle) {
-        setCheckoutError("Checkout not ready — please refresh and try again.");
-        return;
-      }
+    window.Paddle.Checkout.open({
+      items: [{ priceId, quantity: 1 }],
+      ...(userInfo.email ? { customer: { email: userInfo.email } } : {}),
+      customData: { api_key: userInfo.api_key ?? "", plan: planId },
+      settings: { displayMode: "overlay", locale: "en" },
+    });
 
-      // Persist plan/interval so /billing/checkout can create a fresh transaction if overlay falls back
-      sessionStorage.setItem("wright_checkout_plan", planId);
-      sessionStorage.setItem("wright_checkout_interval", interval);
-      sessionStorage.setItem("wright_checkout_email", me.email ?? "");
-      sessionStorage.setItem("wright_checkout_api_key", me.api_key ?? "");
-
-      window.Paddle.Checkout.open({
-        items: [{ priceId, quantity: 1 }],
-        ...(me.email ? { customer: { email: me.email } } : {}),
-        customData: { api_key: me.api_key ?? "", plan: planId },
-        settings: { displayMode: "overlay", locale: "en" },
-      });
-    } catch {
-      setCheckoutError("Network error — could not reach the server. Please try again.");
-    } finally {
-      setCheckoutLoading(false);
-    }
+    setCheckoutLoading(false);
   }
 
   return (
