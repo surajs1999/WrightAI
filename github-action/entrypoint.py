@@ -191,7 +191,10 @@ def run_generate() -> None:
     parser = CodeParser()
     parsed_files = parser.parse_directory(path_abs, exclude=config.exclude)
 
-    gateway = LLMGateway(anthropic_key=os.getenv("ANTHROPIC_API_KEY", ""))
+    gateway = LLMGateway(
+        anthropic_key=os.getenv("ANTHROPIC_API_KEY", ""),
+        gemini_key=os.getenv("GEMINI_API_KEY"),
+    )
     injector = DocstringInjector()
 
     async def _generate() -> int:
@@ -214,7 +217,7 @@ def run_generate() -> None:
 
         for pf, func in undoc:
             context = retriever.retrieve_for_function(func)
-            doc, _tokens = await gateway.generate_docstring(func, context, config.style)
+            doc, _llm = await gateway.generate_docstring(func, context, config.style)
             result = injector.inject(func.file_path, func, doc, config.style)
             if result.success:
                 count += 1

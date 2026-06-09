@@ -77,24 +77,39 @@ async def chat(request: ChatRequest, http_request: Request) -> StreamingResponse
         history = history[-20:]
 
     async def event_stream():
-        if quota.warning:
-            yield f"data: {json.dumps({'type': 'quota_warning', 'used': quota.used, 'limit': quota.limit, 'pct': quota.pct, 'upgrade_url': quota.upgrade_url})}\n\n"
-        async for kind, payload in gateway.chat_stream(request.question, contexts, history):
-            if kind == "token":
-                yield f"data: {json.dumps({'type': 'token', 'content': payload})}\n\n"
-            elif kind == "citations":
-                yield f"data: {json.dumps({'type': 'citations', 'files': payload})}\n\n"
-            elif kind == "followups":
-                yield f"data: {json.dumps({'type': 'followups', 'questions': payload})}\n\n"
-        yield "data: [DONE]\n\n"
-        # Fire-and-forget: don't block event loop cleanup waiting for a DB write
-        asyncio.create_task(
-            asyncio.to_thread(
-                record_event,
-                api_key,
-                "chat_message",
-                repo_name=os.path.basename(request.repo_root),
+        tokens_used = 0
+        from core.llm.gateway import LLMGateway as _LLMGateway
+
+        model_used = _LLMGateway.PRIMARY_MODEL
+        try:
+            if quota.warning:
+                yield f"data: {json.dumps({'type': 'quota_warning', 'used': quota.used, 'limit': quota.limit, 'pct': quota.pct, 'upgrade_url': quota.upgrade_url})}\n\n"
+            async for kind, payload in gateway.chat_stream(request.question, contexts, history):
+                if kind == "token":
+                    yield f"data: {json.dumps({'type': 'token', 'content': payload})}\n\n"
+                elif kind == "citations":
+                    yield f"data: {json.dumps({'type': 'citations', 'files': payload})}\n\n"
+                elif kind == "followups":
+                    yield f"data: {json.dumps({'type': 'followups', 'questions': payload})}\n\n"
+                elif kind == "model":
+                    model_used = payload
+                elif kind == "usage":
+                    tokens_used = payload
+            yield "data: [DONE]\n\n"
+        finally:
+            # Runs on normal completion AND client disconnect — ensures event is always recorded
+            asyncio.create_task(
+                asyncio.to_thread(
+                    record_event,
+                    api_key,
+                    "chat_message",
+                    tokens=tokens_used,
+                    repo_name=os.path.basename(request.repo_root),
+                    model=model_used,
+                    is_fallback=(model_used != _LLMGateway.PRIMARY_MODEL),
+                    conversation_turns=len(history),
+                    context_chunks=len(contexts),
+                )
             )
-        )
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

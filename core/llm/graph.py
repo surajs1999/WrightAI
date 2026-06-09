@@ -66,11 +66,11 @@ def _make_generate_node(gateway: LLMGateway) -> Any:
             )
         from core.llm.gateway import _DOCSTRING_SYSTEM
 
-        response_text, tokens = await gateway._call_claude_tracked(prompt, _DOCSTRING_SYSTEM)
-        doc = gateway._parse_structured_output(response_text)
+        _result = await gateway._call_claude_tracked(prompt, _DOCSTRING_SYSTEM)
+        doc = gateway._parse_structured_output(_result.text)
         return {
             "doc": doc,
-            "tokens_used": state.get("tokens_used", 0) + tokens,
+            "tokens_used": state.get("tokens_used", 0) + _result.tokens,
         }
 
     return generate_node
@@ -86,14 +86,14 @@ def _make_critic_node(gateway: LLMGateway) -> Any:
             }
         doc_text = _render_docstring_text(doc)
         prompt = build_drift_check_prompt(state["func"], doc_text)
-        response_text, tokens = await gateway._call_claude_tracked(
+        _result = await gateway._call_claude_tracked(
             prompt,
             "You are a precise documentation quality checker. "
             "Return ONLY valid JSON with keys is_drifted (bool) and reason (str or null).",
         )
         critique: str | None = None
         try:
-            data = json.loads(response_text.strip())
+            data = json.loads(_result.text.strip())
             if data.get("is_drifted"):
                 critique = (
                     data.get("reason") or "Documentation does not accurately describe the function."
@@ -102,7 +102,7 @@ def _make_critic_node(gateway: LLMGateway) -> Any:
             pass
         return {
             "critique": critique,
-            "tokens_used": state.get("tokens_used", 0) + tokens,
+            "tokens_used": state.get("tokens_used", 0) + _result.tokens,
         }
 
     return critic_node

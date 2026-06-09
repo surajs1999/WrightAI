@@ -108,7 +108,7 @@ def _build_gateway() -> "LLMGateway":
 
     return LLMGateway(
         anthropic_key=_require_env("ANTHROPIC_API_KEY"),
-        openai_key=os.getenv("OPENAI_API_KEY"),
+        gemini_key=os.getenv("GEMINI_API_KEY"),
     )
 
 
@@ -233,7 +233,12 @@ def init(repo: str = typer.Argument(".", help="Repository root")) -> None:
         parsed_files = parser.parse_directory(repo_path)
         progress.update(scan_task, completed=True, description=f"Found {len(parsed_files)} files")
 
-    named_funcs = [f for pf in parsed_files for f in pf.functions if f.name != "<anonymous>"]
+    named_funcs = [
+        f
+        for pf in parsed_files
+        for f in (*pf.functions, *(m for cls in pf.classes for m in cls.methods))
+        if f.name != "<anonymous>"
+    ]
     total_funcs = len(named_funcs)
     documented = sum(1 for f in named_funcs if f.existing_docstring)
     console.print("\n[bold]Scan results:[/bold]")
@@ -248,7 +253,12 @@ def init(repo: str = typer.Argument(".", help="Repository root")) -> None:
     detected_lang = max(lang_counts, key=lang_counts.get) if lang_counts else "python"
 
     # Show 3 sample undocumented functions
-    undoc = [f for pf in parsed_files for f in pf.functions if not f.existing_docstring][:3]
+    undoc = [
+        f
+        for pf in parsed_files
+        for f in (*pf.functions, *(m for cls in pf.classes for m in cls.methods))
+        if not f.existing_docstring
+    ][:3]
     if undoc:
         console.print("\n[bold]Sample undocumented functions:[/bold]")
         for f in undoc:
@@ -401,7 +411,7 @@ def generate(
                                 else LANGUAGE_DEFAULT_STYLE.get(func.language, doc_style)
                             )
                             contexts = retriever.retrieve_for_function(func)
-                            doc, _tokens = await gateway.generate_docstring(
+                            doc, _llm = await gateway.generate_docstring(
                                 func,
                                 contexts,
                                 effective_style,
@@ -482,7 +492,11 @@ def coverage(
     path_abs = _resolve_workspace(os.path.abspath(path))
     config = load_config(path_abs)
     parser = CodeParser()
-    parsed_files = parser.parse_directory(path_abs, exclude=config.exclude)
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as progress:
+        t = progress.add_task("Scanning repository…", total=None)
+        parsed_files = parser.parse_directory(path_abs, exclude=config.exclude)
+        progress.update(t, completed=True, description=f"Scanned {len(parsed_files)} files")
 
     total_funcs = 0
     documented_funcs = 0
@@ -602,7 +616,10 @@ def drift(
         if anthropic_key:
             from core.llm.gateway import LLMGateway
 
-            gateway = LLMGateway(anthropic_key=anthropic_key)
+            gateway = LLMGateway(
+                anthropic_key=anthropic_key,
+                gemini_key=os.getenv("GEMINI_API_KEY"),
+            )
             if file:
                 file_abs = os.path.abspath(file)
                 sem = asyncio.Semaphore(5)
@@ -711,7 +728,7 @@ def drift(
                 doc_style = LANGUAGE_DEFAULT_STYLE.get(lang, config.style) if lang else config.style
                 try:
                     context = retriever.retrieve_for_function(func) if retriever else []
-                    doc, _tokens = await gateway.generate_docstring(func, context, doc_style)
+                    doc, _llm = await gateway.generate_docstring(func, context, doc_style)
                     return (file_path, func, doc, doc_style, None)
                 except Exception as e:
                     return (file_path, func, None, doc_style, str(e))
@@ -887,8 +904,12 @@ def chat(path: str = typer.Argument(".", help="Repository root")) -> None:
                 break
 
             with console.status("Thinking..."):
-                contexts = retriever.retrieve_for_query(question, n=5)
-                answer, citations = await gateway.chat(question, contexts)
+                try:
+                    contexts = retriever.retrieve_for_query(question, n=5)
+                    answer, citations = await gateway.chat(question, contexts)
+                except Exception as e:
+                    console.print(f"[red]Error: {e}[/red]")
+                    continue
 
             console.print(f"\n[bold cyan]Wright:[/bold cyan] {answer}")
             if citations:
@@ -941,7 +962,12 @@ def llms_txt(path: str = typer.Argument(".", help="Repository root")) -> None:
             content = await writer.generate(path_abs, parsed_files, repo_name, gateway)
             writer.write(content, path_abs)
 
-        asyncio.run(_run())
+        try:
+            asyncio.run(_run())
+        except Exception as e:
+            progress.update(t, completed=True)
+            console.print(f"[red]Error generating llms.txt: {e}[/red]")
+            raise typer.Exit(1)
         progress.update(t, completed=True)
 
     console.print(f"[green]llms.txt written to {path_abs}/llms.txt[/green]")

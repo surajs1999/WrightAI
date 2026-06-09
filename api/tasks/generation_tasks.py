@@ -7,7 +7,9 @@ from api.tasks.celery_app import celery_app
 
 
 @celery_app.task(bind=True, name="api.tasks.generation_tasks.generate_file_docs")
-def generate_file_docs(self, file_path: str, repo_root: str, style: str, dry_run: bool) -> dict:
+def generate_file_docs(
+    self, file_path: str, repo_root: str, style: str, dry_run: bool, api_key: str = ""
+) -> dict:
     """
     Generates and injects AI-produced docstrings for all undocumented functions in a Python file or directory as a Celery background task.
 
@@ -64,15 +66,28 @@ def generate_file_docs(self, file_path: str, repo_root: str, style: str, dry_run
     results = []
     total = len(undoc_funcs)
 
+    total_tokens = 0
+    total_duration_ms = 0
+    total_retry_count = 0
+    fallback_used = False
+    last_model: str = ""
+
     async def _process() -> None:
+        nonlocal total_tokens, total_duration_ms, total_retry_count, fallback_used, last_model
         for i, (pf, func) in enumerate(undoc_funcs):
             self.update_state(
                 state="PROGRESS",
                 meta={"current": i, "total": total, "function": func.name},
             )
             context = retriever.retrieve_for_function(func)
-            doc, _tokens = await gateway.generate_docstring(func, context, doc_style)
+            doc, llm_result = await gateway.generate_docstring(func, context, doc_style)
             result = injector.inject(func.file_path, func, doc, doc_style, dry_run=dry_run)
+            if result.success:
+                total_tokens += llm_result.tokens
+                total_duration_ms += llm_result.duration_ms
+                total_retry_count += llm_result.retry_count
+                fallback_used = fallback_used or llm_result.is_fallback
+                last_model = llm_result.model
             results.append(
                 {
                     "function": func.name,
@@ -84,4 +99,20 @@ def generate_file_docs(self, file_path: str, repo_root: str, style: str, dry_run
             )
 
     asyncio.get_event_loop().run_until_complete(_process())
+
+    if api_key and total_tokens > 0:
+        from api.usage_store import record_event
+
+        record_event(
+            api_key,
+            "docs_generated",
+            tokens=total_tokens,
+            repo_name=os.path.basename(repo_root),
+            model=last_model or None,
+            is_fallback=fallback_used,
+            retry_count=total_retry_count,
+            duration_ms=total_duration_ms,
+            doc_style=doc_style.value if hasattr(doc_style, "value") else str(doc_style),
+        )
+
     return {"results": results, "total": total}

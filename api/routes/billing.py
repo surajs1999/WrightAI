@@ -102,10 +102,16 @@ class PortalRequest(BaseModel):
 
 @router.post("/checkout", dependencies=[Depends(verify_api_key)])
 async def create_checkout_session(body: CheckoutRequest, request: Request) -> dict:
-    """Create a Paddle hosted checkout and return its URL."""
+    """Create a Paddle transaction and return its ID for Paddle.js overlay checkout."""
     api_key = request.headers.get("X-Wright-API-Key", "")
-    customer_id = await _get_or_create_paddle_customer(api_key)
     price_id = _get_paddle_price_id(body.plan, body.interval)
+
+    # Fetch user email to pre-fill the checkout form (no customer_id — avoids
+    # Paddle's customer verification flow which breaks the Paddle.js overlay)
+    user_result = _db().table("users").select("email").eq("api_key", api_key).execute()
+    if not user_result.data:
+        raise HTTPException(status_code=401, detail="User not found")
+    user_email = user_result.data[0].get("email", "")
 
     async with httpx.AsyncClient() as client:
         resp = await client.post(
@@ -113,11 +119,8 @@ async def create_checkout_session(body: CheckoutRequest, request: Request) -> di
             headers=_headers(),
             json={
                 "items": [{"price_id": price_id, "quantity": 1}],
-                "customer_id": customer_id,
+                "customer": {"email": user_email},
                 "custom_data": {"api_key": api_key, "plan": body.plan},
-                "checkout": {
-                    "url": f"{_FRONTEND_URL}/pricing?cancelled=true",
-                },
             },
             timeout=15,
         )
@@ -126,8 +129,6 @@ async def create_checkout_session(body: CheckoutRequest, request: Request) -> di
 
     data = resp.json()["data"]
     checkout_url = (data.get("checkout") or {}).get("url", "")
-    if not checkout_url:
-        raise HTTPException(status_code=502, detail="No checkout URL returned from Paddle")
 
     return {"checkout_url": checkout_url, "transaction_id": data["id"]}
 

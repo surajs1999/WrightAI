@@ -22,6 +22,7 @@ class DriftResult:
     old_signature: str | None
     new_signature: str | None
     line: int | None = None
+    tokens: int = 0
 
 
 def _signature_str(func: ParsedFunction) -> str:
@@ -196,7 +197,7 @@ class DriftDetector:
             func_name: str, func: ParsedFunction, old_sig: str | None
         ) -> DriftResult:
             async with sem:
-                is_drifted, reason, _tokens = await gateway.check_drift(
+                is_drifted, reason, _llm_result = await gateway.check_drift(
                     func, func.existing_docstring or ""
                 )
             status = "drifted" if is_drifted else "up_to_date"
@@ -217,6 +218,7 @@ class DriftDetector:
                 old_signature=old_sig,
                 new_signature=_signature_str(func),
                 line=func.start_line,
+                tokens=_llm_result.tokens,
             )
 
         tasks = []

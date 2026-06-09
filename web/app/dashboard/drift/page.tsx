@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useConnectedRepos } from "@/hooks/useConnectedRepos";
+import { Spinner, SkeletonBlock, SpinnerArc } from "@/components/dashboard/Spinner";
 
 interface PRModalState {
   open: boolean;
@@ -159,7 +160,10 @@ export default function DriftPage() {
       {/* Controls */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 28, alignItems: "center" }}>
         {loadingRepos ? (
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>Loading repos…</span>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <Spinner size={7} gap={8} />
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>Loading repos…</span>
+          </div>
         ) : repos.length === 0 ? (
           <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>
             No repos connected. Go to Home and connect one first.
@@ -172,10 +176,11 @@ export default function DriftPage() {
             <button
               onClick={run}
               disabled={loading || !selectedRepo}
-              style={btnStyle(loading || !selectedRepo)}
+              style={{ ...btnStyle(loading || !selectedRepo), display: "flex", alignItems: "center", gap: 8 }}
               onMouseEnter={e => { if (!loading && selectedRepo) (e.currentTarget as HTMLElement).style.background = "#6058C8"; }}
               onMouseLeave={e => { if (!loading && selectedRepo) (e.currentTarget as HTMLElement).style.background = "var(--purple)"; }}
             >
+              {loading && <SpinnerArc size={13} color="#fff" />}
               {loading ? "Checking…" : "Run drift check"}
             </button>
           </>
@@ -189,10 +194,20 @@ export default function DriftPage() {
       )}
 
       {loading && (
-        <div style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--text-muted)", padding: "20px 0", display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>⟳</span>
-          Scanning all functions and checking docstrings…
-        </div>
+        <>
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--text-muted)", padding: "20px 0 16px", display: "flex", alignItems: "center", gap: 10 }}>
+            <SpinnerArc size={14} color="var(--purple-light)" />
+            Scanning all functions and checking docstrings…
+          </div>
+          <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
+            {[110, 90, 120, 100].map((w, i) => (
+              <div key={i} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "14px 22px", minWidth: 110, flex: 1 }}>
+                <SkeletonBlock width={60} height={10} style={{ marginBottom: 10 }} />
+                <SkeletonBlock width={w > 100 ? 48 : 40} height={28} />
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {data && (
@@ -343,12 +358,22 @@ export default function DriftPage() {
                   </div>
                 )}
 
+                {prModal.running && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", marginBottom: 16, background: "rgba(83,74,183,0.07)", border: "1px solid rgba(83,74,183,0.2)", borderRadius: 8 }}>
+                    <SpinnerArc size={14} color="var(--purple-light)" />
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>
+                      Generating docstrings for {drifted.length} function{drifted.length !== 1 ? "s" : ""}…
+                    </span>
+                  </div>
+                )}
+
                 <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
                   <button onClick={closePrModal} disabled={prModal.running}
                     style={{ padding: "9px 18px", background: "transparent", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text-muted)", fontFamily: "var(--font-body)", fontSize: 14, cursor: prModal.running ? "not-allowed" : "pointer" }}>
                     Cancel
                   </button>
-                  <button onClick={runFixAndPR} disabled={prModal.running || (!!prModal.error?.includes("token") && !prModal.fallbackToken.trim())} style={btnStyle(prModal.running || (!!prModal.error?.includes("token") && !prModal.fallbackToken.trim()))}>
+                  <button onClick={runFixAndPR} disabled={prModal.running || (!!prModal.error?.includes("token") && !prModal.fallbackToken.trim())} style={{ ...btnStyle(prModal.running || (!!prModal.error?.includes("token") && !prModal.fallbackToken.trim())), display: "flex", alignItems: "center", gap: 8 }}>
+                    {prModal.running && <SpinnerArc size={13} color="#fff" />}
                     {prModal.running ? "Creating PR…" : "Create PR"}
                   </button>
                 </div>

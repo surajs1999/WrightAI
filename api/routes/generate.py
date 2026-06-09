@@ -93,6 +93,7 @@ async def generate_docstring(
             repo_root=request.repo_root,
             style=request.style,
             dry_run=request.dry_run,
+            api_key=api_key,
         )
         return GenerateResponse(
             success=True,
@@ -172,7 +173,7 @@ async def generate_docstring(
 
     doc_style = DocStyle(request.style)
     context = retriever.retrieve_for_function(func)
-    doc, tokens_used = await gateway.generate_docstring(
+    doc, llm_result = await gateway.generate_docstring(
         func, context, doc_style, verbosity=request.verbosity
     )
     result = injector.inject(func.file_path, func, doc, doc_style, dry_run=True)
@@ -186,9 +187,16 @@ async def generate_docstring(
         record_event(
             http_request.headers.get("X-Wright-API-Key", ""),
             "docs_generated",
-            tokens=tokens_used,
+            tokens=llm_result.tokens,
             repo_name=os.path.basename(request.repo_root),
             language=func.language if hasattr(func, "language") else None,
+            model=llm_result.model,
+            is_fallback=llm_result.is_fallback,
+            retry_count=llm_result.retry_count,
+            duration_ms=llm_result.duration_ms,
+            cache_read_tokens=llm_result.cache_read_tokens,
+            context_chunks=len(context),
+            doc_style=request.style,
         )
 
     return GenerateResponse(

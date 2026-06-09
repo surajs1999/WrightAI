@@ -247,7 +247,12 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
 
     fixed: list[str] = []
     errors: list[str] = []
-    total_tokens = 0
+    # (fn_name, tokens, model) for each successfully injected function
+    fixed_results: list[tuple[str, int, str]] = []
+    total_duration_ms = 0
+    total_retry_count = 0
+    fallback_used = False
+    last_model = ""
 
     for fn_ref in body.functions:
         try:
@@ -269,12 +274,17 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
             dep_graph.build([parsed_file])
             retriever = HybridRetriever(chroma, dep_graph, embedder)
             context = retriever.retrieve_for_function(func)
-            doc, fn_tokens = await gateway.generate_docstring(func, context, doc_style)
-            total_tokens += fn_tokens
+            doc, llm_result = await gateway.generate_docstring(func, context, doc_style)
+            total_duration_ms += llm_result.duration_ms
+            total_retry_count += llm_result.retry_count
+            fallback_used = fallback_used or llm_result.is_fallback
+            last_model = llm_result.model
             result = injector.inject(func.file_path, func, doc, doc_style, dry_run=False)
 
             if result.success:
-                fixed.append(fn_ref.function_name or func.name)
+                fn_name = fn_ref.function_name or func.name
+                fixed.append(fn_name)
+                fixed_results.append((fn_name, llm_result.tokens, llm_result.model))
             else:
                 errors.append(f"`{fn_ref.function_name}`: {result.error}")
         except Exception as e:
@@ -367,11 +377,26 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
 
     from api.usage_store import record_event
 
+    _api_key = request.headers.get("X-Wright-API-Key", "")
+    # Record per-function token cost so analytics can break down by function
+    for fn_name, fn_tokens, fn_model in fixed_results:
+        record_event(
+            _api_key,
+            "docs_generated",
+            tokens=fn_tokens,
+            repo_name=repo_name,
+            model=fn_model,
+            doc_style=body.style,
+        )
+    # Record the PR creation as a separate event (no tokens — already counted above)
     record_event(
-        request.headers.get("X-Wright-API-Key", ""),
+        _api_key,
         "fix_pr",
-        tokens=total_tokens,
         repo_name=repo_name,
+        model=last_model,
+        is_fallback=fallback_used,
+        retry_count=total_retry_count,
+        duration_ms=total_duration_ms,
     )
 
     pr_data = resp.json()

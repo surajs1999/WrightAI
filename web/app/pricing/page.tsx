@@ -5,7 +5,32 @@ import Link from "next/link";
 import Image from "next/image";
 import Footer from "@/components/landing/Footer";
 
+declare global {
+  interface Window {
+    Paddle?: {
+      Initialize: (opts: { token: string; eventCallback?: (ev: { name: string }) => void }) => void;
+      Checkout: {
+        open: (opts: {
+          transactionId?: string;
+          items?: { priceId: string; quantity: number }[];
+          customer?: { email: string };
+          customData?: Record<string, string>;
+          settings?: Record<string, unknown>;
+        }) => void;
+      };
+    };
+  }
+}
+
+
 type Interval = "monthly" | "annual";
+
+const PRICE_IDS: Record<string, Record<string, string>> = {
+  pro: {
+    monthly: "pri_01kt5dztgzehbz8b1gwd2y58k9",
+    annual: "pri_01kt5e1gwgysmdgmjq73xecde2",
+  },
+};
 
 const PLANS = [
   {
@@ -201,36 +226,58 @@ export default function PricingPage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Load Paddle.js — overlay used in production; localhost falls back to redirect
+  // since Paddle blocks iframes on non-approved domains.
+  useEffect(() => {
+    const token = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN;
+    if (!token) return;
+    const init = () => {
+      window.Paddle?.Initialize({
+        token,
+        eventCallback(ev) {
+          if (ev.name === "checkout.completed") {
+            window.location.href = "/dashboard?upgraded=true";
+          }
+        },
+      });
+    };
+    if (window.Paddle) { init(); return; }
+    const script = document.createElement("script");
+    script.src = "https://cdn.paddle.com/paddle/v2/paddle.js";
+    script.async = true;
+    script.onload = init;
+    document.head.appendChild(script);
+  }, []);
+
   async function handleProCheckout(planId: string) {
     setCheckoutLoading(true);
     setCheckoutError(null);
     try {
-      const res = await fetch("/api/proxy/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: planId, interval }),
-      });
-
-      if (res.status === 401) {
+      // Fetch user info to pre-fill checkout and pass api_key to webhook
+      const meRes = await fetch("/api/proxy/user/me");
+      if (meRes.status === 401) {
         window.location.href = `/dashboard?redirect=/pricing`;
         return;
       }
+      const me = await meRes.json().catch(() => ({})) as { email?: string; api_key?: string };
 
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        const msg = (data as { detail?: string }).detail
-          ?? `Server error (${res.status}) — please try again or contact support.`;
-        setCheckoutError(msg);
+      const priceId = PRICE_IDS[planId]?.[interval];
+      if (!priceId) {
+        setCheckoutError("Plan not found — please try again.");
         return;
       }
 
-      const { checkout_url } = data as { checkout_url?: string };
-      if (!checkout_url) {
-        setCheckoutError("No checkout URL returned — please try again.");
+      if (!window.Paddle) {
+        setCheckoutError("Checkout not ready — please refresh and try again.");
         return;
       }
-      window.location.href = checkout_url;
+
+      window.Paddle.Checkout.open({
+        items: [{ priceId, quantity: 1 }],
+        ...(me.email ? { customer: { email: me.email } } : {}),
+        customData: { api_key: me.api_key ?? "", plan: planId },
+        settings: { displayMode: "overlay", locale: "en" },
+      });
     } catch {
       setCheckoutError("Network error — could not reach the server. Please try again.");
     } finally {

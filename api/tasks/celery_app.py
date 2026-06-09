@@ -22,6 +22,11 @@ celery_app.conf.result_serializer = "json"
 celery_app.conf.accept_content = ["json"]
 celery_app.conf.timezone = "UTC"
 
+# Reduce Upstash command count: poll every 5s instead of 1s, expire results after 1h
+celery_app.conf.broker_transport_options = {"polling_interval": 5}
+celery_app.conf.result_expires = 3600
+celery_app.conf.worker_prefetch_multiplier = 1
+
 celery_app.autodiscover_tasks(["api.tasks"])
 
 # ---------------------------------------------------------------------------

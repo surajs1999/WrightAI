@@ -88,6 +88,11 @@ spec:
             secretKeyRef:
               name: brevo-api-key
               key: latest
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-api-key
+              key: latest
         - name: BREVO_FROM_EMAIL
           value: hello@wrightai.live
         - name: FRONTEND_URL

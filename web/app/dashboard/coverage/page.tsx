@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import CoverageBar from "@/components/dashboard/CoverageBar";
 import { useConnectedRepos } from "@/hooks/useConnectedRepos";
+import { Spinner, SkeletonBlock, SpinnerArc } from "@/components/dashboard/Spinner";
 
 interface CoverageData {
   overall_pct: number;
@@ -73,7 +74,10 @@ export default function CoveragePage() {
         <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Repository</div>
           {loadingRepos ? (
-            <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>Loading repos…</span>
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <Spinner size={7} gap={8} />
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>Loading repos…</span>
+            </div>
           ) : repos.length === 0 ? (
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>No repos connected. Go to Home and connect one first.</span>
           ) : (
@@ -89,8 +93,10 @@ export default function CoveragePage() {
                   border: "none", borderRadius: 8, fontFamily: "var(--font-body)", fontSize: 14,
                   cursor: loading || !selectedRepo ? "not-allowed" : "pointer",
                   opacity: loading || !selectedRepo ? 0.6 : 1,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                 }}
               >
+                {loading && <SpinnerArc size={13} color="#fff" />}
                 {loading ? "Scanning…" : "Run coverage"}
               </button>
             </>
@@ -159,6 +165,34 @@ export default function CoveragePage() {
           </div>
         )}
 
+        {/* Ghost skeleton while scanning */}
+        {loading && !data && (
+          <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 18px" }}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+              <div style={{ position: "relative", width: 130, height: 130 }}>
+                <svg width="130" height="130" style={{ transform: "rotate(-90deg)" }}>
+                  <circle cx="65" cy="65" r="54" fill="none" stroke="rgba(175,169,236,0.08)" strokeWidth="9" />
+                  <circle cx="65" cy="65" r="54" fill="none" stroke="rgba(175,169,236,0.12)" strokeWidth="9"
+                    strokeDasharray="339.3" strokeDashoffset="169.6"
+                    style={{ animation: "skeleton-wave 1.6s ease-in-out infinite" }} />
+                </svg>
+                <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                  <SkeletonBlock width={44} height={28} />
+                  <SkeletonBlock width={56} height={10} />
+                </div>
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {[0, 1, 2].map(i => (
+                <div key={i} style={{ padding: "10px 14px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)", display: "flex", justifyContent: "space-between" }}>
+                  <SkeletonBlock width={90} height={12} />
+                  <SkeletonBlock width={32} height={16} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Empty state while no data */}
         {!data && !loading && !error && (
           <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "28px 18px", textAlign: "center" }}>
@@ -214,10 +248,30 @@ export default function CoveragePage() {
           <div style={{ background: "var(--surface)", border: "1px solid rgba(239,159,39,0.2)", borderRadius: 12, padding: "24px", fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--amber)" }}>
             ⚠ No supported source files found. Wright scans Python, JS/TS, Java, Go, and Rust.
           </div>
+        ) : loading ? (
+          <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 24px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <SkeletonBlock width={140} height={11} />
+              <div style={{ display: "flex", gap: 8 }}>
+                <SkeletonBlock width={60} height={18} style={{ borderRadius: 4 }} />
+                <SkeletonBlock width={72} height={18} style={{ borderRadius: 4 }} />
+              </div>
+            </div>
+            <div style={{ borderTop: "1px solid var(--border)", marginBottom: 12 }} />
+            {[1, 0.85, 0.6, 0.4, 0.9, 0.3].map((w, i) => (
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "16px 1fr auto 1fr auto", gap: 10, padding: "9px 10px", alignItems: "center" }}>
+                <SkeletonBlock width={10} height={10} style={{ borderRadius: "50%" }} />
+                <SkeletonBlock width={`${w * 100}%`} height={11} />
+                <SkeletonBlock width={28} height={11} />
+                <SkeletonBlock width="100%" height={6} style={{ borderRadius: 999 }} />
+                <SkeletonBlock width={36} height={11} />
+              </div>
+            ))}
+          </div>
         ) : (
           <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "48px 24px", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--text-muted)", margin: 0, textAlign: "center" }}>
-              {loading ? "Scanning repo…" : "Folder breakdown will appear here after running coverage."}
+              Folder breakdown will appear here after running coverage.
             </p>
           </div>
         )}

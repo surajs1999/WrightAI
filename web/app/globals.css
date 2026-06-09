@@ -110,6 +110,16 @@ main, nav, header, aside, footer, [data-layer="above"] {
   50% { opacity: 0.5; transform: scale(1.15); }
 }
 
+@keyframes pulse-hex {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.2); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 @keyframes float-up {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
@@ -120,10 +130,27 @@ main, nav, header, aside, footer, [data-layer="above"] {
   100% { background-position: 200% center; }
 }
 
+@keyframes skeleton-wave {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
 .cursor-blink { animation: blink 1s step-end infinite; }
 .hex-pulse { animation: pulse-soft 2.5s ease-in-out infinite; }
 .live-dot { animation: pulse-soft 0.8s ease-in-out infinite; }
 .float-up { animation: float-up 0.5s ease-out forwards; }
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(175, 169, 236, 0.06) 25%,
+    rgba(175, 169, 236, 0.12) 50%,
+    rgba(175, 169, 236, 0.06) 75%
+  );
+  background-size: 800px 100%;
+  animation: skeleton-wave 1.6s ease-in-out infinite;
+  border-radius: 6px;
+}
 
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }

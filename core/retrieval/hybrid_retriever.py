@@ -36,11 +36,20 @@ class HybridRetriever:
         self._graph = dep_graph
         self._embedder = embedder
         self._pagerank: dict[str, float] = {}
+        self._max_pr: float = 1.0
 
     def _get_pagerank(self) -> dict[str, float]:
         if not self._pagerank:
             self._pagerank = self._graph.get_pagerank_scores()
+            self._max_pr = max(self._pagerank.values(), default=1.0)
         return self._pagerank
+
+    def _graph_score(self, file_path: str, chunk_name: str, pagerank: dict[str, float]) -> float:
+        """Look up PageRank for a chunk, handling merged names like 'func1+func2'."""
+        return max(
+            (pagerank.get(f"{file_path}::{part.strip()}", 0.0) for part in chunk_name.split("+")),
+            default=0.0,
+        )
 
     def retrieve_for_function(self, func: ParsedFunction) -> list[RetrievedContext]:
         pagerank = self._get_pagerank()
@@ -78,8 +87,7 @@ class HybridRetriever:
                     token_count=len(result.source) // 4,
                 )
                 vector_score = 1.0 - result.distance
-                node_id = f"{result.file_path}::{result.name}"
-                graph_score = pagerank.get(node_id, 0.0)
+                graph_score = self._graph_score(result.file_path, result.name, pagerank)
                 ctx_func = ParsedFunction(
                     name=result.name,
                     language=result.language,
@@ -188,7 +196,7 @@ class HybridRetriever:
                 decorators=[],
             )
             vs = 1.0 - r.distance
-            gs = pagerank.get(f"{r.file_path}::{r.name}", 0.0)
+            gs = self._graph_score(r.file_path, r.name, pagerank)
             related.append(
                 RetrievedContext(
                     function=ctx_func,
@@ -221,8 +229,7 @@ class HybridRetriever:
             seen_chunks.add(result.chunk_id)
 
             vector_score = 1.0 - result.distance
-            node_id = f"{result.file_path}::{result.name}"
-            graph_score = pagerank.get(node_id, 0.0)
+            graph_score = self._graph_score(result.file_path, result.name, pagerank)
             combined_score = self._combine_scores(vector_score, graph_score)
 
             chunk = CodeChunk(
@@ -347,8 +354,7 @@ class HybridRetriever:
         return existing
 
     def _combine_scores(self, vector_score: float, graph_score: float) -> float:
-        # Normalize graph score to [0, 1] assuming max pagerank ~0.1 for large graphs
-        normalized_graph = min(graph_score * 10.0, 1.0)
+        normalized_graph = graph_score / self._max_pr if self._max_pr > 0 else 0.0
         return self.VECTOR_WEIGHT * vector_score + self.GRAPH_WEIGHT * normalized_graph
 
     def _trim_to_token_budget(self, contexts: list[RetrievedContext]) -> list[RetrievedContext]:

@@ -68,6 +68,8 @@ async def get_coverage(
 
     for pf in parsed_files:
         funcs = [f for f in pf.functions if f.name != "<anonymous>"]
+        for cls in pf.classes:
+            funcs += [f for f in cls.methods if f.name != "<anonymous>"]
         file_total = len(funcs)
         file_doc = sum(1 for f in funcs if f.existing_docstring)
         total += file_total

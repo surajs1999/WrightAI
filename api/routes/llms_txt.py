@@ -451,7 +451,6 @@ async def generate_llms_txt(body: LlmsTxtRequest, http_request: Request) -> dict
     record_event(
         http_request.headers.get("X-Wright-API-Key", ""),
         "llms_txt_generated",
-        tokens=token_estimate,
         repo_name=repo_name,
     )
 

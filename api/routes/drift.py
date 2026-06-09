@@ -10,6 +10,11 @@ from pydantic import BaseModel
 
 from api.auth import verify_api_key
 from api.quota import check_feature_flag
+from core.parser.cache import ASTCache
+
+# Shared LLM result cache — keyed by file_path+func_name+source+docstring hash.
+# Backed by SQLite (L1) and Redis (L2), avoids redundant Haiku calls on re-saves.
+_drift_cache = ASTCache(os.getenv("SQLITE_CACHE_PATH", "/tmp/ast_cache.db"))
 
 router = APIRouter(prefix="/drift-check", tags=["drift"], dependencies=[Depends(verify_api_key)])
 
@@ -142,11 +147,18 @@ async def check_drift_file(
         parsed_file = parser.parse_file(tmp_path)
         all_funcs = _collect_all_funcs(parsed_file)
 
-        gateway = LLMGateway(anthropic_key=os.getenv("ANTHROPIC_API_KEY", ""))
+        gateway = LLMGateway(
+            anthropic_key=os.getenv("ANTHROPIC_API_KEY", ""),
+            gemini_key=os.getenv("GEMINI_API_KEY"),
+        )
         # Semaphore=2 to avoid hammering Anthropic rate limits with concurrent requests
         sem = _asyncio.Semaphore(2)
 
         token_totals: list[int] = []
+        models_used: list[str] = []
+        fallbacks_used: list[bool] = []
+        retry_counts: list[int] = []
+        duration_ms_list: list[int] = []
 
         async def _check(func_name: str, func) -> DriftResultItem:  # type: ignore[type-arg]
             if func.existing_docstring is None:
@@ -159,17 +171,45 @@ async def check_drift_file(
                     new_signature=_signature_str(func),
                     line=func.start_line,
                 )
+            # Check LLM result cache — avoids re-calling Haiku when source+docstring unchanged
+            cached = _drift_cache.get_function_result(
+                request.file_path, func_name, func.source, func.existing_docstring
+            )
+            if cached is not None:
+                status, reason = cached
+                return DriftResultItem(
+                    function_name=func_name,
+                    file_path=request.file_path,
+                    status=status,
+                    reason=reason,
+                    old_signature=None,
+                    new_signature=_signature_str(func),
+                    line=func.start_line,
+                )
             async with sem:
-                is_drifted, reason, tokens = await gateway.check_drift(
+                is_drifted, reason, llm_result = await gateway.check_drift(
                     func, func.existing_docstring
                 )
-            token_totals.append(tokens)
+            token_totals.append(llm_result.tokens)
+            models_used.append(llm_result.model)
+            fallbacks_used.append(llm_result.is_fallback)
+            retry_counts.append(llm_result.retry_count)
+            duration_ms_list.append(llm_result.duration_ms)
+            status = "drifted" if is_drifted else "up_to_date"
+            _drift_cache.set_function_result(
+                request.file_path,
+                func_name,
+                func.source,
+                func.existing_docstring,
+                status,
+                reason if is_drifted else None,
+            )
             # Let exceptions propagate — a failed LLM call should not be silently
             # treated as up_to_date (which would hide real drift)
             return DriftResultItem(
                 function_name=func_name,
                 file_path=request.file_path,
-                status="drifted" if is_drifted else "up_to_date",
+                status=status,
                 reason=reason if is_drifted else None,
                 old_signature=None,
                 new_signature=_signature_str(func),
@@ -194,6 +234,11 @@ async def check_drift_file(
         http_request.headers.get("X-Wright-API-Key", ""),
         "drift_checks_run",
         tokens=sum(token_totals),
+        model=models_used[0] if models_used else None,
+        is_fallback=any(fallbacks_used),
+        cache_hit=len(token_totals) == 0 and bool(items),
+        retry_count=sum(retry_counts),
+        duration_ms=sum(duration_ms_list),
     )
 
     return DriftCheckFileResponse(results=items)
@@ -246,7 +291,10 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
     if anthropic_key and _semantic_ok:
         from core.llm.gateway import LLMGateway
 
-        gateway = LLMGateway(anthropic_key=anthropic_key)
+        gateway = LLMGateway(
+            anthropic_key=anthropic_key,
+            gemini_key=os.getenv("GEMINI_API_KEY"),
+        )
         sem = _asyncio.Semaphore(5)
         if request.file_path and os.path.exists(request.file_path):
             raw_results = await detector.check_file_async(request.file_path, cache, gateway, sem)
@@ -280,10 +328,16 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
     from api.usage_store import record_event
     import os as _os
 
+    from core.llm.gateway import LLMGateway as _LLMGateway
+
+    _tokens_sum = sum(r.tokens for r in raw_results)
     record_event(
         http_request.headers.get("X-Wright-API-Key", ""),
         "drift_checks_run",
+        tokens=_tokens_sum,
         repo_name=_os.path.basename(request.repo_root),
+        model=_LLMGateway.DRIFT_MODEL if _semantic_ok else None,
+        cache_hit=_semantic_ok and _tokens_sum == 0 and bool(raw_results),
     )
 
     return DriftCheckResponse(

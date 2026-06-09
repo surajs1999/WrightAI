@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import MetricCard from "@/components/dashboard/MetricCard";
 import CoverageBar from "@/components/dashboard/CoverageBar";
+import { Spinner, SkeletonBlock, SpinnerArc } from "@/components/dashboard/Spinner";
 
 interface CoverageData {
   overall_pct: number;
@@ -24,6 +25,7 @@ export default function DashboardHome() {
   const searchParams = useSearchParams();
   const [coverage, setCoverage] = useState<CoverageData | null>(null);
   const [repos, setRepos] = useState<{ id: string; name: string }[]>([]);
+  const [loadingRepos, setLoadingRepos] = useState(true);
   const [selectedRepo, setSelectedRepo] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [showAllFolders, setShowAllFolders] = useState(false);
@@ -69,6 +71,7 @@ export default function DashboardHome() {
   }, [searchParams]);
 
   useEffect(() => {
+    setLoadingRepos(true);
     fetch("/api/proxy/repos")
       .then(r => r.json())
       .then((data: { id: string; name: string; local_path: string }[]) => {
@@ -77,7 +80,8 @@ export default function DashboardHome() {
           if (data.length > 0) setSelectedRepo(data[0].id);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoadingRepos(false));
   }, []);
 
   useEffect(() => {
@@ -165,7 +169,9 @@ export default function DashboardHome() {
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
               Active repo
             </span>
-            {repos.length > 0 ? (
+            {loadingRepos ? (
+              <SkeletonBlock width={160} height={30} />
+            ) : repos.length > 0 ? (
               <select
                 value={selectedRepo}
                 onChange={e => { setSelectedRepo(e.target.value); setConfirmDisconnect(false); }}
@@ -318,6 +324,18 @@ export default function DashboardHome() {
       {/* Metric cards */}
       {(() => {
         const hasData = coverage && coverage.total > 0;
+        if (loading && !coverage) {
+          return (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16, marginBottom: 28 }}>
+              {[0, 1, 2, 3, 4].map(i => (
+                <div key={i} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 24px" }}>
+                  <SkeletonBlock width={80} height={10} style={{ marginBottom: 12 }} />
+                  <SkeletonBlock width={64} height={32} />
+                </div>
+              ))}
+            </div>
+          );
+        }
         return (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16, marginBottom: 28 }}>
             <MetricCard label="Total Functions" value={hasData ? String(coverage!.total) : "—"} color="var(--purple-light)" />
@@ -410,7 +428,10 @@ export default function DashboardHome() {
         <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 14 }}>Repo summary</div>
 
         {loading && (
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>Scanning…</div>
+          <div style={{ display: "flex", alignItems: "center", fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>
+            <Spinner size={7} gap={8} />
+            Scanning repository…
+          </div>
         )}
 
         {!loading && !coverage && !selectedRepo && (

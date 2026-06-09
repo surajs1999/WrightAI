@@ -44,6 +44,7 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "supabase>=2.0.0",
     "brevo-python>=1.0.0",
+    "google-genai>=2.0.0",
 ]
 keywords = [
   "docstring",

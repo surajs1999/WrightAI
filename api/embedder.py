@@ -32,5 +32,8 @@ def get_gateway():
     if _gateway is None:
         from core.llm.gateway import LLMGateway
 
-        _gateway = LLMGateway(anthropic_key=os.getenv("ANTHROPIC_API_KEY", ""))
+        _gateway = LLMGateway(
+            anthropic_key=os.getenv("ANTHROPIC_API_KEY", ""),
+            gemini_key=os.getenv("GEMINI_API_KEY"),
+        )
     return _gateway

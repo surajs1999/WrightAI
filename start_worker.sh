@@ -27,5 +27,5 @@ exec celery -A api.tasks.celery_app worker \
   --beat \
   --schedule=/data/celerybeat-schedule \
   --loglevel=info \
-  --concurrency=4 \
+  --concurrency=1 \
   --pool=prefork

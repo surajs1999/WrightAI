@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useConnectedRepos } from "@/hooks/useConnectedRepos";
+import { Spinner, SpinnerArc } from "@/components/dashboard/Spinner";
 
 interface Message {
   role: "user" | "assistant";
@@ -290,7 +291,10 @@ export default function ChatPage() {
       {/* Repo selector */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
         {loadingRepos ? (
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>Loading repos…</span>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <Spinner size={7} gap={8} />
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>Loading repos…</span>
+          </div>
         ) : repos.length === 0 ? (
           <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>No repos connected. Go to Home and connect one first.</span>
         ) : (
@@ -373,9 +377,12 @@ export default function ChatPage() {
           borderRadius: 8,
         }}>
           {indexStatus === "checking" && (
-            <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>
-              Checking index…
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <SpinnerArc size={12} color="var(--text-muted)" />
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>
+                Checking index…
+              </span>
+            </div>
           )}
           {indexStatus === "indexing" && (
             <>
@@ -415,9 +422,10 @@ export default function ChatPage() {
           <button
             onClick={() => send(input)}
             disabled={streaming || !input.trim() || !selectedRepo || indexStatus === "indexing"}
-            style={{ padding: "8px 16px", background: input.trim() && selectedRepo && indexStatus !== "indexing" ? "var(--purple)" : "rgba(83,74,183,0.3)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-body)", fontSize: 13, cursor: input.trim() && selectedRepo && !streaming && indexStatus !== "indexing" ? "pointer" : "not-allowed" }}
+            style={{ padding: "8px 16px", background: input.trim() && selectedRepo && indexStatus !== "indexing" ? "var(--purple)" : "rgba(83,74,183,0.3)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-body)", fontSize: 13, cursor: input.trim() && selectedRepo && !streaming && indexStatus !== "indexing" ? "pointer" : "not-allowed", display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}
           >
-            {streaming ? "…" : "Send →"}
+            {streaming && <SpinnerArc size={12} color="rgba(255,255,255,0.7)" />}
+            {streaming ? "Thinking…" : "Send →"}
           </button>
           <button
             onClick={clearChat}

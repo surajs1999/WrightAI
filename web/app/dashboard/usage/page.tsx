@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { SkeletonBlock, SpinnerArc } from "@/components/dashboard/Spinner";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -217,9 +218,20 @@ export default function UsagePage() {
           Activity — {currentMonth}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 28 }}>
-          <StatCard label="Docs Generated" value={fmt(stats.docs_generated)} color="var(--purple-light)" />
-          <StatCard label="Drift Checks" value={fmt(stats.drift_checks_run)} />
-          <StatCard label="Coverage Scans" value={fmt(stats.coverage_scans)} />
+          {loading ? (
+            [0, 1, 2].map(i => (
+              <div key={i} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 24px" }}>
+                <SkeletonBlock width={90} height={10} style={{ marginBottom: 14 }} />
+                <SkeletonBlock width={56} height={30} />
+              </div>
+            ))
+          ) : (
+            <>
+              <StatCard label="Docs Generated" value={fmt(stats.docs_generated)} color="var(--purple-light)" />
+              <StatCard label="Drift Checks" value={fmt(stats.drift_checks_run)} />
+              <StatCard label="Coverage Scans" value={fmt(stats.coverage_scans)} />
+            </>
+          )}
         </div>
 
         {/* API usage cards */}
@@ -227,9 +239,20 @@ export default function UsagePage() {
           API Usage
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 28 }}>
-          <StatCard label="Calls Today" value={fmt(stats.api_calls_today)} />
-          <StatCard label="Calls This Month" value={fmt(stats.api_calls_month)} />
-          <StatCard label="Tokens Used" value={fmt(stats.tokens_used)} sub="cumulative" />
+          {loading ? (
+            [0, 1, 2].map(i => (
+              <div key={i} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 24px" }}>
+                <SkeletonBlock width={90} height={10} style={{ marginBottom: 14 }} />
+                <SkeletonBlock width={56} height={30} />
+              </div>
+            ))
+          ) : (
+            <>
+              <StatCard label="Calls Today" value={fmt(stats.api_calls_today)} />
+              <StatCard label="Calls This Month" value={fmt(stats.api_calls_month)} />
+              <StatCard label="Tokens Used" value={fmt(stats.tokens_used)} sub="cumulative" />
+            </>
+          )}
         </div>
 
         {/* Quota bars */}
@@ -241,7 +264,17 @@ export default function UsagePage() {
             Monthly quotas
           </div>
           {loading ? (
-            <div style={{ fontFamily: "var(--font-body)", fontSize: 13.5, color: "var(--text-muted)" }}>Loading…</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              {[0, 1, 2].map(i => (
+                <div key={i}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                    <SkeletonBlock width={120} height={12} />
+                    <SkeletonBlock width={60} height={12} />
+                  </div>
+                  <SkeletonBlock width="100%" height={6} style={{ borderRadius: 999 }} />
+                </div>
+              ))}
+            </div>
           ) : (
             <>
               <QuotaBar label="Doc generations" entry={quotas.docs_generated} color="var(--purple-light, #AFA9EC)" />
@@ -258,6 +291,12 @@ export default function UsagePage() {
         {/* Plan card */}
         <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 20px" }}>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>Current plan</div>
+          {loading ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+              <SkeletonBlock width={80} height={22} />
+              <SkeletonBlock width={44} height={20} style={{ borderRadius: 999 }} />
+            </div>
+          ) : (
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
             <span style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 22, color: "var(--text)" }}>{planDisplay}</span>
             <span style={{
@@ -270,8 +309,9 @@ export default function UsagePage() {
               {planDisplay.toUpperCase()}
             </span>
           </div>
+          )}
 
-          {!isPro && (
+          {!loading && !isPro && (
             <Link href="/pricing" style={{
               display: "block", textAlign: "center",
               padding: "9px 0", borderRadius: 8,
@@ -282,7 +322,7 @@ export default function UsagePage() {
               Upgrade to Pro
             </Link>
           )}
-          {isPro && (
+          {!loading && isPro && (
             <button
               onClick={async () => {
                 const res = await fetch("/api/proxy/billing/portal", {

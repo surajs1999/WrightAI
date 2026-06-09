@@ -115,7 +115,7 @@ def test_combine_scores_weights() -> None:
     """
     Tests that the HybridRetriever's _combine_scores method correctly weights vector and graph scores according to predefined constants.
 
-    Verifies the score combination logic by testing two scenarios: (1) when only vector score is present, the combined score should equal VECTOR_WEIGHT, and (2) when only graph score is present, the combined score should equal GRAPH_WEIGHT multiplied by the normalized (scaled by 10 and capped at 1.0) graph score.
+    Verifies the score combination logic by testing three scenarios: (1) when only vector score is present, the combined score should equal VECTOR_WEIGHT; (2) when only graph score is present, it is normalized against _max_pr so a score equal to _max_pr produces GRAPH_WEIGHT; (3) a graph score of zero contributes nothing regardless of _max_pr.
 
     Returns:
         None: This test function does not return a value.
@@ -130,12 +130,18 @@ def test_combine_scores_weights() -> None:
     embedder = _make_mock_embedder()
     retriever = HybridRetriever(store, graph, embedder)
 
+    # Pure vector score → combined equals VECTOR_WEIGHT
     score = retriever._combine_scores(vector_score=1.0, graph_score=0.0)
     assert abs(score - HybridRetriever.VECTOR_WEIGHT) < 0.01
 
+    # When graph_score == _max_pr the graph contribution is fully saturated (GRAPH_WEIGHT)
+    retriever._max_pr = 0.1
     score = retriever._combine_scores(vector_score=0.0, graph_score=0.1)
-    expected = HybridRetriever.GRAPH_WEIGHT * min(0.1 * 10, 1.0)
-    assert abs(score - expected) < 0.01
+    assert abs(score - HybridRetriever.GRAPH_WEIGHT) < 0.01
+
+    # Graph score of zero contributes nothing regardless of _max_pr
+    score = retriever._combine_scores(vector_score=0.0, graph_score=0.0)
+    assert score == 0.0
 
 
 def test_trim_to_token_budget() -> None:
