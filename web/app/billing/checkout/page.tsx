@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 
 declare global {
@@ -17,10 +17,9 @@ declare global {
   }
 }
 
-export default function BillingCheckoutPage() {
+function CheckoutLoader() {
   const searchParams = useSearchParams();
   const initialized = useRef(false);
-
   const ptxn = searchParams.get("_ptxn");
 
   useEffect(() => {
@@ -79,5 +78,30 @@ export default function BillingCheckoutPage() {
         Loading checkout…
       </div>
     </div>
+  );
+}
+
+export default function BillingCheckoutPage() {
+  return (
+    <Suspense fallback={
+      <div style={{
+        minHeight: "100vh",
+        background: "#06040f",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}>
+        <div style={{
+          textAlign: "center",
+          fontFamily: "var(--font-body)",
+          color: "rgba(175,169,236,0.55)",
+          fontSize: 15,
+        }}>
+          Loading checkout…
+        </div>
+      </div>
+    }>
+      <CheckoutLoader />
+    </Suspense>
   );
 }
