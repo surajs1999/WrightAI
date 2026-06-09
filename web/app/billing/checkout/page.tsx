@@ -3,19 +3,6 @@
 import { Suspense, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 
-declare global {
-  interface Window {
-    Paddle?: {
-      Initialize: (opts: { token: string; eventCallback?: (ev: { name: string }) => void }) => void;
-      Checkout: {
-        open: (opts: {
-          transactionId?: string;
-          settings?: Record<string, unknown>;
-        }) => void;
-      };
-    };
-  }
-}
 
 function CheckoutLoader() {
   const searchParams = useSearchParams();
