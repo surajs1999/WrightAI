@@ -255,6 +255,12 @@ export default function PricingPage() {
         return;
       }
 
+      // Persist plan/interval so /billing/checkout can create a fresh transaction if overlay falls back
+      sessionStorage.setItem("wright_checkout_plan", planId);
+      sessionStorage.setItem("wright_checkout_interval", interval);
+      sessionStorage.setItem("wright_checkout_email", me.email ?? "");
+      sessionStorage.setItem("wright_checkout_api_key", me.api_key ?? "");
+
       window.Paddle.Checkout.open({
         items: [{ priceId, quantity: 1 }],
         ...(me.email ? { customer: { email: me.email } } : {}),
