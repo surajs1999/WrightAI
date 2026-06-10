@@ -26,7 +26,7 @@ export default function DashboardHome() {
   const router = useRouter();
   const [showUpgraded, setShowUpgraded] = useState(false);
   const [coverage, setCoverage] = useState<CoverageData | null>(null);
-  const [repos, setRepos] = useState<{ id: string; name: string }[]>([]);
+  const [repos, setRepos] = useState<{ id: string; name: string; local_path: string }[]>([]);
   const [loadingRepos, setLoadingRepos] = useState(true);
   const [selectedRepo, setSelectedRepo] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -95,18 +95,20 @@ export default function DashboardHome() {
 
   useEffect(() => {
     if (!selectedRepo) return;
-    const path = `/data/repos/${selectedRepo}`;
+    const path = repos.find(r => r.id === selectedRepo)?.local_path;
+    if (!path) return;
     setLoading(true);
     fetch(`/api/proxy/coverage?repo_root=${encodeURIComponent(path)}`)
       .then(r => r.json())
       .then((d: CoverageData) => setCoverage(d))
       .catch(() => setCoverage(null))
       .finally(() => setLoading(false));
-  }, [selectedRepo]);
+  }, [selectedRepo, repos]);
 
   useEffect(() => {
     if (!selectedRepo) return;
-    const path = `/data/repos/${selectedRepo}`;
+    const path = repos.find(r => r.id === selectedRepo)?.local_path;
+    if (!path) return;
     setDriftCount(null);
     setDriftLoading(true);
     fetch("/api/proxy/drift-check", {
@@ -118,7 +120,7 @@ export default function DashboardHome() {
       .then((d: { drifted: number }) => setDriftCount(d.drifted ?? 0))
       .catch(() => setDriftCount(null))
       .finally(() => setDriftLoading(false));
-  }, [selectedRepo]);
+  }, [selectedRepo, repos]);
 
   const disconnectRepo = async () => {
     if (!selectedRepo) return;
