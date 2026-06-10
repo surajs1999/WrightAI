@@ -52,7 +52,11 @@ jobs:
 
       - name: Deploy to Cloud Run
         run: |
-          gcloud run services replace cloudrun-web.yaml \
+          # Pin to the immutable commit-SHA tag so Cloud Run always pulls the
+          # new image — `:latest` is a mutable tag and Cloud Run can skip
+          # re-resolving it if the service spec string is unchanged.
+          sed "s|web:latest|web:${{ github.sha }}|" cloudrun-web.yaml > /tmp/cloudrun-web.yaml
+          gcloud run services replace /tmp/cloudrun-web.yaml \
             --region=asia-southeast1
 
       - name: Allow unauthenticated access
