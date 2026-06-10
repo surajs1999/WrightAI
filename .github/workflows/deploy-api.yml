@@ -50,7 +50,11 @@ jobs:
 
       - name: Deploy to Cloud Run
         run: |
-          gcloud run services replace cloudrun-api.yaml \
+          # Pin to the immutable commit-SHA tag so Cloud Run always pulls the
+          # new image — `:latest` is a mutable tag and Cloud Run can skip
+          # re-resolving it if the service spec string is unchanged.
+          sed "s|api:latest|api:${{ github.sha }}|" cloudrun-api.yaml > /tmp/cloudrun-api.yaml
+          gcloud run services replace /tmp/cloudrun-api.yaml \
             --region=asia-southeast1
 
       - name: Print deployed URL
