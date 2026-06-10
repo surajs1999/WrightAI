@@ -134,8 +134,9 @@ async def github_webhook(
 
     _logger.info("Synced %s for user %s via webhook", repo_name, user_id)
 
-    from api.routes.repos import _index_repo
+    from api.routes.repos import _backup_to_gcs, _index_repo
 
     asyncio.create_task(_index_repo(str(repo_path)))
+    asyncio.create_task(asyncio.to_thread(_backup_to_gcs, user_id, repo_name))
 
     return JSONResponse({"synced": True, "repo": repo_name})

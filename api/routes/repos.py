@@ -759,6 +759,7 @@ async def sync_repo(repo_name: str, request: Request) -> dict:
         raise HTTPException(status_code=504, detail="git pull timed out")
 
     asyncio.create_task(_index_repo(str(repo_path)))
+    asyncio.create_task(asyncio.to_thread(_backup_to_gcs, user_id, repo_name))
     from api.usage_store import record_event
 
     record_event(request.headers.get("X-Wright-API-Key", ""), "repo_sync", repo_name=repo_name)
