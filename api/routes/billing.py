@@ -95,6 +95,10 @@ class PortalRequest(BaseModel):
     return_url: str = "https://www.wrightai.live/dashboard"
 
 
+class SyncTransactionRequest(BaseModel):
+    transaction_id: str
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -131,6 +135,39 @@ async def create_checkout_session(body: CheckoutRequest, request: Request) -> di
     checkout_url = (data.get("checkout") or {}).get("url", "")
 
     return {"checkout_url": checkout_url, "transaction_id": data["id"]}
+
+
+@router.post("/sync-transaction", dependencies=[Depends(verify_api_key)])
+async def sync_transaction(body: SyncTransactionRequest, request: Request) -> dict:
+    """
+    Fallback for the Paddle webhook: fetch the transaction directly from Paddle
+    and apply the same plan upgrade. Called by the frontend right after
+    checkout.completed so the account upgrades even if no webhook is configured
+    or it hasn't arrived yet.
+    """
+    api_key = request.headers.get("X-Wright-API-Key", "")
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{_PADDLE_API_URL}/transactions/{body.transaction_id}",
+            headers=_headers(),
+            timeout=10,
+        )
+    if not resp.is_success:
+        raise HTTPException(status_code=502, detail=f"Paddle error: {resp.text}")
+
+    data = resp.json()["data"]
+    custom_data = data.get("custom_data") or {}
+    if custom_data.get("api_key") != api_key:
+        raise HTTPException(status_code=403, detail="Transaction does not belong to this account")
+
+    if data.get("status") == "completed":
+        _handle_transaction_completed(data)
+
+    result = (
+        _db().table("users").select("plan, subscription_status").eq("api_key", api_key).execute()
+    )
+    return result.data[0] if result.data else {"plan": "free", "subscription_status": None}
 
 
 @router.post("/portal", dependencies=[Depends(verify_api_key)])

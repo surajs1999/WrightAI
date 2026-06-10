@@ -1,12 +1,20 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import Footer from "@/components/landing/Footer";
 
 
 type Interval = "monthly" | "annual";
+
+type CheckoutNotice = { type: "error" | "success" | "info"; text: string };
+
+const NOTICE_STYLES: Record<CheckoutNotice["type"], { bg: string; border: string; color: string; icon: string }> = {
+  error: { bg: "rgba(226,75,74,0.08)", border: "rgba(226,75,74,0.3)", color: "#E24B4A", icon: "✕" },
+  success: { bg: "rgba(29,158,117,0.08)", border: "rgba(29,158,117,0.3)", color: "#1D9E75", icon: "✓" },
+  info: { bg: "rgba(83,74,183,0.08)", border: "rgba(127,119,221,0.3)", color: "#AFA9EC", icon: "ℹ" },
+};
 
 const PRICE_IDS: Record<string, Record<string, string>> = {
   pro: {
@@ -24,8 +32,8 @@ const PLANS = [
     annualPrice: 0,
     description: "For individuals exploring Wright AI.",
     cta: "Get started free",
-    ctaHref: "https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai",
-    ctaExternal: true,
+    ctaHref: "/login",
+    ctaExternal: false,
     highlighted: false,
     comingSoon: false,
     features: [
@@ -199,10 +207,11 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 export default function PricingPage() {
   const [interval, setInterval] = useState<Interval>("annual");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [checkoutNotice, setCheckoutNotice] = useState<CheckoutNotice | null>(null);
   const [tableOpen, setTableOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [userInfo, setUserInfo] = useState<{ email?: string; api_key?: string } | null>(null);
+  const checkoutCompletedRef = useRef(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -231,14 +240,33 @@ export default function PricingPage() {
         eventCallback(ev) {
           console.log("[Paddle]", ev.name, ev);
           if (ev.name === "checkout.completed") {
-            window.location.href = "/dashboard?upgraded=true";
+            checkoutCompletedRef.current = true;
+            setCheckoutNotice({ type: "success", text: "Payment successful — redirecting to your dashboard…" });
+            const transactionId = ev.data?.transaction_id as string | undefined;
+            const sync = transactionId
+              ? fetch("/api/proxy/billing/sync-transaction", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ transaction_id: transactionId }),
+                }).catch(() => {})
+              : Promise.resolve();
+            sync.finally(() => {
+              window.location.href = "/dashboard?upgraded=true";
+            });
           }
           if (ev.name === "checkout.error" || ev.name === "checkout.warning") {
             const detail = typeof ev.error === "string"
               ? ev.error
               : ev.error?.detail ?? ev.error?.message ?? ev.error?.code;
-            setCheckoutError(detail ? `Paddle: ${detail}` : `Paddle ${ev.name}`);
+            setCheckoutNotice({ type: "error", text: detail ? `Paddle: ${detail}` : `Paddle ${ev.name}` });
             setCheckoutLoading(false);
+          }
+          if (ev.name === "checkout.closed") {
+            if (checkoutCompletedRef.current) return;
+            setCheckoutNotice({ type: "info", text: "Checkout closed — no charge was made. Click “Get Started” whenever you’re ready." });
+            setTimeout(() => {
+              setCheckoutNotice(n => (n?.type === "info" ? null : n));
+            }, 6000);
           }
         },
       });
@@ -259,11 +287,12 @@ export default function PricingPage() {
       return;
     }
     const priceId = PRICE_IDS[planId]?.[interval];
-    if (!priceId) { setCheckoutError("Plan not found — please try again."); return; }
-    if (!window.Paddle) { setCheckoutError("Checkout not ready — please refresh and try again."); return; }
+    if (!priceId) { setCheckoutNotice({ type: "error", text: "Plan not found — please try again." }); return; }
+    if (!window.Paddle) { setCheckoutNotice({ type: "error", text: "Checkout not ready — please refresh and try again." }); return; }
 
     setCheckoutLoading(true);
-    setCheckoutError(null);
+    setCheckoutNotice(null);
+    checkoutCompletedRef.current = false;
 
     sessionStorage.setItem("wright_checkout_plan", planId);
     sessionStorage.setItem("wright_checkout_interval", interval);
@@ -362,17 +391,18 @@ export default function PricingPage() {
         </div>
       </div>
 
-      {/* ── Checkout error ── */}
-      {checkoutError && (
+      {/* ── Checkout notice ── */}
+      {checkoutNotice && (
         <div style={{ maxWidth: 1400, margin: "-24px auto 24px", padding: "0 48px" }}>
           <div style={{
             padding: "13px 18px", borderRadius: 10,
-            background: "rgba(226,75,74,0.08)", border: "1px solid rgba(226,75,74,0.3)",
-            fontFamily: "var(--font-body)", fontSize: 13.5, color: "#E24B4A",
+            background: NOTICE_STYLES[checkoutNotice.type].bg,
+            border: `1px solid ${NOTICE_STYLES[checkoutNotice.type].border}`,
+            fontFamily: "var(--font-body)", fontSize: 13.5, color: NOTICE_STYLES[checkoutNotice.type].color,
             display: "flex", alignItems: "flex-start", gap: 10,
           }}>
-            <span style={{ flexShrink: 0 }}>✕</span>
-            <span>{checkoutError}</span>
+            <span style={{ flexShrink: 0 }}>{NOTICE_STYLES[checkoutNotice.type].icon}</span>
+            <span>{checkoutNotice.text}</span>
           </div>
         </div>
       )}
@@ -469,8 +499,7 @@ export default function PricingPage() {
                 <>
                   <a
                     href={plan.ctaHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    {...(plan.ctaExternal ? { target: "_blank", rel: "noopener noreferrer" } : {})}
                     style={{
                       display: "block", textAlign: "center",
                       padding: "13px 0", borderRadius: 10,

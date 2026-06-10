@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 const PRICE_IDS: Record<string, Record<string, string>> = {
@@ -8,6 +8,14 @@ const PRICE_IDS: Record<string, Record<string, string>> = {
     monthly: "pri_01kt5dztgzehbz8b1gwd2y58k9",
     annual: "pri_01kt5e1gwgysmdgmjq73xecde2",
   },
+};
+
+type CheckoutNotice = { type: "error" | "success" | "info"; text: string };
+
+const NOTICE_STYLES: Record<CheckoutNotice["type"], { bg: string; border: string; color: string; icon: string }> = {
+  error: { bg: "rgba(226,75,74,0.08)", border: "rgba(226,75,74,0.3)", color: "#E24B4A", icon: "✕" },
+  success: { bg: "rgba(29,158,117,0.08)", border: "rgba(29,158,117,0.3)", color: "#1D9E75", icon: "✓" },
+  info: { bg: "rgba(83,74,183,0.08)", border: "rgba(127,119,221,0.3)", color: "#AFA9EC", icon: "ℹ" },
 };
 
 const container: React.CSSProperties = {
@@ -21,8 +29,9 @@ function CheckoutLoader() {
   const transactionId = searchParams.get("_ptxn") ?? undefined;
 
   const [paddleReady, setPaddleReady] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<CheckoutNotice | null>(null);
   const [userInfo, setUserInfo] = useState<{ email?: string; api_key?: string }>({});
+  const completedRef = useRef(false);
 
   // Pre-fetch user info — no Checkout.open() here, so no user-gesture constraint.
   useEffect(() => {
@@ -35,7 +44,7 @@ function CheckoutLoader() {
   // Load and initialize Paddle.js so it's ready before the user clicks.
   useEffect(() => {
     const token = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN;
-    if (!token) { setError("Checkout is not configured."); return; }
+    if (!token) { setNotice({ type: "error", text: "Checkout is not configured." }); return; }
 
     const init = () => {
       window.Paddle?.Environment.set(token.startsWith("live_") ? "production" : "sandbox");
@@ -44,15 +53,34 @@ function CheckoutLoader() {
         eventCallback(ev) {
           console.log("[Paddle]", ev.name, ev);
           if (ev.name === "checkout.completed") {
+            completedRef.current = true;
+            setNotice({ type: "success", text: "Payment successful — redirecting to your dashboard…" });
             sessionStorage.removeItem("wright_checkout_plan");
             sessionStorage.removeItem("wright_checkout_interval");
-            window.location.href = "/dashboard?upgraded=true";
+            const transactionId = ev.data?.transaction_id as string | undefined;
+            const sync = transactionId
+              ? fetch("/api/proxy/billing/sync-transaction", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ transaction_id: transactionId }),
+                }).catch(() => {})
+              : Promise.resolve();
+            sync.finally(() => {
+              window.location.href = "/dashboard?upgraded=true";
+            });
           }
           if (ev.name === "checkout.error" || ev.name === "checkout.warning") {
             const detail = typeof ev.error === "string"
               ? ev.error
               : ev.error?.detail ?? ev.error?.message ?? ev.error?.code;
-            setError(detail ? `Paddle: ${detail}` : `Paddle ${ev.name}`);
+            setNotice({ type: "error", text: detail ? `Paddle: ${detail}` : `Paddle ${ev.name}` });
+          }
+          if (ev.name === "checkout.closed") {
+            if (completedRef.current) return;
+            setNotice({ type: "info", text: "Checkout closed — no charge was made. Click “Open checkout” whenever you’re ready." });
+            setTimeout(() => {
+              setNotice(n => (n?.type === "info" ? null : n));
+            }, 6000);
           }
         },
       });
@@ -64,14 +92,15 @@ function CheckoutLoader() {
     script.src = "https://cdn.paddle.com/paddle/v2/paddle.js";
     script.async = true;
     script.onload = init;
-    script.onerror = () => setError("Couldn't load checkout. Please try again.");
+    script.onerror = () => setNotice({ type: "error", text: "Couldn't load checkout. Please try again." });
     document.head.appendChild(script);
   }, []);
 
   // Synchronous click handler — this IS the user gesture the overlay needs.
   function openCheckout() {
-    if (!window.Paddle) { setError("Checkout not ready — please refresh and try again."); return; }
-    setError(null);
+    if (!window.Paddle) { setNotice({ type: "error", text: "Checkout not ready — please refresh and try again." }); return; }
+    setNotice(null);
+    completedRef.current = false;
 
     if (transactionId) {
       window.Paddle.Checkout.open({
@@ -84,7 +113,7 @@ function CheckoutLoader() {
     const plan = sessionStorage.getItem("wright_checkout_plan") || "pro";
     const interval = sessionStorage.getItem("wright_checkout_interval") || "monthly";
     const priceId = PRICE_IDS[plan]?.[interval];
-    if (!priceId) { setError("Plan not found — please go back to pricing and try again."); return; }
+    if (!priceId) { setNotice({ type: "error", text: "Plan not found — please go back to pricing and try again." }); return; }
 
     window.Paddle.Checkout.open({
       items: [{ priceId, quantity: 1 }],
@@ -104,13 +133,16 @@ function CheckoutLoader() {
           Click below to open the secure Paddle checkout.
         </p>
 
-        {error && (
+        {notice && (
           <div style={{
             padding: "12px 16px", borderRadius: 10, marginBottom: 20,
-            background: "rgba(226,75,74,0.08)", border: "1px solid rgba(226,75,74,0.3)",
-            color: "#E24B4A", fontSize: 13.5, textAlign: "left",
+            background: NOTICE_STYLES[notice.type].bg,
+            border: `1px solid ${NOTICE_STYLES[notice.type].border}`,
+            color: NOTICE_STYLES[notice.type].color, fontSize: 13.5, textAlign: "left",
+            display: "flex", alignItems: "flex-start", gap: 10,
           }}>
-            {error}
+            <span style={{ flexShrink: 0 }}>{NOTICE_STYLES[notice.type].icon}</span>
+            <span>{notice.text}</span>
           </div>
         )}
 

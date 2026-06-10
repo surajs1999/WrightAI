@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import MetricCard from "@/components/dashboard/MetricCard";
 import CoverageBar from "@/components/dashboard/CoverageBar";
 import { Spinner, SkeletonBlock, SpinnerArc } from "@/components/dashboard/Spinner";
@@ -23,6 +23,8 @@ interface CoverageData {
  */
 export default function DashboardHome() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const [showUpgraded, setShowUpgraded] = useState(false);
   const [coverage, setCoverage] = useState<CoverageData | null>(null);
   const [repos, setRepos] = useState<{ id: string; name: string }[]>([]);
   const [loadingRepos, setLoadingRepos] = useState(true);
@@ -69,6 +71,13 @@ export default function DashboardHome() {
       loadGithubRepos();
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (searchParams.get("upgraded") === "true") {
+      setShowUpgraded(true);
+      router.replace("/dashboard");
+    }
+  }, [searchParams, router]);
 
   useEffect(() => {
     setLoadingRepos(true);
@@ -160,6 +169,28 @@ export default function DashboardHome() {
 
   return (
     <div>
+      {/* Upgrade confirmation */}
+      {showUpgraded && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+          background: "rgba(29,158,117,0.08)", border: "1px solid rgba(29,158,117,0.3)",
+          borderRadius: 10, padding: "13px 18px", marginBottom: 20,
+          fontFamily: "var(--font-body)", fontSize: 13.5, color: "#1D9E75",
+        }}>
+          <span>🎉 Welcome to Pro! Your account has been upgraded — enjoy 1,000 doc generations/month, semantic drift detection, codebase chat, and more.</span>
+          <button
+            onClick={() => setShowUpgraded(false)}
+            aria-label="Dismiss"
+            style={{
+              background: "transparent", border: "none", color: "#1D9E75",
+              cursor: "pointer", fontSize: 16, lineHeight: 1, flexShrink: 0, padding: 4,
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* Repo section */}
       <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
 
