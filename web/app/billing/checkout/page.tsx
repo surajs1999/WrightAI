@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 const PRICE_IDS: Record<string, Record<string, string>> = {
@@ -10,138 +10,142 @@ const PRICE_IDS: Record<string, Record<string, string>> = {
   },
 };
 
+const container: React.CSSProperties = {
+  minHeight: "100vh", background: "#06040f",
+  display: "flex", alignItems: "center", justifyContent: "center",
+  fontFamily: "var(--font-body)",
+};
+
 function CheckoutLoader() {
   const searchParams = useSearchParams();
-  const initialized = useRef(false);
-  const [status, setStatus] = useState<"loading" | "error">("loading");
+  const transactionId = searchParams.get("_ptxn") ?? undefined;
 
+  const [paddleReady, setPaddleReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [userInfo, setUserInfo] = useState<{ email?: string; api_key?: string }>({});
+
+  // Pre-fetch user info — no Checkout.open() here, so no user-gesture constraint.
   useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
+    fetch("/api/proxy/user/me")
+      .then(r => (r.ok ? r.json() : null))
+      .then(me => setUserInfo(me ?? {}))
+      .catch(() => setUserInfo({}));
+  }, []);
 
-    // Break redirect loops: if we've already tried twice, give up
-    const attempts = parseInt(sessionStorage.getItem("wright_checkout_attempts") || "0");
-    if (attempts >= 2) {
-      sessionStorage.removeItem("wright_checkout_attempts");
-      sessionStorage.removeItem("wright_checkout_plan");
-      sessionStorage.removeItem("wright_checkout_interval");
-      setStatus("error");
+  // Load and initialize Paddle.js so it's ready before the user clicks.
+  useEffect(() => {
+    const token = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN;
+    if (!token) { setError("Checkout is not configured."); return; }
+
+    const init = () => {
+      window.Paddle?.Environment.set(token.startsWith("live_") ? "production" : "sandbox");
+      window.Paddle?.Initialize({
+        token,
+        eventCallback(ev) {
+          console.log("[Paddle]", ev.name, ev);
+          if (ev.name === "checkout.completed") {
+            sessionStorage.removeItem("wright_checkout_plan");
+            sessionStorage.removeItem("wright_checkout_interval");
+            window.location.href = "/dashboard?upgraded=true";
+          }
+          if (ev.name === "checkout.error" || ev.name === "checkout.warning") {
+            const detail = typeof ev.error === "string"
+              ? ev.error
+              : ev.error?.detail ?? ev.error?.message ?? ev.error?.code;
+            setError(detail ? `Paddle: ${detail}` : `Paddle ${ev.name}`);
+          }
+        },
+      });
+      setPaddleReady(true);
+    };
+
+    if (window.Paddle) { init(); return; }
+    const script = document.createElement("script");
+    script.src = "https://cdn.paddle.com/paddle/v2/paddle.js";
+    script.async = true;
+    script.onload = init;
+    script.onerror = () => setError("Couldn't load checkout. Please try again.");
+    document.head.appendChild(script);
+  }, []);
+
+  // Synchronous click handler — this IS the user gesture the overlay needs.
+  function openCheckout() {
+    if (!window.Paddle) { setError("Checkout not ready — please refresh and try again."); return; }
+    setError(null);
+
+    if (transactionId) {
+      window.Paddle.Checkout.open({
+        transactionId,
+        settings: { displayMode: "overlay", locale: "en" },
+      });
       return;
     }
-    sessionStorage.setItem("wright_checkout_attempts", String(attempts + 1));
-
-    const token = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN;
-    if (!token) { setStatus("error"); return; }
 
     const plan = sessionStorage.getItem("wright_checkout_plan") || "pro";
     const interval = sessionStorage.getItem("wright_checkout_interval") || "monthly";
     const priceId = PRICE_IDS[plan]?.[interval];
-    if (!priceId) { setStatus("error"); return; }
+    if (!priceId) { setError("Plan not found — please go back to pricing and try again."); return; }
 
-    const run = async () => {
-      // Always fetch fresh user info so api_key is never stale
-      let email = "";
-      let apiKey = "";
-      try {
-        const meRes = await fetch("/api/proxy/user/me");
-        if (meRes.ok) {
-          const me = await meRes.json() as { email?: string; api_key?: string };
-          email = me.email ?? "";
-          apiKey = me.api_key ?? "";
-        }
-      } catch { /* non-fatal — checkout proceeds without pre-fill */ }
-
-      const openCheckout = () => {
-        window.Paddle?.Initialize({
-          token,
-          eventCallback(ev) {
-            if (ev.name === "checkout.completed") {
-              sessionStorage.removeItem("wright_checkout_plan");
-              sessionStorage.removeItem("wright_checkout_interval");
-              sessionStorage.removeItem("wright_checkout_attempts");
-              window.location.href = "/dashboard?upgraded=true";
-            }
-            if (ev.name === "checkout.error") {
-              setStatus("error");
-            }
-          },
-        });
-
-        // 600 ms delay lets Paddle finish async initialisation before open
-        setTimeout(() => {
-          window.Paddle?.Checkout.open({
-            items: [{ priceId, quantity: 1 }],
-            ...(email ? { customer: { email } } : {}),
-            customData: { api_key: apiKey, plan },
-            settings: { displayMode: "overlay", locale: "en" },
-          });
-        }, 600);
-      };
-
-      if (window.Paddle) { openCheckout(); return; }
-
-      const script = document.createElement("script");
-      script.src = "https://cdn.paddle.com/paddle/v2/paddle.js";
-      script.async = true;
-      script.onload = openCheckout;
-      script.onerror = () => setStatus("error");
-      document.head.appendChild(script);
-    };
-
-    run();
-  }, [searchParams]);
-
-  const container: React.CSSProperties = {
-    minHeight: "100vh", background: "#06040f",
-    display: "flex", alignItems: "center", justifyContent: "center",
-    fontFamily: "var(--font-body)",
-  };
-
-  if (status === "error") {
-    return (
-      <div style={container}>
-        <div style={{ textAlign: "center", maxWidth: 420, padding: "0 24px" }}>
-          <p style={{ color: "rgba(175,169,236,0.7)", fontSize: 16, marginBottom: 8 }}>
-            Checkout couldn&apos;t open.
-          </p>
-          <p style={{ color: "rgba(175,169,236,0.4)", fontSize: 14, marginBottom: 28 }}>
-            Make sure pop-ups aren&apos;t blocked in your browser, then try again.
-          </p>
-          <a
-            href="/pricing"
-            style={{
-              display: "inline-block", padding: "12px 28px", borderRadius: 10,
-              background: "linear-gradient(135deg, #534AB7 0%, #7F77DD 100%)",
-              color: "#fff", textDecoration: "none", fontWeight: 700, fontSize: 15,
-            }}
-          >
-            Back to pricing
-          </a>
-          <p style={{ marginTop: 20, color: "rgba(175,169,236,0.3)", fontSize: 13 }}>
-            Still having trouble?{" "}
-            <a href="mailto:hello@wrightai.live" style={{ color: "#AFA9EC" }}>Contact us</a>
-          </p>
-        </div>
-      </div>
-    );
+    window.Paddle.Checkout.open({
+      items: [{ priceId, quantity: 1 }],
+      ...(userInfo.email ? { customer: { email: userInfo.email } } : {}),
+      customData: { api_key: userInfo.api_key ?? "", plan },
+      settings: { displayMode: "overlay", locale: "en" },
+    });
   }
 
   return (
     <div style={container}>
-      <div style={{ color: "rgba(175,169,236,0.55)", fontSize: 15 }}>
-        Opening checkout…
+      <div style={{ textAlign: "center", maxWidth: 420, padding: "0 24px" }}>
+        <p style={{ color: "var(--text)", fontSize: 20, fontWeight: 700, marginBottom: 10 }}>
+          Complete your purchase
+        </p>
+        <p style={{ color: "rgba(175,169,236,0.5)", fontSize: 14, marginBottom: 28, lineHeight: 1.6 }}>
+          Click below to open the secure Paddle checkout.
+        </p>
+
+        {error && (
+          <div style={{
+            padding: "12px 16px", borderRadius: 10, marginBottom: 20,
+            background: "rgba(226,75,74,0.08)", border: "1px solid rgba(226,75,74,0.3)",
+            color: "#E24B4A", fontSize: 13.5, textAlign: "left",
+          }}>
+            {error}
+          </div>
+        )}
+
+        <button
+          onClick={openCheckout}
+          disabled={!paddleReady}
+          style={{
+            display: "inline-block", padding: "12px 28px", borderRadius: 10, border: "none",
+            background: "linear-gradient(135deg, #534AB7 0%, #7F77DD 100%)",
+            color: "#fff", fontWeight: 700, fontSize: 15,
+            cursor: paddleReady ? "pointer" : "wait",
+            opacity: paddleReady ? 1 : 0.7,
+            marginBottom: 20,
+          }}
+        >
+          {paddleReady ? "Open checkout" : "Loading…"}
+        </button>
+
+        <p style={{ margin: 0 }}>
+          <a href="/pricing" style={{ color: "#AFA9EC", fontSize: 13.5, textDecoration: "none" }}>
+            ← Back to pricing
+          </a>
+        </p>
+        <p style={{ marginTop: 20, color: "rgba(175,169,236,0.3)", fontSize: 13 }}>
+          Still having trouble?{" "}
+          <a href="mailto:hello@wrightai.live" style={{ color: "#AFA9EC" }}>Contact us</a>
+        </p>
       </div>
     </div>
   );
 }
 
 const fallback = (
-  <div style={{
-    minHeight: "100vh", background: "#06040f",
-    display: "flex", alignItems: "center", justifyContent: "center",
-    fontFamily: "var(--font-body)", color: "rgba(175,169,236,0.55)", fontSize: 15,
-  }}>
-    Opening checkout…
+  <div style={{ ...container, color: "rgba(175,169,236,0.55)", fontSize: 15 }}>
+    Loading…
   </div>
 );
 

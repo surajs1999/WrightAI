@@ -223,11 +223,22 @@ export default function PricingPage() {
     const token = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN;
     if (!token) return;
     const init = () => {
+      // Live tokens start with "live_" — sandbox tokens start with "test_".
+      // Environment must be set before Initialize().
+      window.Paddle?.Environment.set(token.startsWith("live_") ? "production" : "sandbox");
       window.Paddle?.Initialize({
         token,
         eventCallback(ev) {
+          console.log("[Paddle]", ev.name, ev);
           if (ev.name === "checkout.completed") {
             window.location.href = "/dashboard?upgraded=true";
+          }
+          if (ev.name === "checkout.error" || ev.name === "checkout.warning") {
+            const detail = typeof ev.error === "string"
+              ? ev.error
+              : ev.error?.detail ?? ev.error?.message ?? ev.error?.code;
+            setCheckoutError(detail ? `Paddle: ${detail}` : `Paddle ${ev.name}`);
+            setCheckoutLoading(false);
           }
         },
       });
