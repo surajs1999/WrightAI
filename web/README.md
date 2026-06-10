@@ -1,6 +1,6 @@
 # WrightAI Web Dashboard
 
-The WrightAI web dashboard — hosted at [wrightai-web.fly.dev](https://www.wrightai.live) — is the sign-in portal and user-facing control panel for the hosted WrightAI service.
+The WrightAI web dashboard — hosted at [wrightai.live](https://www.wrightai.live) on Cloud Run — is the sign-in portal and user-facing control panel for the hosted WrightAI service.
 
 Built with Next.js (App Router). TypeScript throughout.
 
@@ -25,6 +25,11 @@ Built with Next.js (App Router). TypeScript throughout.
 | `/dashboard/mcp` | MCP server setup instructions |
 | `/dashboard/help` | Help and documentation links |
 | `/docs` | In-app documentation |
+| `/pricing` | Plans and Paddle checkout |
+| `/billing/checkout` | Paddle checkout fallback/retry page |
+| `/terms-of-service` | Terms of Service |
+| `/privacy-policy` | Privacy Policy |
+| `/refund-policy` | Refund Policy |
 
 ---
 
@@ -50,23 +55,19 @@ Open [http://localhost:3000](http://localhost:3000).
 
 | Variable | Description |
 |----------|-------------|
-| `NEXT_PUBLIC_API_URL` | WrightAI API base URL (default: `https://wrightai-api.fly.dev`) |
-| `WORKOS_API_KEY` | WorkOS API key (server-side OAuth) |
-| `WORKOS_CLIENT_ID` | WorkOS client ID |
-| `WORKOS_REDIRECT_URI` | OAuth redirect URI |
-| `NEXTAUTH_SECRET` | Session secret |
+| `NEXT_PUBLIC_API_URL` | WrightAI API base URL (default: `https://api.wrightai.live`) |
+| `NEXT_PUBLIC_APP_URL` | This dashboard's own public URL (default: `https://wrightai.live`) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (client-side) |
+| `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN` | Paddle client-side token for `Paddle.Checkout.open()`; a `live_` prefix selects the production Paddle environment, anything else uses sandbox |
 
 ---
 
 ## Deployment
 
-The dashboard is deployed to Fly.io from the project root:
+The dashboard is deployed to **Cloud Run** (`wrightai-web`, region `asia-southeast1`) via the `deploy-web.yml` GitHub Actions workflow on every push to `main` that touches `web/**`, `cloudrun-web.yaml`, or the workflow itself (or via manual `workflow_dispatch`).
 
-```bash
-fly deploy
-```
-
-The `fly.toml` at the repo root configures the app name, region, and health checks.
+The workflow builds a Docker image from `web/`, pushes it to Artifact Registry tagged with the commit SHA, and deploys it with `gcloud run services replace` using `cloudrun-web.yaml` (image tag swapped from `:latest` to the immutable `:<sha>`).
 
 ---
 

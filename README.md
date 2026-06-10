@@ -147,13 +147,14 @@ wright llms-txt .
 - **Diff preview** — side-by-side preview before any change is written
 - **Hover** — shows the existing docstring and a regenerate link on hover
 - **Coverage panel** — live doc coverage %, undocumented count, and drifted count in the Explorer sidebar; auto-refreshes after every injection; uses local CLI + SQLite cache for zero token cost on unchanged functions
-- **Drift detection** — checked automatically on every file save; detects structural changes (param renames, return type changes) and LLM-based semantic drift; SQLite-cached so re-saves are instant
+- **Drift detection** — checked automatically on every file save (and on `wright drift` from the Coverage panel); detects structural changes (param renames, return type changes) and LLM-based semantic drift; SQLite-cached so re-saves are instant
+- **Dashboard sync** — drift results are pushed to the hosted Redis "function index" so `wrightai.live` shows your real, history-based drift count instead of falling back to a fresh-clone live scan. The repo is identified by its `origin` git remote slug (matching the server's `repo_slug`), not the local folder name, so this still works if you've renamed the folder
 - **Codebase chat** — ask questions, get answers with clickable file citations
 
 **Settings** (`settings.json`):
 ```json
 {
-  "wright.apiUrl": "https://wrightai-api.fly.dev",
+  "wright.apiUrl": "https://api.wrightai.live",
   "wright.apiKey": "wai_your_key_here",
   "wright.style": "google",
   "wright.style.python": "google",
@@ -164,6 +165,40 @@ wright llms-txt .
 ```
 
 No local Python installation or server needed — the backend is fully hosted.
+
+---
+
+## Web Dashboard
+
+The hosted dashboard at [wrightai.live](https://www.wrightai.live) is the sign-in portal, billing/account hub, and control panel for the hosted service. Built with Next.js (App Router) and deployed to Cloud Run — see [web/README.md](web/README.md) for local dev setup.
+
+| Route | Description |
+|-------|-------------|
+| `/` | Landing page |
+| `/login` | GitHub / Google OAuth sign-in via WorkOS |
+| `/dashboard` | Overview — coverage %, drift count, recent activity |
+| `/dashboard/generate` | Trigger doc generation for a connected repo |
+| `/dashboard/coverage` | Documentation coverage report |
+| `/dashboard/drift` | Drift detection results |
+| `/dashboard/chat` | Codebase chat (streaming; Claude with automatic Gemini fallback) |
+| `/dashboard/keys` | Manage personal `wai_` API keys |
+| `/dashboard/usage` | API usage stats |
+| `/dashboard/settings` | Account settings |
+| `/dashboard/llms-txt` | View / regenerate `llms.txt` |
+| `/dashboard/mcp` | MCP server setup instructions |
+| `/pricing` | Plans and Paddle checkout |
+| `/billing/checkout` | Paddle checkout fallback/retry page |
+| `/terms-of-service`, `/privacy-policy`, `/refund-policy` | Legal pages, linked from the footer |
+
+### Billing (Paddle)
+
+1. The user picks a plan on `/pricing`; `Paddle.Checkout.open()` runs in an overlay (sandbox vs. production is chosen automatically from the `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN` prefix).
+2. On `checkout.completed`, the dashboard shows a success notice and redirects to `/dashboard?upgraded=true`. The plan upgrade is applied via two paths, whichever lands first:
+   - **Webhook** — Paddle calls `POST /billing/webhook` (`transaction.completed` / `subscription.updated` / `subscription.canceled`) and the backend writes the new plan to Supabase.
+   - **Client fallback** — the dashboard immediately calls `POST /billing/sync-transaction` with the transaction ID; the backend fetches the transaction from Paddle and applies the same update, covering the gap before the webhook arrives.
+3. On `checkout.closed` (user dismissed without paying), an info notice is shown and auto-dismisses after 6 seconds.
+4. `/billing/checkout` is a fallback page for re-opening checkout (e.g. from a `_ptxn` redirect). It pre-fetches the user's email/API key *before* calling `Paddle.Checkout.open()` so the call stays inside the original click's user-gesture context (required for the overlay to open), and a "completed" guard stops it from re-triggering checkout after a successful purchase.
+5. `POST /billing/portal` opens the Paddle customer portal for self-service plan management and cancellation.
 
 ---
 
@@ -297,22 +332,57 @@ wright/
 ├── mcp_server/              # MCP server (stdio transport)
 ├── vscode-extension/        # VS Code extension (TypeScript)
 │   └── src/                 # CodeLens, gutter, hover, drift, chat, coverage
-├── web/                     # Next.js dashboard (wrightai-web.fly.dev)
-└── github-action/           # GitHub Action (coverage/generate/drift)
+├── web/                     # Next.js dashboard (wrightai.live, Cloud Run)
+├── github-action/           # GitHub Action (coverage/generate/drift)
+│
+├── Dockerfile               # Single image shared by the api and worker Cloud Run services
+├── start.sh / start_worker.sh  # Container entrypoints (API vs Celery worker+beat)
+└── cloudrun-{api,web,worker}.yaml  # Cloud Run service definitions
 ```
 
-**Hosted infrastructure:**
-- **Fly.io** — FastAPI backend at `https://wrightai-api.fly.dev`; Next.js dashboard at `https://www.wrightai.live` (canonical domain)
-- **WorkOS** — OAuth login (GitHub / Google)
-- **Supabase** — Per-user API key storage and usage tracking
+**Hosted infrastructure (Google Cloud, `asia-southeast1`):**
 
-**Data flow:**
+All three services are built from the same Docker image (or the `web/` image for the dashboard) and deployed via GitHub Actions (`.github/workflows/deploy-api.yml`, `deploy-web.yml`) to Artifact Registry, then to Cloud Run pinned to an immutable `:<commit-sha>` tag — Cloud Run can skip re-pulling a `:latest` tag if the service spec string is otherwise unchanged, so the SHA tag guarantees every deploy actually picks up the new image.
+
+- **`wrightai-api`** (Cloud Run, 512Mi/1vCPU, scales 0→10) — FastAPI backend at `api.wrightai.live`. `start.sh` warms ChromaDB by copying `/data/chroma` (GCS) → `/tmp/chroma` (local SSD) once at container boot, so reads/writes happen on fast local disk.
+- **`wrightai-web`** (Cloud Run, 1Gi/1vCPU, scales 0→10) — Next.js dashboard at `wrightai.live` / `www.wrightai.live`.
+- **`wrightai-worker`** (Cloud Run, 1Gi/2vCPU, always-on `minScale: 1`) — runs `celery -A api.tasks.celery_app worker --beat` via `start_worker.sh` (plus a tiny stdlib HTTP server so Cloud Run's health check passes). Handles transactional email and other async tasks.
+- **Redis** — shared by all three services:
+  - Celery broker/result backend (`REDIS_URL`, `rediss://` with TLS supported)
+  - LLM result cache, keyed by source + docstring hash (`core/parser/cache.py`), TTL = `WRIGHT_CACHE_TTL_DAYS` (default 30 days)
+  - Connected-repo metadata: hash `wright:repos:v1:{user_id}` → `{repo_slug: {git_url, branch, local_path}}`, 90-day TTL — this is what `list_repos` reads instead of scanning the filesystem
+  - Per-repo drift "function index" synced from the VS Code extension: hash `wright:repo:v1:{user_id}:{repo_slug}` → `{file_path}:{func_name} → {status, reason, checked_at}`, 7-day TTL
+- **Google Cloud Storage** (bucket `wrightai-data`, mounted via `gcsfuse` at `/data`) — durable backing store:
+  - `/data/repos` — backup of cloned repos (the API/worker work against fast local `/tmp/repos`; the GCS copy happens asynchronously, fire-and-forget)
+  - `/data/chroma` — ChromaDB vector store, read/written directly by the worker; the API copies it into `/tmp/chroma` once at startup
+  - `/data/ast_cache.db` — the worker's persistent AST/LLM SQLite cache (the API uses an ephemeral `/tmp/ast_cache.db` per container)
+- **Supabase** — Postgres for users, `wai_` API keys, usage tracking, and billing `plans`/subscription state
+- **WorkOS** — OAuth login (GitHub / Google)
+- **Paddle** — subscription billing: checkout, customer portal, and webhooks (see [Web Dashboard → Billing](#billing-paddle))
+- **Brevo** — transactional email (onboarding drip, quota alerts), sent from Celery tasks on the worker
+- **Gemini** (`gemini-2.5-pro` for chat/docs, `gemini-2.5-flash` for drift) — automatic fallback model used whenever an Anthropic call fails (e.g. rate limit/overload)
+
+**Data flow (doc generation):**
 1. Files → Tree-sitter AST parser → `ParsedFunction` objects
-2. Functions → AST chunker → `CodeChunk` objects
+2. Functions → AST chunker → `CodeChunk` objects (chunk ID = `sha256("{file_path}:{start_line}:{source}")`, so identical code duplicated across files/lines gets distinct ChromaDB IDs)
 3. Chunks → Voyage AI embeddings → ChromaDB vector store
 4. Query/function → Hybrid retriever (vector + PageRank) → `RetrievedContext`
-5. Context + function → LLM gateway (Claude) → `DocstringSchema`
+5. Context + function → LLM gateway (Claude, falling back to Gemini on failure) → `DocstringSchema`
 6. Schema → Injector (byte-offset, language-aware) → Modified source file
+
+**Repo connect flow** (`POST /repos/connect`, `api/routes/repos.py`):
+1. Shallow `git clone --depth=1` (or fast-forward pull of an existing clone) into `/tmp/repos/{user_id}/{repo_slug}` on local SSD — `repo_slug` is derived from the git remote URL (last path segment, minus `.git`)
+2. Repo metadata (`git_url`, `branch`, `local_path`) is saved to the Redis `wright:repos:v1:{user_id}` hash (90-day TTL)
+3. The response returns immediately while three things continue in the background:
+   - Async copy of the clone to `/data/repos/{user_id}/{repo_slug}` (GCS) for durability
+   - Async ChromaDB indexing (parse → embed → upsert), if `VOYAGE_API_KEY` is set
+   - Async GitHub webhook registration (push events → `/webhooks/github`), so future pushes re-sync automatically
+
+**Drift sync flow (VS Code extension → dashboard):**
+1. On file save (or `wright drift` from the Coverage panel), the extension runs a local drift scan against its SQLite-cached AST baseline
+2. It resolves the repo's identity the same way the server does — from the `origin` (or first available) git remote URL, not the local folder name — and POSTs results to `POST /drift-check/sync`
+3. The API writes each `{file_path}:{func_name}` result into the Redis function index (`wright:repo:v1:{user_id}:{repo_slug}`, 7-day TTL)
+4. The dashboard's `GET /drift-check/results/{repo_name}` reads this index for the home page's "Drifted" count; if it's empty (e.g. a freshly connected repo with no local extension activity yet), the dashboard falls back to a live, structural-only scan via `POST /drift-check`
 
 **Auth flow:**
 1. User signs in via WorkOS (GitHub/Google) at `www.wrightai.live`
@@ -327,16 +397,27 @@ For CLI / self-hosted usage only. VS Code users do not need these.
 
 ```
 ANTHROPIC_API_KEY    — Anthropic API key (required for doc generation)
+GEMINI_API_KEY       — Gemini API key; automatic fallback (gemini-2.5-pro/-flash) when an Anthropic call fails (optional)
 VOYAGE_API_KEY       — Voyage AI key for code embeddings (required for chat/search)
 GITHUB_TOKEN         — For auto-PR in drift mode (optional)
-REDIS_URL            — Redis URL for Celery (default: redis://localhost:6379/0)
+REDIS_URL            — Redis URL for Celery, LLM cache, repo metadata, and the drift function index (default: redis://localhost:6379/0; rediss:// for TLS)
+WRIGHT_CACHE_TTL_DAYS — TTL in days for the Redis-backed LLM result cache (default: 30)
 CHROMA_PATH          — ChromaDB storage path (default: .wright/chroma)
 SQLITE_CACHE_PATH    — AST cache DB path (default: .wright/ast_cache.db)
 WRIGHT_API_PORT      — API server port (default: 8765)
+REPOS_TMP_PATH       — Local working directory for cloned repos (hosted backend only, default: /tmp/repos)
+REPOS_PATH           — Durable backup location for cloned repos, e.g. a GCS Fuse mount (hosted backend only, default: /data/repos)
+CORS_ORIGINS         — Comma-separated allowed origins for the API (hosted backend only)
 WORKOS_API_KEY       — WorkOS API key (hosted backend only)
 WORKOS_CLIENT_ID     — WorkOS client ID (hosted backend only)
 SUPABASE_URL         — Supabase project URL (hosted backend only)
 SUPABASE_SERVICE_KEY — Supabase service role key (hosted backend only)
+FRONTEND_URL         — Dashboard URL used for OAuth/billing redirects (hosted backend only, default: https://www.wrightai.live)
+PADDLE_API_KEY       — Paddle API key for checkout/portal/webhook calls (hosted backend only)
+PADDLE_WEBHOOK_SECRET — Verifies incoming Paddle webhook signatures (hosted backend only)
+PADDLE_API_URL       — Paddle API base URL (default: https://api.paddle.com)
+BREVO_API_KEY        — Brevo transactional email API key (hosted backend/worker only)
+BREVO_FROM_EMAIL     — From-address for transactional email (default: hello@wrightai.live)
 ```
 
 ---
@@ -346,6 +427,9 @@ SUPABASE_SERVICE_KEY — Supabase service role key (hosted backend only)
 ```bash
 # Install dev dependencies
 pip install -e ".[dev]"
+
+# Install the pre-commit hook (runs ruff check --fix + ruff format on every commit)
+pre-commit install
 
 # Run tests
 pytest tests/ -v
