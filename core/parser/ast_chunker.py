@@ -52,7 +52,9 @@ class ASTChunker:
         else:
             truncated = func.source
 
-        chunk_id = hashlib.sha256(func.source.encode()).hexdigest()
+        chunk_id = hashlib.sha256(
+            f"{func.file_path}:{func.start_line}:{func.source}".encode()
+        ).hexdigest()
         return CodeChunk(
             chunk_id=chunk_id,
             file_path=func.file_path,
@@ -73,7 +75,9 @@ class ASTChunker:
         else:
             truncated = cls.source
 
-        chunk_id = hashlib.sha256(cls.source.encode()).hexdigest()
+        chunk_id = hashlib.sha256(
+            f"{cls.file_path}:{cls.start_line}:{cls.source}".encode()
+        ).hexdigest()
         return CodeChunk(
             chunk_id=chunk_id,
             file_path=cls.file_path,
@@ -99,7 +103,9 @@ class ASTChunker:
                 merged_tokens = chunk.token_count + next_chunk.token_count
                 if merged_tokens <= self.MAX_CHUNK_TOKENS:
                     merged_source = chunk.source + "\n\n" + next_chunk.source
-                    merged_id = hashlib.sha256(merged_source.encode()).hexdigest()
+                    merged_id = hashlib.sha256(
+                        f"{chunk.file_path}:{chunk.start_line}:{merged_source}".encode()
+                    ).hexdigest()
                     merged = CodeChunk(
                         chunk_id=merged_id,
                         file_path=chunk.file_path,
