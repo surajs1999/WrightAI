@@ -97,6 +97,30 @@ export default function DriftPage() {
     setError(null);
     setData(null);
     try {
+      // Prefer the Redis function index, populated by the VS Code extension's
+      // local drift runs (which have a real baseline to detect drift against).
+      const redisRes = await fetch(`/api/proxy/drift-check/results/${encodeURIComponent(selectedRepo.name)}`);
+      const redisJson: { results: { file_path: string; func_name: string; status: string; reason: string | null }[] } = await redisRes.json();
+
+      if (redisJson.results?.length > 0) {
+        const root = selectedRepo.local_path.replace(/\/$/, "");
+        const items: DriftItem[] = redisJson.results.map(r => ({
+          function_name: r.func_name,
+          file_path: `${root}/${r.file_path}`,
+          status: r.status,
+          reason: r.reason,
+        }));
+        setData({
+          total_checked: items.length,
+          drifted: items.filter(i => i.status === "drifted").length,
+          undocumented: items.filter(i => i.status === "undocumented").length,
+          up_to_date: items.filter(i => i.status === "up_to_date").length,
+          results: items,
+        });
+        return;
+      }
+
+      // No synced data yet — fall back to a live structural scan
       const res = await fetch("/api/proxy/drift-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

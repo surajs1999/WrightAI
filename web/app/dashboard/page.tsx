@@ -107,19 +107,36 @@ export default function DashboardHome() {
 
   useEffect(() => {
     if (!selectedRepo) return;
-    const path = repos.find(r => r.id === selectedRepo)?.local_path;
-    if (!path) return;
+    const repo = repos.find(r => r.id === selectedRepo);
+    if (!repo) return;
+    let cancelled = false;
     setDriftCount(null);
     setDriftLoading(true);
-    fetch("/api/proxy/drift-check", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ repo_root: path }),
-    })
-      .then(r => r.json())
-      .then((d: { drifted: number }) => setDriftCount(d.drifted ?? 0))
-      .catch(() => setDriftCount(null))
-      .finally(() => setDriftLoading(false));
+    (async () => {
+      try {
+        // Prefer the Redis function index, populated by the VS Code extension's
+        // local drift runs (which have a real baseline to detect drift against).
+        const res = await fetch(`/api/proxy/drift-check/results/${encodeURIComponent(repo.name)}`);
+        const data: { results: { status: string }[] } = await res.json();
+        if (data.results?.length > 0) {
+          if (!cancelled) setDriftCount(data.results.filter(r => r.status === "drifted").length);
+          return;
+        }
+        // No synced data yet — fall back to a live structural scan
+        const liveRes = await fetch("/api/proxy/drift-check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ repo_root: repo.local_path }),
+        });
+        const live: { drifted: number } = await liveRes.json();
+        if (!cancelled) setDriftCount(live.drifted ?? 0);
+      } catch {
+        if (!cancelled) setDriftCount(null);
+      } finally {
+        if (!cancelled) setDriftLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [selectedRepo, repos]);
 
   const disconnectRepo = async () => {
