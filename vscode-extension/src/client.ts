@@ -362,24 +362,41 @@ export async function checkDrift(
 
 
 /**
- * Pushes per-function drift results to the API's Redis function index (fire-and-forget).
+ * Pushes per-function drift results to the API's drift_results table (fire-and-forget).
  * Called after each local CLI drift run so the dashboard sees results without a second LLM pass.
+ * Entries that carry src_hash/doc_hash also get mirrored into the shared drift_llm_cache
+ * L2 cache, so cold-start containers and other users skip a redundant LLM call.
+ */
+/**
+ * Posts local drift results to the dashboard sync endpoint.
+ *
+ * Fire-and-forget by design — never throws. Returns "auth_failed" when the
+ * configured API key was rejected outright (401) or isn't linked to a
+ * dashboard account (the `{ ok: false, error: "unresolvable api key" }` the
+ * server returns for valid CLI/static keys with no Supabase user), so callers
+ * can warn the user that drift results aren't syncing. Returns "ok" otherwise,
+ * including on network errors.
  */
 export async function syncDriftResults(
   apiUrl: string,
   apiKey: string,
   repoName: string,
-  results: Array<{ file_path: string; func_name: string; status: string; reason?: string }>
-): Promise<void> {
-  if (!apiKey || !results.length) return;
+  results: Array<{ file_path: string; func_name: string; status: string; reason?: string; src_hash?: string; doc_hash?: string }>
+): Promise<"ok" | "auth_failed"> {
+  if (!apiKey || !results.length) return "ok";
   try {
-    await fetch(`${apiUrl}/drift-check/sync`, {
+    const resp = await fetch(`${apiUrl}/drift-check/sync`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Wright-API-Key": apiKey },
       body: JSON.stringify({ repo_name: repoName, results }),
     });
+    if (resp.status === 401) return "auth_failed";
+    const body = (await resp.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+    if (body?.ok === false && body.error === "unresolvable api key") return "auth_failed";
+    return "ok";
   } catch {
     // fire-and-forget — never block the editor
+    return "ok";
   }
 }
 

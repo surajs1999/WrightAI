@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import * as fs from "fs";
 import * as path from "path";
 import * as cp from "child_process";
+import { syncDriftResults } from "./client";
 
 interface CoverageItem {
   label: string;
@@ -25,6 +26,53 @@ interface CoverageItem {
  * }
  */
 
+
+/** Extracts the repo slug from a git remote URL, matching the server's `repo_slug` derivation
+ * (last path segment, minus a trailing ".git"). Returns null if the URL has no usable segment.
+ */
+function slugFromGitUrl(url: string): string | null {
+  const trimmed = url.trim().replace(/\/+$/, "");
+  const last = trimmed.split("/").pop();
+  if (!last) return null;
+  const slug = last.replace(/\.git$/, "");
+  return slug || null;
+}
+
+/** Resolves the repo name used as the drift_results lookup key, matching the server's
+ * `repo_slug` (derived from the git remote URL at connect time) rather than the local
+ * folder name, which can diverge from the connected repo's slug.
+ *
+ * Tries `origin` first, then any other configured remote. Returns null if the repo has
+ * no git remotes at all — in that case it can't be "connected" on the dashboard either,
+ * so there's nothing for a synced result to match against.
+ */
+export function getRepoName(repoRoot: string): string | null {
+  const tryRemote = (name: string): string | null => {
+    try {
+      const url = cp.execFileSync("git", ["remote", "get-url", name], {
+        cwd: repoRoot, encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "ignore"],
+      }).trim();
+      return url ? slugFromGitUrl(url) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const originSlug = tryRemote("origin");
+  if (originSlug) return originSlug;
+
+  try {
+    const remotes = cp.execFileSync("git", ["remote"], {
+      cwd: repoRoot, encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "ignore"],
+    }).trim().split("\n").map(s => s.trim()).filter(Boolean);
+    for (const name of remotes) {
+      const slug = tryRemote(name);
+      if (slug) return slug;
+    }
+  } catch { /* not a git repo, or `git` not on PATH */ }
+
+  return null;
+}
 
 export function findWrightCli(repoRoot: string): { cmd: string; args: string[] } | null {
   // 1. wright in the project's venv
@@ -177,12 +225,33 @@ function runDriftScan(repoRoot: string): Promise<{ total: number; documented: nu
   return runCli(cli, repoRoot, ["drift", repoRoot], tmpOut, true, 600_000).then(out => {
     if (!out) return null;
     try {
-      const data = JSON.parse(fs.readFileSync(out, "utf8")) as { total: number; drifted: number; undocumented: number; up_to_date: number };
+      const data = JSON.parse(fs.readFileSync(out, "utf8")) as {
+        total: number; drifted: number; undocumented: number; up_to_date: number;
+        results?: Array<{ function_name: string; file_path: string; status: string; reason?: string | null; src_hash?: string | null; doc_hash?: string | null }>;
+      };
       try { fs.unlinkSync(out); } catch { /* ignore */ }
       const total = data.total ?? 0;
       const drifted = data.drifted ?? 0;
       const undocumented = data.undocumented ?? 0;
       const documented = (data.up_to_date ?? 0) + drifted;
+
+      // Push the full per-function snapshot (from this repo's real, history-based
+      // local baseline) to drift_results so the dashboard reflects it.
+      const repoName = getRepoName(repoRoot);
+      if (data.results?.length && repoName) {
+        const cfg = vscode.workspace.getConfiguration("wright");
+        const apiUrl = cfg.get<string>("apiUrl", "https://api.wrightai.live");
+        const apiKey = cfg.get<string>("apiKey", "");
+        syncDriftResults(apiUrl, apiKey, repoName, data.results.map(r => ({
+          file_path: path.relative(repoRoot, r.file_path),
+          func_name: r.function_name,
+          status: r.status,
+          reason: r.reason ?? undefined,
+          src_hash: r.src_hash ?? undefined,
+          doc_hash: r.doc_hash ?? undefined,
+        })));
+      }
+
       return { total, documented, drifted, undocumented };
     } catch { return null; }
   });

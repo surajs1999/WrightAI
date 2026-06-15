@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { ChatPanel } from "./chat";
-import { WrightCodeLensProvider } from "./codelens";
+import { WrightCodeLensProvider, DRIFTED_FUNCTIONS } from "./codelens";
 import { CoverageTreeProvider } from "./coverage";
 import { initDriftDecoration, setupDriftOnSave, runDriftCheck } from "./drift";
 import { generateAndInject } from "./injector";

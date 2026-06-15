@@ -5,33 +5,71 @@ import json
 import os
 import sqlite3
 import time
-
-import redis as _redislib
+from datetime import datetime, timezone
 
 from core.parser.tree_sitter_parser import ParsedFile, ParsedFunction, ParsedClass
 
-# ── Redis LLM result cache (L2) ───────────────────────────────────────────────
+# ── LLM result cache (L2) ─────────────────────────────────────────────────────
 # Keyed by content hash — no user identity, shared globally across all callers.
-# Falls back silently to SQLite-only if REDIS_URL is unset or unreachable.
+# Backed by Supabase (drift_llm_cache). Falls back silently to SQLite-only (L1)
+# if SUPABASE_URL/SUPABASE_SERVICE_KEY are unset or the request fails.
 
-_redis_client: object = None  # None = not tried; False = unavailable; Redis = connected
-_REDIS_LLM_TTL = int(os.getenv("WRIGHT_CACHE_TTL_DAYS", "30")) * 86400
+_L2_TTL_DAYS = int(os.getenv("WRIGHT_CACHE_TTL_DAYS", "30"))
 
 
-def _redis() -> "_redislib.Redis | None":  # type: ignore[name-defined]
-    global _redis_client
-    if _redis_client is None:
-        url = os.getenv("REDIS_URL")
-        if url:
-            try:
-                c = _redislib.Redis.from_url(url, socket_connect_timeout=1, decode_responses=True)
-                c.ping()
-                _redis_client = c
-            except Exception:
-                _redis_client = False
-        else:
-            _redis_client = False
-    return _redis_client if _redis_client is not False else None
+def _db():
+    from api.user_store import _db as _get_db
+
+    return _get_db()
+
+
+def _parse_iso(ts: str) -> float:
+    return datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+
+
+def prefetch_function_results(
+    pairs: list[tuple[str, str]],
+) -> dict[tuple[str, str], tuple[str, str | None]]:
+    """Batch-load L2 (Supabase) verdicts for (src_hash, doc_hash) pairs in ONE
+    query. Returns a dict to pass into get_function_result(l2_cache=...).
+    Stateless — safe to call concurrently from multiple requests."""
+    if not pairs:
+        return {}
+    src_hashes = list({h for h, _ in pairs})
+    try:
+        result = (
+            _db()
+            .table("drift_llm_cache")
+            .select("src_hash, doc_hash, status, reason, updated_at")
+            .in_("src_hash", src_hashes)
+            .execute()
+        )
+    except Exception:
+        return {}
+    cutoff = time.time() - _L2_TTL_DAYS * 86400
+    wanted = set(pairs)
+    out: dict[tuple[str, str], tuple[str, str | None]] = {}
+    for row in result.data or []:
+        key = (row["src_hash"], row["doc_hash"])
+        if key not in wanted:
+            continue  # src_hash collision with a different doc_hash — discard
+        updated_at = row.get("updated_at")
+        if updated_at and _parse_iso(updated_at) < cutoff:
+            continue  # stale — treat as miss
+        out[key] = (row["status"], row.get("reason"))
+    return out
+
+
+def flush_function_results(rows: list[dict]) -> None:
+    """Batch-upsert newly-computed L2 verdicts in ONE query. `rows` is the
+    list built up by set_function_result(l2_pending=...) calls. No-op on an
+    empty list or Supabase error."""
+    if not rows:
+        return
+    try:
+        _db().table("drift_llm_cache").upsert(rows, on_conflict="src_hash,doc_hash").execute()
+    except Exception:
+        pass
 
 
 def _hash(text: str) -> str:
@@ -42,18 +80,18 @@ def _serialize_parsed_file(pf: ParsedFile) -> str:
     """
     Serializes a ParsedFile object and all its nested structures into a JSON-formatted string.
 
-    Converts a ParsedFile object into a dictionary representation by recursively extracting attributes from all nested ParsedFunction and ParsedClass objects, then serializes the resulting dictionary to a JSON string. The output includes the file path, language, functions, classes, imports, and last modified timestamp.
+    Converts a ParsedFile object into a dictionary representation by recursively extracting attributes from all nested ParsedFunction and ParsedClass objects, then serializes the resulting dictionary to a JSON string. The output includes a schema_version marker, the file path, language, functions, classes, imports, and last modified timestamp.
 
     Args:
         pf (ParsedFile): The parsed file object containing functions, classes, imports, and metadata to be serialized.
 
     Returns:
-        str: A JSON-formatted string containing the serialized representation of the ParsedFile, including its path, language, functions, classes, imports, and last modified timestamp.
+        str: A JSON-formatted string containing the serialized representation of the ParsedFile, including its schema_version, path, language, functions, classes, imports, and last modified timestamp.
 
     Example:
         ```
         json_str = _serialize_parsed_file(parsed_file)
-        # json_str => '{"path": "app.py", "language": "python", "functions": [], "classes": [], "imports": [], "last_modified": 1700000000.0}'
+        # json_str => '{"schema_version": 2, "path": "app.py", "language": "python", "functions": [], "classes": [], "imports": [], "last_modified": 1700000000.0}'
         ```
 
     Complexity: O(n) time where n is the total number of functions and methods across all classes, O(n) space for the constructed dictionary
@@ -117,10 +155,11 @@ def _deserialize_parsed_file(raw: str) -> ParsedFile:
     Raises:
         json.JSONDecodeError: When the raw string is not valid JSON and cannot be parsed.
         KeyError: When required keys such as 'path', 'language', 'name', 'file_path', 'start_byte', 'end_byte', 'start_line', 'end_line', or 'source' are missing from the JSON structure.
+        ValueError: When the JSON's "schema_version" field is missing or less than 2 — cache entries from older schema versions are rejected.
 
     Example:
         ```
-        parsed_file = _deserialize_parsed_file('{"path": "src/utils.py", "language": "python", "functions": [{"name": "add", "language": "python", "file_path": "src/utils.py", "start_byte": 0, "end_byte": 42, "start_line": 1, "end_line": 3, "source": "def add(a, b):\n    return a + b"}], "classes": [], "imports": ["os"], "last_modified": 1700000000.0}')
+        parsed_file = _deserialize_parsed_file('{"schema_version": 2, "path": "src/utils.py", "language": "python", "functions": [{"name": "add", "language": "python", "file_path": "src/utils.py", "start_byte": 0, "end_byte": 42, "start_line": 1, "end_line": 3, "source": "def add(a, b):\n    return a + b"}], "classes": [], "imports": ["os"], "last_modified": 1700000000.0}')
         ```
 
     Complexity: O(n + m) time and space, where n is the number of top-level functions and m is the total number of methods across all classes
@@ -278,7 +317,7 @@ class ASTCache:
         status: str,
         reason: str | None,
     ) -> None:
-        """Write an LLM result to SQLite only. Used by set_function_result and Redis backfill."""
+        """Write an LLM result to SQLite only. Used by set_function_result and L2 backfill."""
         entry_json = json.dumps(
             {
                 "src_hash": _hash(source),
@@ -301,9 +340,18 @@ class ASTCache:
             )
 
     def get_function_result(
-        self, file_path: str, func_name: str, source: str, docstring: str
+        self,
+        file_path: str,
+        func_name: str,
+        source: str,
+        docstring: str,
+        l2_cache: dict[tuple[str, str], tuple[str, str | None]] | None = None,
     ) -> tuple[str, str | None] | None:
-        """Return (status, reason) if a cached LLM result exists, else None. Checks SQLite then Redis."""
+        """Return (status, reason) if a cached LLM result exists, else None.
+
+        Checks SQLite (L1) first, then `l2_cache` (a dict from
+        prefetch_function_results, if provided).
+        """
         src_hash = _hash(source)
         doc_hash = _hash(docstring)
 
@@ -320,20 +368,14 @@ class ASTCache:
             except Exception:
                 pass
 
-        # L2: Redis (shared across devs and API server)
-        r = _redis()
-        if r:
-            try:
-                cached = r.get(f"wright:drift:v1:{src_hash}:{doc_hash}")
-                if cached:
-                    val = json.loads(cached)
-                    # backfill SQLite so next offline run is instant
-                    self._write_sqlite_result(
-                        file_path, func_name, source, docstring, val["status"], val.get("reason")
-                    )
-                    return val["status"], val.get("reason")
-            except Exception:
-                pass
+        # L2: prefetched Supabase verdicts (shared across devs and API server)
+        if l2_cache is not None:
+            entry = l2_cache.get((src_hash, doc_hash))
+            if entry is not None:
+                status, reason = entry
+                # backfill SQLite so next offline run is instant
+                self._write_sqlite_result(file_path, func_name, source, docstring, status, reason)
+                return status, reason
 
         return None
 
@@ -345,16 +387,19 @@ class ASTCache:
         docstring: str,
         status: str,
         reason: str | None,
+        l2_pending: list[dict] | None = None,
     ) -> None:
-        """Persist the LLM result for a function — writes to SQLite and Redis."""
+        """Persist the LLM result for a function — writes to SQLite (L1) immediately
+        and, if `l2_pending` is provided, queues an L2 (Supabase) upsert to be
+        flushed via flush_function_results()."""
         self._write_sqlite_result(file_path, func_name, source, docstring, status, reason)
-        r = _redis()
-        if r:
-            try:
-                r.set(
-                    f"wright:drift:v1:{_hash(source)}:{_hash(docstring)}",
-                    json.dumps({"status": status, "reason": reason}),
-                    ex=_REDIS_LLM_TTL,
-                )
-            except Exception:
-                pass
+        if l2_pending is not None:
+            l2_pending.append(
+                {
+                    "src_hash": _hash(source),
+                    "doc_hash": _hash(docstring),
+                    "status": status,
+                    "reason": reason,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )

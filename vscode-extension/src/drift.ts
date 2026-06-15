@@ -2,12 +2,13 @@ import * as vscode from "vscode";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { findWrightCli, runCli } from "./coverage";
+import { findWrightCli, runCli, getRepoName } from "./coverage";
 import { markFunctionDrifted, clearDriftedFunctions } from "./codelens";
 import { syncDriftResults } from "./client";
 
 let driftDecoration: vscode.TextEditorDecorationType | undefined;
 let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+let hasWarnedBadApiKey = false;
 
 // Tracks the content hash of the last successfully drift-checked version of each file.
 // Key: document URI string. Skips the API call if content hasn't changed since last check.
@@ -158,7 +159,7 @@ export async function runDriftCheck(
     if (!out) return false;
 
     const data = JSON.parse(fs.readFileSync(out, "utf8")) as {
-      results: Array<{ function_name: string; file_path?: string; status: string; reason?: string | null; line: number | null }>;
+      results: Array<{ function_name: string; file_path?: string; status: string; reason?: string | null; line: number | null; src_hash?: string | null; doc_hash?: string | null }>;
     };
     try { fs.unlinkSync(out); } catch { /* ignore */ }
 
@@ -180,18 +181,35 @@ export async function runDriftCheck(
       }
     }
 
-    // Push results to Redis function index so the dashboard sees them without a second LLM pass
-    const cfg = vscode.workspace.getConfiguration("wright");
-    const apiUrl = cfg.get<string>("apiUrl", "https://api.wrightai.live");
-    const apiKey = cfg.get<string>("apiKey", "");
-    const repoName = path.basename(repoRoot);
-    const relPath = path.relative(repoRoot, uri.fsPath);
-    syncDriftResults(apiUrl, apiKey, repoName, data.results.map(r => ({
-      file_path: relPath,
-      func_name: r.function_name,
-      status: r.status,
-      reason: r.reason ?? undefined,
-    })));
+    // Push results to drift_results so the dashboard sees them without a second LLM pass
+    const repoName = getRepoName(repoRoot);
+    if (repoName) {
+      const cfg = vscode.workspace.getConfiguration("wright");
+      const apiUrl = cfg.get<string>("apiUrl", "https://api.wrightai.live");
+      const apiKey = cfg.get<string>("apiKey", "");
+      const relPath = path.relative(repoRoot, uri.fsPath);
+      syncDriftResults(apiUrl, apiKey, repoName, data.results.map(r => ({
+        file_path: relPath,
+        func_name: r.function_name,
+        status: r.status,
+        reason: r.reason ?? undefined,
+        src_hash: r.src_hash ?? undefined,
+        doc_hash: r.doc_hash ?? undefined,
+      }))).then((result) => {
+        if (result !== "auth_failed" || hasWarnedBadApiKey) return;
+        hasWarnedBadApiKey = true;
+        vscode.window
+          .showWarningMessage(
+            "Wright: Your API key isn't linked to a dashboard account, so drift results won't sync. Check the wright.apiKey setting.",
+            "Open Settings"
+          )
+          .then((choice) => {
+            if (choice === "Open Settings") {
+              vscode.commands.executeCommand("workbench.action.openSettings", "wright.apiKey");
+            }
+          });
+      });
+    }
 
     if (editor && driftDecoration) {
       editor.setDecorations(driftDecoration, decorations);

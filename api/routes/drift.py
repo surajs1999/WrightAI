@@ -1,67 +1,75 @@
 from __future__ import annotations
 
-import json
+import logging
 import os
 from datetime import datetime, timezone
 
-import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
 from api.auth import verify_api_key
 from api.quota import check_feature_flag
-from core.parser.cache import ASTCache
+from core.parser.cache import ASTCache, _hash, flush_function_results, prefetch_function_results
+
+_logger = logging.getLogger("wright.drift")
 
 # Shared LLM result cache — keyed by file_path+func_name+source+docstring hash.
-# Backed by SQLite (L1) and Redis (L2), avoids redundant Haiku calls on re-saves.
+# Backed by SQLite (L1) and Supabase (L2), avoids redundant Haiku calls on re-saves.
 _drift_cache = ASTCache(os.getenv("SQLITE_CACHE_PATH", "/tmp/ast_cache.db"))
 
 router = APIRouter(prefix="/drift-check", tags=["drift"], dependencies=[Depends(verify_api_key)])
 
-# ── Async Redis helper (function index — per-user, per-repo) ──────────────────
 
-_aredis: object = None  # None = not tried; False = unavailable; Redis = connected
-_REPO_INDEX_TTL = 7 * 86400  # 7 days, refreshed on every write
+def _db():
+    from api.user_store import _db as _get_db
 
-
-async def _get_aredis() -> "aioredis.Redis | None":
-    global _aredis
-    if _aredis is None:
-        url = os.getenv("REDIS_URL")
-        if url:
-            try:
-                c = aioredis.Redis.from_url(url, socket_connect_timeout=1, decode_responses=True)
-                await c.ping()
-                _aredis = c
-            except Exception:
-                _aredis = False
-        else:
-            _aredis = False
-    return _aredis if _aredis is not False else None
+    return _get_db()
 
 
-async def _write_func_index(user_id: str, repo_name: str, results: list[dict]) -> None:
-    """Write per-function drift results to the Redis user-scoped repo index."""
-    r = await _get_aredis()
-    if not r or not results:
+def _save_drift_results(user_id: str, repo_name: str, results: list[dict]) -> None:
+    """Batch upsert per-function drift results for (user_id, repo_name)."""
+    if not results:
         return
-    key = f"wright:repo:v1:{user_id}:{repo_name}"
     now = datetime.now(timezone.utc).isoformat()
-    mapping = {
-        f"{item['file_path']}:{item['func_name']}": json.dumps(
-            {
-                "status": item["status"],
-                "reason": item.get("reason"),
-                "checked_at": now,
-            }
-        )
+    rows = [
+        {
+            "user_id": user_id,
+            "repo_name": repo_name,
+            "file_path": item["file_path"],
+            "func_name": item["func_name"],
+            "status": item["status"],
+            "reason": item.get("reason"),
+            "checked_at": now,
+        }
         for item in results
-    }
+    ]
     try:
-        await r.hset(key, mapping=mapping)
-        await r.expire(key, _REPO_INDEX_TTL)
+        _db().table("drift_results").upsert(
+            rows, on_conflict="user_id,repo_name,file_path,func_name"
+        ).execute()
     except Exception:
-        pass
+        _logger.exception(
+            "Failed to save drift results for user_id=%s repo_name=%s", user_id, repo_name
+        )
+
+
+def _load_drift_results(user_id: str, repo_name: str) -> list[dict]:
+    """Return per-function drift results for (user_id, repo_name), [] on error/empty."""
+    try:
+        result = (
+            _db()
+            .table("drift_results")
+            .select("file_path, func_name, status, reason, checked_at")
+            .eq("user_id", user_id)
+            .eq("repo_name", repo_name)
+            .execute()
+        )
+        return result.data or []
+    except Exception:
+        _logger.exception(
+            "Failed to load drift results for user_id=%s repo_name=%s", user_id, repo_name
+        )
+        return []
 
 
 class DriftCheckRequest(BaseModel):
@@ -147,6 +155,16 @@ async def check_drift_file(
         parsed_file = parser.parse_file(tmp_path)
         all_funcs = _collect_all_funcs(parsed_file)
 
+        # Prefetch all L2 (Supabase) verdicts for this file in one query, and
+        # collect new verdicts to flush in one batch after the gather below.
+        prefetch_pairs = [
+            (_hash(f.source), _hash(f.existing_docstring))
+            for f in all_funcs.values()
+            if f.existing_docstring is not None
+        ]
+        l2_cache = prefetch_function_results(prefetch_pairs)
+        l2_pending: list[dict] = []
+
         gateway = LLMGateway(
             anthropic_key=os.getenv("ANTHROPIC_API_KEY", ""),
             gemini_key=os.getenv("GEMINI_API_KEY"),
@@ -173,7 +191,11 @@ async def check_drift_file(
                 )
             # Check LLM result cache — avoids re-calling Haiku when source+docstring unchanged
             cached = _drift_cache.get_function_result(
-                request.file_path, func_name, func.source, func.existing_docstring
+                request.file_path,
+                func_name,
+                func.source,
+                func.existing_docstring,
+                l2_cache=l2_cache,
             )
             if cached is not None:
                 status, reason = cached
@@ -188,7 +210,7 @@ async def check_drift_file(
                 )
             async with sem:
                 is_drifted, reason, llm_result = await gateway.check_drift(
-                    func, func.existing_docstring
+                    func, func.existing_docstring, parsed_file.imports
                 )
             token_totals.append(llm_result.tokens)
             models_used.append(llm_result.model)
@@ -203,6 +225,7 @@ async def check_drift_file(
                 func.existing_docstring,
                 status,
                 reason if is_drifted else None,
+                l2_pending=l2_pending,
             )
             # Let exceptions propagate — a failed LLM call should not be silently
             # treated as up_to_date (which would hide real drift)
@@ -221,6 +244,7 @@ async def check_drift_file(
             *[_check(n, f) for n, f in all_funcs.items()],
             return_exceptions=True,
         )
+        flush_function_results(l2_pending)
         items = [r for r in raw if isinstance(r, DriftResultItem)]
     finally:
         try:
@@ -249,10 +273,10 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
     """
     Analyzes a Python codebase for documentation drift by comparing function signatures against their docstrings and returns a structured summary of drifted, undocumented, and up-to-date functions.
 
-    Accepts a Git repository root path and scans all Python files using DriftDetector.check_directory() to identify functions whose signatures have changed without corresponding docstring updates. When auto_fix is enabled, the function reserves a placeholder for LLM-based docstring generation for drifted or undocumented functions. After aggregating per-function results into DriftResultItem objects, it records the drift check event via record_event() using the API key from the 'X-Wright-API-Key' header, then returns a DriftCheckResponse with total counts and detailed per-function results.
+    Accepts a Git repository root path and scans all Python files using DriftDetector.check_directory() (or DriftDetector.check_file() when request.file_path is set) to identify functions whose signatures have changed without corresponding docstring updates. When auto_fix is enabled, the function reserves a placeholder for LLM-based docstring generation for drifted or undocumented functions. After aggregating per-function results into DriftResultItem objects, it records the drift check event via record_event() using the API key from the 'X-Wright-API-Key' header, then returns a DriftCheckResponse with total counts and detailed per-function results.
 
     Args:
-        request (DriftCheckRequest): Request payload containing repo_root (absolute path to the repository root), since (base git reference for diffing, e.g. 'main'), and auto_fix (boolean flag enabling automatic docstring generation for drifted or undocumented functions).
+        request (DriftCheckRequest): Request payload containing repo_root (absolute path to the repository root), auto_fix (boolean flag enabling automatic docstring generation for drifted or undocumented functions), and file_path (optional path to a single file — if set and it exists on disk, only that file is checked instead of the whole repo_root).
         http_request (Request): The raw FastAPI/Starlette HTTP request object used to extract the 'X-Wright-API-Key' header for usage tracking via record_event().
 
     Returns:
@@ -264,7 +288,7 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
     Example:
         ```
         response = await check_drift(
-            request=DriftCheckRequest(repo_root='/home/user/my_project', since='main', auto_fix=False),
+            request=DriftCheckRequest(repo_root='/home/user/my_project', auto_fix=False),
             http_request=request
         )
         print(response.total_checked, response.drifted, response.undocumented, response.up_to_date)
@@ -277,8 +301,11 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
     _semantic_ok = check_feature_flag(_api_key, "semantic_drift", raise_on_blocked=False)
 
     import asyncio as _asyncio
+    from api.routes.repos import ensure_repo_local
     from core.drift.drift_detector import DriftDetector
     from core.parser.cache import ASTCache
+
+    await ensure_repo_local(request.repo_root)
 
     cache_path = os.getenv(
         "SQLITE_CACHE_PATH", os.path.join(request.repo_root, ".wright", "ast_cache.db")
@@ -325,7 +352,7 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
     undoc_count = sum(1 for r in raw_results if r.status == "undocumented")
     up_to_date_count = sum(1 for r in raw_results if r.status == "up_to_date")
 
-    from api.usage_store import record_event
+    from api.usage_store import record_event, _resolve_user_id
     import os as _os
 
     from core.llm.gateway import LLMGateway as _LLMGateway
@@ -340,6 +367,24 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
         cache_hit=_semantic_ok and _tokens_sum == 0 and bool(raw_results),
     )
 
+    # Mirror results into the Supabase drift_results table so the dashboard
+    # reflects this run immediately, even if the VS Code extension never syncs.
+    user_id = _resolve_user_id(_api_key)
+    if user_id:
+        _save_drift_results(
+            user_id,
+            _os.path.basename(request.repo_root),
+            [
+                {
+                    "file_path": _os.path.relpath(r.file_path, request.repo_root),
+                    "func_name": r.function_name,
+                    "status": r.status,
+                    "reason": r.reason,
+                }
+                for r in raw_results
+            ],
+        )
+
     return DriftCheckResponse(
         total_checked=len(raw_results),
         drifted=drifted_count,
@@ -349,7 +394,7 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
     )
 
 
-# ── Redis function index: sync + read ─────────────────────────────────────────
+# ── Drift results: sync + read ──────────────────────────────────────────────
 
 
 class DriftSyncItem(BaseModel):
@@ -357,6 +402,10 @@ class DriftSyncItem(BaseModel):
     func_name: str
     status: str  # 'drifted' | 'up_to_date' | 'undocumented'
     reason: str | None = None
+    # Present only for results backed by an LLM verdict (fresh or cached) —
+    # lets sync_drift_results also mirror the verdict into drift_llm_cache.
+    src_hash: str | None = None
+    doc_hash: str | None = None
 
 
 class DriftSyncRequest(BaseModel):
@@ -366,7 +415,7 @@ class DriftSyncRequest(BaseModel):
 
 @router.post("/sync")
 async def sync_drift_results(request: DriftSyncRequest, http_request: Request) -> dict:
-    """Receive drift results from the VS Code extension and write them to the Redis function index.
+    """Receive drift results from the VS Code extension and write them to drift_results.
 
     Called fire-and-forget by the extension after each local CLI drift run so the
     dashboard can read results without triggering a second LLM pass.
@@ -379,7 +428,7 @@ async def sync_drift_results(request: DriftSyncRequest, http_request: Request) -
         return {"ok": False, "error": "unresolvable api key"}
     user_id, _ = resolved
 
-    await _write_func_index(
+    _save_drift_results(
         user_id,
         request.repo_name,
         [
@@ -392,15 +441,33 @@ async def sync_drift_results(request: DriftSyncRequest, http_request: Request) -
             for r in request.results
         ],
     )
+
+    # Mirror LLM verdicts (computed locally, e.g. via the VS Code extension's
+    # on-save check) into the shared L2 cache so cold-start containers and
+    # other users skip a redundant LLM call for the same source+docstring.
+    now = datetime.now(timezone.utc).isoformat()
+    l2_rows = [
+        {
+            "src_hash": r.src_hash,
+            "doc_hash": r.doc_hash,
+            "status": r.status,
+            "reason": r.reason,
+            "updated_at": now,
+        }
+        for r in request.results
+        if r.src_hash and r.doc_hash and r.status in ("drifted", "up_to_date")
+    ]
+    flush_function_results(l2_rows)
+
     return {"ok": True}
 
 
 @router.get("/results/{repo_name:path}")
 async def get_drift_results(repo_name: str, http_request: Request) -> dict:
-    """Return the latest per-function drift statuses for a repo from the Redis function index.
+    """Return the latest per-function drift statuses for a repo from drift_results.
 
     Used by the dashboard to display drift state without re-running LLM checks.
-    Returns an empty list if Redis is unavailable or no results have been synced yet.
+    Returns an empty list if no results have been synced yet.
     """
     from api.usage_store import _resolve_user
 
@@ -410,29 +477,15 @@ async def get_drift_results(repo_name: str, http_request: Request) -> dict:
         return {"results": []}
     user_id, _ = resolved
 
-    r = await _get_aredis()
-    if not r:
-        return {"results": []}
-
-    key = f"wright:repo:v1:{user_id}:{repo_name}"
-    try:
-        raw = await r.hgetall(key)
-    except Exception:
-        return {"results": []}
-
-    results = []
-    for field, value in raw.items():
-        # field = "{file_path}:{func_name}" — rpartition splits on last ':'
-        file_part, _, func_name = field.rpartition(":")
-        entry = json.loads(value)
-        results.append(
-            {
-                "file_path": file_part,
-                "func_name": func_name,
-                "status": entry["status"],
-                "reason": entry.get("reason"),
-                "checked_at": entry.get("checked_at"),
-            }
-        )
-
+    rows = _load_drift_results(user_id, repo_name)
+    results = [
+        {
+            "file_path": row["file_path"],
+            "func_name": row["func_name"],
+            "status": row["status"],
+            "reason": row.get("reason"),
+            "checked_at": row.get("checked_at"),
+        }
+        for row in rows
+    ]
     return {"results": results}

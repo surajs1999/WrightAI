@@ -12,10 +12,9 @@ COPY api/ api/
 COPY cli/ cli/
 COPY mcp_server/ mcp_server/
 COPY start.sh /start.sh
-COPY start_worker.sh /start_worker.sh
 
 RUN pip install --no-cache-dir -e . && \
-    chmod +x /start.sh /start_worker.sh
+    chmod +x /start.sh
 
 ENV WRIGHT_API_PORT=8080
 ENV CHROMA_PATH=/data/chroma

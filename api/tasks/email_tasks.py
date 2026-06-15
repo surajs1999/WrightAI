@@ -4,21 +4,22 @@ Transactional email tasks for WrightAI.
 Emails are sent via Brevo (https://brevo.com).
 Set BREVO_API_KEY and BREVO_FROM_EMAIL in your environment.
 
-All send_* functions are fire-and-forget: they dispatch a Celery task and
-return immediately so they never block an API request.
+All send_* functions call Brevo synchronously (with a small inline retry).
+Callers wrap them in try/except for fail-open behavior — quota alerts and
+welcome emails are rare enough that the added latency is negligible.
 
-Celery tasks:
-  email.send               — base send task, retried up to 3×
-  email.quota_alert        — dedup-checked quota warning / exceeded email
-  email.onboarding_drip    — daily beat task for day-7 and day-14 nudges
+Functions:
+  send_email          — base send function, retried up to 2x
+  send_quota_alert    — dedup-checked quota warning / exceeded email
+  run_onboarding_drip — daily task for day-7 and day-14 nudges,
+                        triggered via POST /internal/cron/onboarding-drip
 """
 
 from __future__ import annotations
 
 import os
+import time
 from datetime import datetime, timedelta, timezone
-
-from api.tasks.celery_app import celery_app
 
 _FROM_NAME = "Wright AI"
 _FROM_EMAIL = os.getenv("BREVO_FROM_EMAIL", "hello@wrightai.live")
@@ -47,29 +48,29 @@ def _brevo_client():
 # ---------------------------------------------------------------------------
 
 
-@celery_app.task(name="email.send", bind=True, max_retries=3, default_retry_delay=60)
-def send_email(self, to: str, subject: str, html: str) -> bool:
-    """Send a transactional email via Brevo. Retries up to 3× on failure."""
+def send_email(to: str, subject: str, html: str) -> bool:
+    """Send a transactional email via Brevo, retrying once on failure."""
     client = _brevo_client()
     if not client:
         return False
     try:
         import brevo
+    except ImportError:
+        return False
 
-        client.transactional_emails.send_transac_email(
-            sender=brevo.SendTransacEmailRequestSender(name=_FROM_NAME, email=_FROM_EMAIL),
-            to=[brevo.SendTransacEmailRequestToItem(email=to)],
-            subject=subject,
-            html_content=html,
-        )
-        return True
-    except Exception as exc:
-        raise self.retry(exc=exc)
-
-
-def _fire(to: str, subject: str, html: str) -> None:
-    """Dispatch send_email to the Celery queue (non-blocking)."""
-    send_email.delay(to, subject, html)
+    for attempt in range(2):
+        try:
+            client.transactional_emails.send_transac_email(
+                sender=brevo.SendTransacEmailRequestSender(name=_FROM_NAME, email=_FROM_EMAIL),
+                to=[brevo.SendTransacEmailRequestToItem(email=to)],
+                subject=subject,
+                html_content=html,
+            )
+            return True
+        except Exception:
+            if attempt == 0:
+                time.sleep(1)
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -170,7 +171,7 @@ def send_welcome(to: str, first_name: str = "") -> None:
             mb=0,
         )
     )
-    _fire(to, "Welcome to Wright AI — first docstring in 2 minutes", _wrap(body))
+    send_email(to, "Welcome to Wright AI — first docstring in 2 minutes", _wrap(body))
 
 
 def send_quota_warning(to: str, used: int, limit: int, pct: int) -> None:
@@ -194,7 +195,7 @@ def send_quota_warning(to: str, used: int, limit: int, pct: int) -> None:
         + f'<p style="margin:0 0 20px;">{_btn("Upgrade to Pro — $18/mo →", "https://www.wrightai.live/pricing")}</p>'
         + _p("Or your quota resets automatically on the 1st of next month.", mb=0)
     )
-    _fire(to, f"You've used {pct}% of your Wright AI generations this month", _wrap(body))
+    send_email(to, f"You've used {pct}% of your Wright AI generations this month", _wrap(body))
 
 
 def send_quota_exceeded(to: str) -> None:
@@ -215,7 +216,7 @@ def send_quota_exceeded(to: str) -> None:
         + f'<p style="margin:0 0 20px;">{_btn("Upgrade to Pro — $18/mo →", "https://www.wrightai.live/pricing")}</p>'
         + _p("Your free quota resets automatically on the 1st of next month.", mb=0)
     )
-    _fire(to, "You've hit your Wright AI limit for this month", _wrap(body))
+    send_email(to, "You've hit your Wright AI limit for this month", _wrap(body))
 
 
 def send_day7_nudge(to: str, docs_count: int) -> None:
@@ -260,7 +261,7 @@ def send_day7_nudge(to: str, docs_count: int) -> None:
         + f'<p style="margin:0 0 20px;">{_btn("Upgrade to Pro — $18/mo →", "https://www.wrightai.live/pricing")}</p>'
         + _p("No long-term commitment. Cancel any time from your billing portal.", mb=0)
     )
-    _fire(
+    send_email(
         to,
         f"Wright AI: you've documented {docs_count} functions — here's what Pro adds",
         _wrap(body),
@@ -289,15 +290,14 @@ def send_day14_nudge(to: str, docs_count: int) -> None:
             mb=0,
         )
     )
-    _fire(to, "Two weeks with Wright AI — is Pro right for you?", _wrap(body))
+    send_email(to, "Two weeks with Wright AI — is Pro right for you?", _wrap(body))
 
 
 # ---------------------------------------------------------------------------
-# Celery task: dedup-checked quota alert
+# Dedup-checked quota alert
 # ---------------------------------------------------------------------------
 
 
-@celery_app.task(name="email.quota_alert")
 def send_quota_alert(api_key: str, pct: int, used: int, limit: int) -> None:
     """
     Send a quota warning (≥80%) or exceeded (≥100%) email if one hasn't
@@ -344,18 +344,17 @@ def send_quota_alert(api_key: str, pct: int, used: int, limit: int) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Celery task: daily onboarding drip (run via Celery Beat)
+# Daily onboarding drip (triggered via Cloud Scheduler -> internal cron route)
 # ---------------------------------------------------------------------------
 
 
-@celery_app.task(name="email.onboarding_drip")
 def run_onboarding_drip() -> dict:
     """
     Daily task: find free-plan users at exactly day 7 or day 14 who have
     generated at least a few docstrings but haven't converted, then send
     the appropriate nudge email.
 
-    Scheduled via celery_app.conf.beat_schedule (every 24 hours).
+    Triggered daily via POST /internal/cron/onboarding-drip (Cloud Scheduler).
     """
     try:
         from api.user_store import _db

@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
-from core.parser.cache import ASTCache
+from core.parser.cache import ASTCache, _hash, flush_function_results, prefetch_function_results
 from core.parser.tree_sitter_parser import CodeParser, ParsedFile, ParsedFunction
 
 if TYPE_CHECKING:
@@ -23,13 +23,17 @@ class DriftResult:
     new_signature: str | None
     line: int | None = None
     tokens: int = 0
+    # Set only for results backed by an LLM verdict (fresh or cached) — lets
+    # callers mirror the verdict into the Supabase drift_llm_cache L2 cache.
+    src_hash: str | None = None
+    doc_hash: str | None = None
 
 
 def _signature_str(func: ParsedFunction) -> str:
     """
     Generates a human-readable string representation of a function signature from a ParsedFunction object.
 
-    Constructs a formatted Python function signature string by joining parameter name-type pairs, conditionally prepending an 'async ' prefix for asynchronous functions, and appending the return type annotation when present. The resulting string follows standard Python signature syntax and is used by check_file() and check_git_diff() for drift detection reporting.
+    Constructs a formatted Python function signature string by joining parameter name-type pairs, conditionally prepending an 'async ' prefix for asynchronous functions, and appending the return type annotation when present. The resulting string follows standard Python signature syntax and is used by check_file(), check_file_async(), and check_git_diff() for drift detection reporting.
 
     Args:
         func (ParsedFunction): A parsed function object containing metadata including the function name, list of parameters (each with 'name' and optional 'type_annotation' keys), return type annotation, and async status flag.
@@ -193,12 +197,22 @@ class DriftDetector:
         current_funcs = _collect_all_funcs(current_parsed)
         cached_funcs = _collect_all_funcs(cached) if cached else {}
 
+        # Prefetch all L2 (Supabase) verdicts for this file in one query, and
+        # collect new verdicts to flush in one batch after the gather below.
+        prefetch_pairs = [
+            (_hash(f.source), _hash(f.existing_docstring))
+            for f in current_funcs.values()
+            if f.existing_docstring is not None
+        ]
+        l2_cache = prefetch_function_results(prefetch_pairs)
+        l2_pending: list[dict] = []
+
         async def _llm_check(
             func_name: str, func: ParsedFunction, old_sig: str | None
         ) -> DriftResult:
             async with sem:
                 is_drifted, reason, _llm_result = await gateway.check_drift(
-                    func, func.existing_docstring or ""
+                    func, func.existing_docstring or "", current_parsed.imports
                 )
             status = "drifted" if is_drifted else "up_to_date"
             # Persist result so the next run with identical source+docstring skips LLM.
@@ -209,6 +223,7 @@ class DriftDetector:
                 func.existing_docstring or "",
                 status,
                 reason if is_drifted else None,
+                l2_pending=l2_pending,
             )
             return DriftResult(
                 function_name=func_name,
@@ -219,6 +234,8 @@ class DriftDetector:
                 new_signature=_signature_str(func),
                 line=func.start_line,
                 tokens=_llm_result.tokens,
+                src_hash=_hash(func.source),
+                doc_hash=_hash(func.existing_docstring or ""),
             )
 
         tasks = []
@@ -263,7 +280,7 @@ class DriftDetector:
             # Covers both up_to_date and drifted functions: no need to re-ask the LLM
             # when nothing has changed since the last check.
             cached_result = cache.get_function_result(
-                file_path, func_name, func.source, func.existing_docstring or ""
+                file_path, func_name, func.source, func.existing_docstring or "", l2_cache=l2_cache
             )
             if cached_result is not None:
                 status, reason = cached_result
@@ -276,6 +293,8 @@ class DriftDetector:
                         old_signature=old_sig,
                         new_signature=_signature_str(func),
                         line=func.start_line,
+                        src_hash=_hash(func.source),
+                        doc_hash=_hash(func.existing_docstring or ""),
                     )
                 )
                 continue
@@ -286,6 +305,7 @@ class DriftDetector:
             *[_llm_check(fn, f, s) for fn, f, s in tasks],
             return_exceptions=True,
         )
+        flush_function_results(l2_pending)
         results.extend(r for r in raw if isinstance(r, DriftResult))
 
         # Only advance the baseline when the file is fully clean.

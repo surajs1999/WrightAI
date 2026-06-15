@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 import re
 import shutil
 import subprocess
+import tarfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -14,6 +14,8 @@ from pydantic import BaseModel
 
 from api.auth import verify_api_key
 from api.quota import check_quota
+from api.repo_store import save_repo, list_repos as _list_repos_db, delete_repo as _delete_repo_db
+from api.token_store import save_token as _save_token, load_token, delete_token
 
 _logger = logging.getLogger("wright.repos")
 
@@ -83,75 +85,23 @@ async def _index_repo(repo_root: str) -> None:
 
         chroma_path = os.getenv("CHROMA_PATH", os.path.join(repo_root, ".wright", "chroma"))
         invalidate_chroma(chroma_path, repo_root)
-        # Persist /tmp/chroma → /data/chroma so next container start and the
-        # Celery worker both see the fresh embeddings.
+        # Persist /tmp/chroma → /data/chroma so the next container start
+        # sees the fresh embeddings.
         asyncio.create_task(asyncio.to_thread(_backup_chroma_to_gcs))
+
+        # Mirror the same chunks to Supabase pgvector — the durable backup
+        # used to rebuild Chroma on a cold container start.
+        parsed = _parse_repo_root(repo_root)
+        if parsed:
+            from core.embeddings.pgvector_store import PgVectorStore
+
+            asyncio.create_task(
+                asyncio.to_thread(PgVectorStore(*parsed).upsert_chunks, chunks, embeddings)
+            )
     except Exception as e:
         _logger.error("Indexing failed for %s: %s", repo_root, e)
     finally:
         _indexing.discard(repo_root)
-
-
-def _save_token(user_dir: Path, repo_slug: str, token: str) -> None:
-    """
-    Persists an authentication token for a repository slug to a JSON file in the specified user directory.
-
-    Reads the existing token mapping from `.tokens.json` in the user directory if the file exists, updates or inserts the token for the provided repository slug, and writes the updated mapping back to disk. If the file is missing or its contents cannot be parsed as valid JSON, a fresh mapping is created containing only the new entry. This function is called by `connect_repo()` to store tokens after a successful repository connection.
-
-    Args:
-        user_dir (Path): The filesystem path to the user's directory where the `.tokens.json` file is stored or will be created.
-        repo_slug (str): The repository identifier (e.g., 'owner/repo') used as the key in the token mapping.
-        token (str): The authentication token to associate with and persist for the given repository slug.
-
-    Returns:
-        None: This function does not return a value; it writes the token to disk as a side effect.
-
-    Example:
-        ```
-        _save_token(Path('/home/user/.wright'), 'octocat/hello-world', 'ghp_abc123def456')
-        ```
-    """
-    token_file = user_dir / ".tokens.json"
-    data: dict = {}
-    if token_file.exists():
-        try:
-            data = json.loads(token_file.read_text())
-        except Exception:
-            pass
-    data[repo_slug] = token
-    token_file.write_text(json.dumps(data))
-
-
-def load_token(user_dir: Path, repo_slug: str) -> str | None:
-    """
-    Loads an authentication token for a specific repository from the user's .tokens.json file.
-
-    Reads the .tokens.json file located in the given user directory and retrieves the token associated with the provided repository slug. Returns None if the file does not exist, the slug is not present, or any error occurs during file reading or JSON parsing. Called by fix_and_pr() and connect_repo() to retrieve stored credentials.
-
-    Args:
-        user_dir (Path): The directory path where the user's .tokens.json file is stored.
-        repo_slug (str): The repository identifier (e.g., 'owner/repo-name') used as the key to look up the token in the tokens file.
-
-    Returns:
-        str | None: The authentication token string for the specified repository, or None if the token file does not exist, the repository slug is not found, or an error occurs during reading or parsing.
-
-    Example:
-        ```
-        token = load_token(Path('/home/user/.wright'), 'octocat/hello-world')
-        if token:
-            print(f'Token found: {token}')
-        else:
-            print('No token available for this repository.')
-        ```
-    """
-    token_file = user_dir / ".tokens.json"
-    if not token_file.exists():
-        return None
-    try:
-        data = json.loads(token_file.read_text())
-        return data.get(repo_slug)
-    except Exception:
-        return None
 
 
 router = APIRouter(prefix="/repos", tags=["repos"], dependencies=[Depends(verify_api_key)])
@@ -161,74 +111,19 @@ _REPOS_GCS = Path(os.getenv("REPOS_PATH", "/data/repos"))  # GCS Fuse (persisten
 _REPOS_BASE = _REPOS_TMP  # all active operations use /tmp
 _API_URL = os.getenv("WRIGHT_API_URL", "https://api.wrightai.live")
 
-_REPO_META_TTL = 90 * 86400  # 90 days — refreshed on every write
-
-# ── Redis repo metadata helpers ───────────────────────────────────────────────
-
-
-def _redis_conn():
-    """Return a sync Redis client, or None if unavailable."""
-    import redis as _r
-
-    url = os.getenv("REDIS_URL")
-    if not url:
-        return None
-    try:
-        c = _r.Redis.from_url(url, socket_connect_timeout=1, decode_responses=True)
-        c.ping()
-        return c
-    except Exception:
-        return None
-
-
-def _redis_save_repo(user_id: str, repo_slug: str, meta: dict) -> None:
-    r = _redis_conn()
-    if not r:
-        return
-    try:
-        key = f"wright:repos:v1:{user_id}"
-        r.hset(key, repo_slug, json.dumps(meta))
-        r.expire(key, _REPO_META_TTL)
-    except Exception:
-        pass
-
-
-def _redis_delete_repo(user_id: str, repo_slug: str) -> None:
-    r = _redis_conn()
-    if not r:
-        return
-    try:
-        r.hdel(f"wright:repos:v1:{user_id}", repo_slug)
-    except Exception:
-        pass
-
-
-def _redis_list_repos(user_id: str) -> dict[str, dict]:
-    """Return {repo_slug: meta} from Redis, empty dict if unavailable."""
-    r = _redis_conn()
-    if not r:
-        return {}
-    try:
-        raw = r.hgetall(f"wright:repos:v1:{user_id}")
-        return {slug: json.loads(v) for slug, v in raw.items()}
-    except Exception:
-        return {}
-
-
 # ── GCS backup / restore helpers ─────────────────────────────────────────────
 
 
 def _backup_to_gcs(user_id: str, repo_slug: str) -> None:
-    """Copy repo from /tmp to GCS in a background thread."""
+    """Tar repo from /tmp and write a single .tar.gz to GCS in a background thread."""
     src = _REPOS_TMP / user_id / repo_slug
-    dst = _REPOS_GCS / user_id / repo_slug
+    dst = _REPOS_GCS / user_id / f"{repo_slug}.tar.gz"
     if not src.exists():
         return
     try:
         dst.parent.mkdir(parents=True, exist_ok=True)
-        if dst.exists():
-            shutil.rmtree(str(dst))
-        shutil.copytree(str(src), str(dst))
+        with tarfile.open(dst, "w:gz") as tar:
+            tar.add(src, arcname=".")
         _logger.info("GCS backup complete: %s/%s", user_id, repo_slug)
     except Exception as e:
         _logger.warning("GCS backup failed for %s/%s: %s", user_id, repo_slug, e)
@@ -236,7 +131,7 @@ def _backup_to_gcs(user_id: str, repo_slug: str) -> None:
 
 def _backup_chroma_to_gcs() -> None:
     """Copy /tmp/chroma → /data/chroma so the next container start warms up with
-    fresh embeddings and the Celery worker (CHROMA_PATH=/data/chroma) can read them.
+    fresh embeddings.
 
     Note: this is a full replace, not a merge. Two API containers indexing
     simultaneously could overwrite each other — acceptable at current scale, but
@@ -256,19 +151,75 @@ def _backup_chroma_to_gcs() -> None:
 
 
 def _restore_from_gcs(user_id: str, repo_slug: str) -> bool:
-    """Copy repo from GCS to /tmp if missing locally. Returns True if restored."""
+    """Extract repo's .tar.gz from GCS into /tmp if missing locally. Returns True if restored."""
     dst = _REPOS_TMP / user_id / repo_slug
-    src = _REPOS_GCS / user_id / repo_slug
+    src = _REPOS_GCS / user_id / f"{repo_slug}.tar.gz"
     if dst.exists() or not src.exists():
         return dst.exists()
     try:
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(str(src), str(dst))
+        dst.mkdir(parents=True, exist_ok=True)
+        with tarfile.open(src, "r:gz") as tar:
+            tar.extractall(dst)
         _logger.info("Restored %s/%s from GCS", user_id, repo_slug)
         return True
     except Exception as e:
         _logger.warning("GCS restore failed for %s/%s: %s", user_id, repo_slug, e)
         return False
+
+
+def _parse_repo_root(repo_root: str) -> tuple[str, str] | None:
+    """If repo_root is a managed _REPOS_TMP/{user_id}/{repo_slug} path, return
+    (user_id, repo_slug); otherwise None."""
+    try:
+        rel = Path(repo_root).relative_to(_REPOS_TMP)
+        return rel.parts[0], rel.parts[1]
+    except (ValueError, IndexError):
+        return None
+
+
+async def ensure_repo_local(repo_root: str) -> None:
+    """If repo_root is missing locally but is a managed repo path under
+    _REPOS_TMP, block until it's restored from the GCS backup."""
+    repo_path = Path(repo_root)
+    if repo_path.exists():
+        return
+    parsed = _parse_repo_root(repo_root)
+    if parsed is None:
+        return  # not a managed path — nothing we can do
+    await asyncio.to_thread(_restore_from_gcs, *parsed)
+
+
+def get_vector_store(repo_root: str, chroma_store):
+    """Wrap chroma_store with a Supabase-pgvector-preferring DualVectorStore
+    if repo_root is a managed repo path, otherwise return chroma_store as-is."""
+    parsed = _parse_repo_root(repo_root)
+    if parsed is None:
+        return chroma_store
+    from core.embeddings.pgvector_store import DualVectorStore, PgVectorStore
+
+    return DualVectorStore(PgVectorStore(*parsed), chroma_store)
+
+
+def _delete_repo_chroma(repo_root: str) -> None:
+    """Drop this repo's Chroma collection from the local cache, persist the
+    change to the GCS backup, and delete its Supabase pgvector backup."""
+    from api.chroma_cache import invalidate as invalidate_chroma
+    from core.embeddings.chroma_store import ChromaStore
+
+    chroma_path = os.getenv("CHROMA_PATH", os.path.join(repo_root, ".wright", "chroma"))
+    if os.path.exists(chroma_path):
+        try:
+            ChromaStore(persist_path=chroma_path, repo_root=repo_root).delete_collection()
+        except Exception:
+            _logger.warning("Failed to delete chroma collection for %s", repo_root)
+    invalidate_chroma(chroma_path, repo_root)
+    asyncio.create_task(asyncio.to_thread(_backup_chroma_to_gcs))
+
+    parsed = _parse_repo_root(repo_root)
+    if parsed:
+        from core.embeddings.pgvector_store import PgVectorStore
+
+        asyncio.create_task(asyncio.to_thread(PgVectorStore(*parsed).delete_collection))
 
 
 def _register_github_webhook(github_token: str, git_url: str, api_key: str) -> None:
@@ -351,7 +302,7 @@ def _user_id_from_request(request: Request) -> str:
     """
     Extracts a stable user identifier from the incoming request by reading the last 12 characters of the X-Wright-API-Key header.
 
-    Reads the X-Wright-API-Key HTTP header from the request and uses its last 12 characters as a safe, filesystem-friendly user identifier. Forward slashes and dots are replaced with underscores to prevent path-traversal issues. Falls back to the string 'anonymous' if the header is absent. Called by route handlers such as connect_repo(), list_repos(), delete_repo(), index_status(), and sync_repo() to scope repository data to the authenticated caller.
+    Reads the X-Wright-API-Key HTTP header from the request and uses its last 12 characters as a safe, filesystem-friendly user identifier. Forward slashes and dots are replaced with underscores to prevent path-traversal issues. Falls back to the string 'anonymous' if the header is absent. Called by route handlers such as connect_repo(), list_repos(), delete_repo(), index_status(), sync_repo(), and trigger_index() to scope repository data to the authenticated caller.
 
     Args:
         request (Request): FastAPI Request object from which the X-Wright-API-Key header is extracted to derive the user identifier.
@@ -398,6 +349,7 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
         RepoInfo: A RepoInfo object containing the repository's composite ID (user_id/repo_slug), human-readable name, sanitized git URL (with any embedded tokens removed), absolute local filesystem path, and the currently active branch name.
 
     Raises:
+        HTTPException: Status 429 (or 403 if the plan disables repo connections entirely) when check_quota() determines the user has reached their plan's repo connection limit.
         HTTPException: Status 400 when git clone times out, when authentication fails, when the repository is not found, when the repository is private and no credentials are supplied, or when git clone fails for any other reason.
         HTTPException: Status 400 when the fallback git fetch times out or when git fetch/reset fails during an attempted re-sync of an existing repository.
 
@@ -424,7 +376,7 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
     repo_path = user_dir / repo_slug
 
     # Resolve GitHub token: explicit > OAuth token saved for this user
-    github_token = body.github_token or load_token(user_dir, "_github_oauth") or ""
+    github_token = body.github_token or load_token(user_id, "_github_oauth") or ""
 
     # Inject token for private repos
     clone_url = body.git_url
@@ -516,15 +468,15 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
     clean_url = re.sub(r"https://[^@]+@", "https://", body.git_url)
 
     if github_token:
-        _save_token(user_dir, repo_slug, github_token)
+        _save_token(user_id, repo_slug, github_token)
         # Register webhook in background — don't block the response
         api_key_header = request.headers.get("X-Wright-API-Key", "")
         asyncio.create_task(
             asyncio.to_thread(_register_github_webhook, github_token, clean_url, api_key_header)
         )
 
-    # Save repo metadata to Redis for fast list_repos on cold start
-    _redis_save_repo(
+    # Save repo metadata to Supabase for fast list_repos on cold start
+    save_repo(
         user_id,
         repo_slug,
         {
@@ -558,15 +510,15 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
 @router.get("", response_model=list[RepoInfo])
 async def list_repos(request: Request) -> list[RepoInfo]:
     """
-    Lists all Git repositories for the authenticated user by scanning their local repository directory and returning metadata for each discovered repo.
+    Lists all Git repositories for the authenticated user, reading saved metadata from Supabase as the primary source and falling back to a local filesystem scan if no Supabase rows exist.
 
-    Retrieves the user ID from the incoming HTTP request, constructs the user-specific repository base path, and iterates over subdirectories to find valid Git repositories (identified by the presence of a .git folder). For each repository, it invokes a subprocess call to extract the remote origin URL and strips any embedded OAuth tokens before assembling a RepoInfo object. Returns an empty list if the user directory does not exist.
+    Retrieves the user ID from the incoming HTTP request and queries Supabase (via list_repos() in api.repo_store) for saved repo metadata (git_url, branch, local_path). If any rows are found, a RepoInfo is built directly from that metadata for each one — using the repo's actual stored branch — and a background restore from the GCS backup is triggered for any repo not yet present in /tmp. If Supabase returns no rows (e.g. unavailable, or first run after migration), falls back to scanning the user's local repository directory under /tmp for subdirectories containing a .git folder; for each one found, a subprocess call extracts the remote origin URL and strips any embedded OAuth tokens before assembling a RepoInfo object. Returns an empty list if no repositories are found via either path.
 
     Args:
         request (Request): The incoming HTTP request object containing user authentication information used to derive the user ID via _user_id_from_request().
 
     Returns:
-        list[RepoInfo]: A list of RepoInfo objects, each containing the repository's composite ID (user_id/repo_name), name, sanitized remote Git URL, absolute local path, and default branch name ('main'). Returns an empty list if no repositories are found or the user directory does not exist.
+        list[RepoInfo]: A list of RepoInfo objects, each containing the repository's composite ID (user_id/repo_name), name, sanitized remote Git URL, absolute local path, and branch name (the stored branch from Supabase metadata in the primary path, or 'main' in the filesystem fallback path). Returns an empty list if no repositories are found in Supabase or on the local filesystem.
 
     Example:
         ```
@@ -579,12 +531,12 @@ async def list_repos(request: Request) -> list[RepoInfo]:
     """
     user_id = _user_id_from_request(request)
 
-    # Primary: read repo list from Redis (instant, no filesystem scan)
-    redis_repos = _redis_list_repos(user_id)
+    # Primary: read repo list from Supabase (instant, no filesystem scan)
+    db_repos = _list_repos_db(user_id)
 
-    if redis_repos:
+    if db_repos:
         repos = []
-        for slug, meta in redis_repos.items():
+        for slug, meta in db_repos.items():
             local_path = _REPOS_TMP / user_id / slug
             # If not in /tmp (cold start), trigger background restore from GCS
             if not local_path.exists():
@@ -600,7 +552,7 @@ async def list_repos(request: Request) -> list[RepoInfo]:
             )
         return repos
 
-    # Fallback: scan /tmp filesystem (Redis unavailable or first run after migration)
+    # Fallback: scan /tmp filesystem (Supabase unavailable or first run after migration)
     user_dir = _REPOS_TMP / user_id
     if not user_dir.exists():
         return []
@@ -632,9 +584,9 @@ async def list_repos(request: Request) -> list[RepoInfo]:
 @router.delete("/{repo_name}")
 async def delete_repo(repo_name: str, request: Request) -> dict:
     """
-    Deletes a repository and all its contents from the filesystem for the authenticated user.
+    Deletes a repository and all its associated data — local files, Chroma vector index (and its Supabase pgvector backup), GCS backups, Supabase repo metadata, and stored GitHub token — for the authenticated user.
 
-    This async DELETE endpoint constructs the repository path from the authenticated user's ID and the provided repository name, verifies the path exists, and recursively removes the directory and all its contents using shutil.rmtree. The user identity is extracted from the incoming request via _user_id_from_request().
+    This async DELETE endpoint resolves the repository's local path, GCS tarball backup path, and legacy GCS directory backup path from the authenticated user's ID (extracted via _user_id_from_request()) and the provided repository name, raising a 404 if none of these three locations exist. Otherwise it deletes the repo's Chroma collection via _delete_repo_chroma(), removes the local directory with shutil.rmtree if present, asynchronously removes any GCS tarball or legacy directory backup, deletes the repo's row from the Supabase repo_meta table, and deletes any stored GitHub OAuth token associated with this repo.
 
     Args:
         repo_name (str): The name of the repository to delete, used to locate the directory under the user's repository storage.
@@ -644,7 +596,7 @@ async def delete_repo(repo_name: str, request: Request) -> dict:
         dict: A dictionary with a single key 'deleted' whose value is the name of the repository that was removed, e.g. {'deleted': 'my-project'}.
 
     Raises:
-        HTTPException: Raised with HTTP status code 404 and detail 'Repo not found' when the specified repository directory does not exist on the filesystem.
+        HTTPException: Raised with HTTP status code 404 and detail 'Repo not found' when none of the local repository directory, its GCS tarball backup, or its legacy GCS directory backup exist.
 
     Example:
         ```
@@ -654,17 +606,23 @@ async def delete_repo(repo_name: str, request: Request) -> dict:
     """
     user_id = _user_id_from_request(request)
     repo_path = _REPOS_TMP / user_id / repo_name
-    gcs_path = _REPOS_GCS / user_id / repo_name
+    gcs_tar = _REPOS_GCS / user_id / f"{repo_name}.tar.gz"
+    gcs_legacy_dir = _REPOS_GCS / user_id / repo_name
 
-    if not repo_path.exists() and not gcs_path.exists():
+    if not repo_path.exists() and not gcs_tar.exists() and not gcs_legacy_dir.exists():
         raise HTTPException(status_code=404, detail="Repo not found")
+
+    _delete_repo_chroma(str(repo_path))
 
     if repo_path.exists():
         shutil.rmtree(repo_path)
-    if gcs_path.exists():
-        asyncio.create_task(asyncio.to_thread(shutil.rmtree, str(gcs_path)))
+    if gcs_tar.exists():
+        asyncio.create_task(asyncio.to_thread(gcs_tar.unlink))
+    if gcs_legacy_dir.exists():
+        asyncio.create_task(asyncio.to_thread(shutil.rmtree, str(gcs_legacy_dir)))
 
-    _redis_delete_repo(user_id, repo_name)
+    _delete_repo_db(user_id, repo_name)
+    delete_token(user_id, repo_name)
     return {"deleted": repo_name}
 
 
@@ -687,13 +645,15 @@ async def index_status(repo_name: str, request: Request) -> dict:
 
     Example:
         ```
-        # GET /my-project/index-status
-        response = await client.get('/my-project/index-status')
+        # GET /repos/my-project/index-status
+        response = await client.get('/repos/my-project/index-status')
         # Example response: {"indexed": True, "chunk_count": 42, "indexing": False}
         ```
     """
     user_id = _user_id_from_request(request)
     repo_path = _REPOS_BASE / user_id / repo_name
+    if not repo_path.exists():
+        await ensure_repo_local(str(repo_path))
     if not repo_path.exists():
         raise HTTPException(status_code=404, detail="Repo not found")
 
@@ -731,15 +691,17 @@ async def sync_repo(repo_name: str, request: Request) -> dict:
     Example:
         ```
         # Via HTTP client:
-        # POST /my-project/sync
+        # POST /repos/my-project/sync
         # Response: {"synced": true, "repo": "my-project"}
 
-        response = await client.post("/my-project/sync", headers={"Authorization": "Bearer <token>"})
+        response = await client.post("/repos/my-project/sync", headers={"Authorization": "Bearer <token>"})
         assert response.json() == {"synced": True, "repo": "my-project"}
         ```
     """
     user_id = _user_id_from_request(request)
     repo_path = _REPOS_BASE / user_id / repo_name
+    if not repo_path.exists():
+        await ensure_repo_local(str(repo_path))
     if not repo_path.exists():
         raise HTTPException(status_code=404, detail="Repo not found")
 
@@ -785,13 +747,15 @@ async def trigger_index(repo_name: str, request: Request) -> dict:
 
     Example:
         ```
-        # POST /my-project/index
-        response = await client.post('/my-project/index', headers={'Authorization': 'Bearer token123'})
+        # POST /repos/my-project/index
+        response = await client.post('/repos/my-project/index', headers={'Authorization': 'Bearer token123'})
         # Example response: {'started': True, 'indexing': True}
         ```
     """
     user_id = _user_id_from_request(request)
     repo_path = _REPOS_BASE / user_id / repo_name
+    if not repo_path.exists():
+        await ensure_repo_local(str(repo_path))
     if not repo_path.exists():
         raise HTTPException(status_code=404, detail="Repo not found")
 
