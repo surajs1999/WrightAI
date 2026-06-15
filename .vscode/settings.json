@@ -1,3 +1,14 @@
 {
-    "wright.apiKey": "wai_qr4KcURGbfUofDLQuzeLbborNa9n9yWGtD6yFfdnxBQ"
+    "wright.apiKey": "wai_qr4KcURGbfUofDLQuzeLbborNa9n9yWGtD6yFfdnxBQ",
+    "python.analysis.indexing": false,
+    "python.analysis.memory.keepLibraryAst": false,
+    "python.analysis.memory.keepLibraryLocalVariables": false,
+    "python.analysis.exclude": [
+        "**/node_modules/**",
+        "**/.venv/**",
+        "**/build/**",
+        "**/__pycache__/**"
+    ],
+    "editor.minimap.enabled": false,
+    "telemetry.telemetryLevel": "off"
 }

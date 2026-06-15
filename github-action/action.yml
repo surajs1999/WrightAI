@@ -43,6 +43,13 @@ runs:
     - uses: actions/setup-python@v5
       with:
         python-version: "3.11"
+    - name: Cache Wright AST baseline
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.path }}/.wright/ast_cache.db
+        key: wright-ast-cache-${{ runner.os }}-${{ github.ref_name }}
+        restore-keys: |
+          wright-ast-cache-${{ runner.os }}-
     - name: Install Wright
       run: pip install wright
       shell: bash
