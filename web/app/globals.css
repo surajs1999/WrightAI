@@ -303,6 +303,28 @@ main, nav, header, aside, footer, [data-layer="above"] {
 @media (max-width: 640px)  { .feedback-section { padding: 48px 18px 64px; } .feedback-cards { grid-template-columns: 1fr; } }
 @media (max-width: 480px)  { .feedback-section { padding: 40px 16px 56px; } }
 
+/* ── CompareSection ──────────────────────────────────────────────────── */
+.compare-section   { padding: 96px 80px 112px; position: relative; overflow: hidden; }
+.compare-table-wrap { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; border-radius: 16px; }
+.compare-table     { width: 100%; min-width: 825px; table-layout: fixed; border-collapse: collapse; }
+.compare-cell      { background: var(--surface); transition: background 0.15s; }
+.compare-cell-highlight { background: #0c1328; }
+.compare-row:hover .compare-cell { background: #141228; }
+.compare-row:hover .compare-cell-highlight { background: #0c1d33; }
+.compare-sticky-1  { position: sticky; left: 0; z-index: 3; }
+.compare-sticky-2  { position: sticky; z-index: 2; box-shadow: 8px 0 16px -8px rgba(0,0,0,0.45); }
+.compare-fade-right {
+  position: absolute; top: 1px; right: 1px; bottom: 1px; width: 56px;
+  background: linear-gradient(to right, transparent, var(--surface));
+  pointer-events: none; border-radius: 0 15px 15px 0;
+}
+
+@media (max-width: 1280px) { .compare-section { padding: 80px 64px 96px; } }
+@media (max-width: 1100px) { .compare-section { padding: 72px 40px 88px; } }
+@media (max-width: 900px)  { .compare-section { padding: 64px 32px 80px; } }
+@media (max-width: 640px)  { .compare-section { padding: 48px 18px 64px; } }
+@media (max-width: 480px)  { .compare-section { padding: 40px 16px 56px; } }
+
 /* ── FinalCTA ────────────────────────────────────────────────────────── */
 .finalcta-section { padding: 120px 80px 140px; }
 
