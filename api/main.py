@@ -63,9 +63,9 @@ async def log_requests(request: Request, call_next):
 
     Example:
         ```
-        @app.middleware("http")
-        async def log_requests(request: Request, call_next):
-            return await log_requests(request, call_next)
+        # Registered automatically via the @app.middleware("http") decorator above.
+        # Logs one line per request, e.g.:
+        # 2026-01-01T00:00:00 INFO GET /health 200 1.2ms
         ```
 
     Complexity: O(1) time, O(1) space
@@ -91,6 +91,7 @@ from api.routes import (  # noqa: E402
     drift,
     fix_pr,
     generate,
+    internal,
     llms_txt,
     repos,
     usage,
@@ -108,6 +109,7 @@ app.include_router(fix_pr.router)
 app.include_router(llms_txt.router)
 app.include_router(usage.router)
 app.include_router(webhooks.router)
+app.include_router(internal.router)
 
 
 @app.get("/health")

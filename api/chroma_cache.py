@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import logging
+import shutil
 import threading
 import time
+from pathlib import Path
+
+_logger = logging.getLogger("wright.chroma_cache")
 
 _cache: dict[str, tuple[object, float]] = {}
 _lock = threading.Lock()
 _TTL = 300  # seconds — accept up to 5 min staleness from cross-container writes
+_restored = False  # one-time /data/chroma -> /tmp/chroma restore per container
 
 
 def get(persist_path: str, repo_root: str):
@@ -15,19 +21,53 @@ def get(persist_path: str, repo_root: str):
     the network filesystem — ~1-3 s per cold open. Caching the instance means
     only the first request per (path, repo_root) per container pays that cost;
     subsequent requests reuse the warm in-memory index (~10-50 ms).
+
+    If the resulting store is empty (fresh /tmp on a cold container, with no
+    /data/chroma backup either), it's repopulated from the Supabase pgvector
+    backup — the durable source of truth for bidirectional sync.
     """
     from core.embeddings.chroma_store import ChromaStore
 
+    global _restored
     key = f"{persist_path}::{repo_root}"
     now = time.monotonic()
+    needs_rebuild = False
     with _lock:
+        if not _restored:
+            _restored = True
+            src, dst = Path("/data/chroma"), Path(persist_path)
+            if src.exists() and not dst.exists():
+                shutil.copytree(src, dst)
         if key in _cache:
             store, ts = _cache[key]
             if now - ts < _TTL:
                 return store
         store = ChromaStore(persist_path=persist_path, repo_root=repo_root)
         _cache[key] = (store, now)
-        return store
+        needs_rebuild = store.count() == 0
+
+    if needs_rebuild:
+        _rebuild_from_pgvector(store, repo_root)
+    return store
+
+
+def _rebuild_from_pgvector(store, repo_root: str) -> None:
+    """Repopulate a freshly-created, empty ChromaStore from its Supabase
+    pgvector backup (e.g. on a cold container start with no /data/chroma)."""
+    from api.routes.repos import _parse_repo_root  # lazy import, avoids circular import
+
+    parsed = _parse_repo_root(repo_root)
+    if parsed is None:
+        return
+
+    from core.embeddings.pgvector_store import PgVectorStore
+
+    chunks, embeddings = PgVectorStore(*parsed).get_all_chunks()
+    if chunks:
+        store.upsert_chunks(chunks, embeddings)
+        _logger.info(
+            "Rebuilt local chroma for %s from pgvector (%d chunks)", repo_root, len(chunks)
+        )
 
 
 def invalidate(persist_path: str, repo_root: str) -> None:

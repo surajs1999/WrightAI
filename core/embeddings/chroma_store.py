@@ -133,3 +133,10 @@ class ChromaStore:
 
     def collection_size(self) -> int:
         return self._collection.count()
+
+    def delete_collection(self) -> None:
+        """Drop this repo's collection entirely (used when a repo is disconnected)."""
+        try:
+            self._client.delete_collection(name=self._collection_name)
+        except Exception:
+            pass
