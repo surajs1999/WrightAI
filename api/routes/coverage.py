@@ -50,8 +50,11 @@ async def get_coverage(
 
     Complexity: O(n*m) time where n is the number of Python files and m is the average number of functions per file; O(n*m) space for storing parsed function data across all files.
     """
+    from api.routes.repos import ensure_repo_local
     from core.config import load_config
     from core.parser.tree_sitter_parser import CodeParser
+
+    await ensure_repo_local(repo_root)
 
     loop = asyncio.get_event_loop()
     config = await loop.run_in_executor(None, load_config, repo_root)

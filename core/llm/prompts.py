@@ -81,7 +81,7 @@ def build_docstring_prompt(
 
     Args:
         func (ParsedFunction): The parsed function object containing source code, parameters, return type annotation, decorators, and async status to be documented.
-        context (RetrievedContext): The retrieved codebase context holding caller and callee relationships used to enrich the prompt with usage information.
+        contexts (list[RetrievedContext]): Retrieved codebase contexts; the first entry's callers/callees are used to enrich the prompt with usage information, and the full list is rendered as fenced code snippets.
         style (DocStyle): The documentation style enum value specifying the output format, such as DocStyle.GOOGLE, DocStyle.NUMPY, or DocStyle.JSDOC.
         language (str): The programming language of the function being documented, used to label fenced code blocks and tailor LLM instructions (e.g., 'python', 'typescript').
         verbosity (str): Controls the level of detail requested in the generated documentation; accepts 'concise', 'standard' (default), or 'detailed'.
@@ -93,7 +93,7 @@ def build_docstring_prompt(
         ```
         prompt = build_docstring_prompt(
             func=parsed_func,
-            context=retrieved_context,
+            contexts=[retrieved_context],
             style=DocStyle.GOOGLE,
             language='python',
             verbosity='detailed',
@@ -392,7 +392,9 @@ Rules:
 """
 
 
-def build_drift_check_prompt(func: ParsedFunction, old_docstring: str) -> str:
+def build_drift_check_prompt(
+    func: ParsedFunction, old_docstring: str, imports: list[str] | None = None
+) -> str:
     """
     Builds a formatted prompt string instructing an LLM to check whether existing documentation has drifted from the current function implementation.
 
@@ -401,6 +403,7 @@ def build_drift_check_prompt(func: ParsedFunction, old_docstring: str) -> str:
     Args:
         func (ParsedFunction): A parsed function object whose `source` attribute provides the raw function source code and `language` attribute provides the programming language used to format the fenced code block in the prompt.
         old_docstring (str): The existing documentation string to be validated against the current function implementation for potential drift.
+        imports (list[str] | None): Up to 30 of the file's import statements, included in the prompt so the LLM can resolve types/exceptions referenced by the function. Pass None or an empty list if unavailable.
 
     Returns:
         str: A formatted multi-line prompt string containing the function source code, existing documentation, four drift-validation criteria, and instructions for the LLM to return a JSON object with `is_drifted` (bool) and `reason` (str or null) fields.
@@ -410,7 +413,12 @@ def build_drift_check_prompt(func: ParsedFunction, old_docstring: str) -> str:
         prompt = build_drift_check_prompt(parsed_func, \"\"\"Calculates the sum of two numbers.\n\nArgs:\n    a (int): First number.\n    b (int): Second number.\n\nReturns:\n    int: The sum.\"\"\")
         ```
     """
+    imports_str = "\n".join(imports[:30]) if imports else "(none)"
+
     return f"""Determine whether the existing documentation is still accurate for this function.
+
+File imports (for resolving types/exceptions referenced by the function):
+{imports_str}
 
 Current function code:
 ```{func.language}

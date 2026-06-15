@@ -10,7 +10,7 @@ from core.parser.tree_sitter_parser import ParsedFile
 class DependencyGraph:
     def __init__(self) -> None:
         self._graph: nx.DiGraph = nx.DiGraph()
-        self._function_index: dict[str, str] = {}  # name -> node_id
+        self._function_index: dict[str, list[str]] = {}  # name -> [node_id, ...]
 
     def build(self, parsed_files: list[ParsedFile]) -> nx.DiGraph:
         self._graph = nx.DiGraph()
@@ -21,14 +21,14 @@ class DependencyGraph:
             for func in pf.functions:
                 node_id = f"{pf.path}::{func.name}"
                 self._graph.add_node(node_id, file_path=pf.path, function_name=func.name)
-                self._function_index[func.name] = node_id
+                self._function_index.setdefault(func.name, []).append(node_id)
             for cls in pf.classes:
                 for method in cls.methods:
                     node_id = f"{pf.path}::{cls.name}.{method.name}"
                     self._graph.add_node(
                         node_id, file_path=pf.path, function_name=method.name, class_name=cls.name
                     )
-                    self._function_index[method.name] = node_id
+                    self._function_index.setdefault(method.name, []).append(node_id)
 
         # Second pass: build edges from source analysis
         for pf in parsed_files:
@@ -47,8 +47,7 @@ class DependencyGraph:
         call_pattern = re.compile(r"\b(\w+)\s*\(")
         for match in call_pattern.finditer(source):
             callee_name = match.group(1)
-            if callee_name in self._function_index:
-                callee_id = self._function_index[callee_name]
+            for callee_id in self._function_index.get(callee_name, []):
                 if callee_id != caller_id:
                     self._graph.add_edge(caller_id, callee_id)
 

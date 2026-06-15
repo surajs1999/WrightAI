@@ -178,6 +178,7 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
 
     from api.chroma_cache import get as get_chroma
     from api.embedder import get_embedder
+    from api.routes.repos import ensure_repo_local, get_vector_store
     from core.config import load_config
     from api.embedder import get_gateway
     from core.llm.prompts import DocStyle
@@ -185,6 +186,8 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
     from core.parser.dep_graph import DependencyGraph
     from core.parser.tree_sitter_parser import CodeParser
     from core.retrieval.hybrid_retriever import HybridRetriever
+
+    await ensure_repo_local(body.repo_root)
 
     repo_path = Path(body.repo_root)
     if not repo_path.exists():
@@ -209,10 +212,10 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
     from api.routes.repos import load_token
 
     repo_slug = repo_path.name
-    user_dir = repo_path.parent
+    user_id = repo_path.parent.name
     github_token = (
         body.github_token.strip()
-        or load_token(user_dir, repo_slug)
+        or load_token(user_id, repo_slug)
         or _extract_token_from_url(remote_url)
         or ""
     )
@@ -241,7 +244,7 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
     gateway = get_gateway()
     embedder = get_embedder()
     chroma_path = os.getenv("CHROMA_PATH", str(repo_path / ".wright" / "chroma"))
-    chroma = get_chroma(chroma_path, str(repo_path))
+    chroma = get_vector_store(str(repo_path), get_chroma(chroma_path, str(repo_path)))
     injector = DocstringInjector()
     doc_style = DocStyle(body.style)
 
@@ -290,8 +293,14 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
         except Exception as e:
             errors.append(f"`{fn_ref.function_name or fn_ref.file_path}`: {e}")
 
-    # If nothing was fixed, clean up branch and abort
+    # If nothing was fixed, discard any partial edits, clean up the branch, and abort
     if not fixed:
+        subprocess.run(
+            ["git", "-C", str(repo_path), "checkout", "."], capture_output=True, env=git_env
+        )
+        subprocess.run(
+            ["git", "-C", str(repo_path), "clean", "-fd"], capture_output=True, env=git_env
+        )
         subprocess.run(
             ["git", "-C", str(repo_path), "checkout", "-"], capture_output=True, env=git_env
         )

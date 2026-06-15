@@ -24,6 +24,11 @@ class DocGenState(TypedDict):
     critique: str | None
     attempts: int
     tokens_used: int
+    model: str
+    is_fallback: bool
+    retry_count: int
+    duration_ms: int
+    cache_read_tokens: int
 
 
 def _render_docstring_text(doc: DocstringSchema) -> str:
@@ -49,6 +54,18 @@ def _render_docstring_text(doc: DocstringSchema) -> str:
     return "\n".join(parts)
 
 
+def _merge_call_stats(state: DocGenState, result: Any) -> dict:
+    """Accumulate analytics from an LLMResult into the running graph state."""
+    return {
+        "tokens_used": state.get("tokens_used", 0) + result.tokens,
+        "model": result.model,
+        "is_fallback": state.get("is_fallback", False) or result.is_fallback,
+        "retry_count": state.get("retry_count", 0) + result.retry_count,
+        "duration_ms": state.get("duration_ms", 0) + result.duration_ms,
+        "cache_read_tokens": state.get("cache_read_tokens", 0) + result.cache_read_tokens,
+    }
+
+
 def _make_generate_node(gateway: LLMGateway) -> Any:
     async def generate_node(state: DocGenState) -> dict:
         prompt = build_docstring_prompt(
@@ -68,10 +85,7 @@ def _make_generate_node(gateway: LLMGateway) -> Any:
 
         _result = await gateway._call_claude_tracked(prompt, _DOCSTRING_SYSTEM)
         doc = gateway._parse_structured_output(_result.text)
-        return {
-            "doc": doc,
-            "tokens_used": state.get("tokens_used", 0) + _result.tokens,
-        }
+        return {"doc": doc, **_merge_call_stats(state, _result)}
 
     return generate_node
 
@@ -80,10 +94,7 @@ def _make_critic_node(gateway: LLMGateway) -> Any:
     async def critic_node(state: DocGenState) -> dict:
         doc = state["doc"]
         if doc is None:
-            return {
-                "critique": "No document was generated.",
-                "tokens_used": state.get("tokens_used", 0),
-            }
+            return {"critique": "No document was generated."}
         doc_text = _render_docstring_text(doc)
         prompt = build_drift_check_prompt(state["func"], doc_text)
         _result = await gateway._call_claude_tracked(
@@ -100,10 +111,7 @@ def _make_critic_node(gateway: LLMGateway) -> Any:
                 )
         except (json.JSONDecodeError, KeyError):
             pass
-        return {
-            "critique": critique,
-            "tokens_used": state.get("tokens_used", 0) + _result.tokens,
-        }
+        return {"critique": critique, **_merge_call_stats(state, _result)}
 
     return critic_node
 
@@ -141,7 +149,7 @@ async def run_doc_gen_graph(
     contexts: list[RetrievedContext],
     style: DocStyle,
     verbosity: str,
-) -> tuple[DocstringSchema, int]:
+) -> tuple[DocstringSchema, dict]:
     chain = build_doc_gen_graph(gateway)
     initial: DocGenState = {
         "func": func,
@@ -152,7 +160,20 @@ async def run_doc_gen_graph(
         "critique": None,
         "attempts": 0,
         "tokens_used": 0,
+        "model": gateway.PRIMARY_MODEL,
+        "is_fallback": False,
+        "retry_count": 0,
+        "duration_ms": 0,
+        "cache_read_tokens": 0,
     }
     final_state = await chain.ainvoke(initial)
     doc = final_state.get("doc") or DocstringSchema(summary="No documentation generated.")
-    return doc, final_state.get("tokens_used", 0)
+    stats = {
+        "tokens_used": final_state.get("tokens_used", 0),
+        "model": final_state.get("model", gateway.PRIMARY_MODEL),
+        "is_fallback": final_state.get("is_fallback", False),
+        "retry_count": final_state.get("retry_count", 0),
+        "duration_ms": final_state.get("duration_ms", 0),
+        "cache_read_tokens": final_state.get("cache_read_tokens", 0),
+    }
+    return doc, stats

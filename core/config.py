@@ -133,7 +133,7 @@ def save_config(config: WrightConfig, repo_root: str) -> None:
 
     Example:
         ```
-        wright_config = WrightConfig(project_name='my-project', version='1.0.0')
+        wright_config = WrightConfig(output_dir='docs', coverage_threshold=0.8)
         save_config(wright_config, '/home/user/projects/my-project')
         ```
     """

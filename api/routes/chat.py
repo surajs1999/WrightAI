@@ -44,12 +44,14 @@ async def chat(request: ChatRequest, http_request: Request) -> StreamingResponse
         ```
     """
     from api.embedder import get_gateway
+    from api.routes.repos import ensure_repo_local
     from api.usage_store import record_event
 
     api_key = http_request.headers.get("X-Wright-API-Key", "")
 
     # Gate: chat_messages_per_month == 0 on free → 403; >0 enforces monthly cap
     quota = check_quota(api_key, "chat_message", raise_on_blocked=True)
+    await ensure_repo_local(request.repo_root)
     gateway = get_gateway()
     history = [{"role": m.role, "content": m.content} for m in request.conversation_history]
 
@@ -60,12 +62,13 @@ async def chat(request: ChatRequest, http_request: Request) -> StreamingResponse
     try:
         from api.chroma_cache import get as get_chroma
         from api.embedder import get_embedder
+        from api.routes.repos import get_vector_store
         from core.parser.dep_graph import DependencyGraph
         from core.retrieval.hybrid_retriever import HybridRetriever
 
         embedder = get_embedder()
         chroma_path = os.getenv("CHROMA_PATH", os.path.join(request.repo_root, ".wright", "chroma"))
-        chroma = get_chroma(chroma_path, request.repo_root)
+        chroma = get_vector_store(request.repo_root, get_chroma(chroma_path, request.repo_root))
         dep_graph = DependencyGraph()
         retriever = HybridRetriever(chroma, dep_graph, embedder)
         contexts = retriever.retrieve_for_query(request.question, n=5)

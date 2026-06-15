@@ -915,10 +915,20 @@ class CodeParser:
         return params
 
     def _extract_go_doc(self, node: Node, source: bytes) -> str | None:
+        # Go doc comments are a block of consecutive `//` lines directly above the
+        # function. Tree-sitter gives each line as its own sibling comment node, so
+        # walk backward collecting the full contiguous block, not just the last line.
+        lines: list[Node] = []
         prev = node.prev_named_sibling
-        if prev and prev.type == "comment":
-            return source[prev.start_byte : prev.end_byte].decode("utf-8", errors="replace")
-        return None
+        expected_line = node.start_point[0] - 1
+        while prev and prev.type == "comment" and prev.end_point[0] == expected_line:
+            lines.append(prev)
+            expected_line = prev.start_point[0] - 1
+            prev = prev.prev_named_sibling
+        if not lines:
+            return None
+        lines.reverse()
+        return source[lines[0].start_byte : lines[-1].end_byte].decode("utf-8", errors="replace")
 
     def _walk_rust(
         self,
@@ -1009,12 +1019,27 @@ class CodeParser:
         return params
 
     def _extract_rust_doc(self, node: Node, source: bytes) -> str | None:
+        # Rust doc comments are a block of consecutive `///` lines directly above the
+        # function. Tree-sitter gives each line as its own sibling comment node, so
+        # walk backward collecting the full contiguous block, not just the last line.
+        lines: list[Node] = []
         prev = node.prev_named_sibling
-        if prev and prev.type in ("line_comment", "block_comment"):
-            comment = source[prev.start_byte : prev.end_byte].decode("utf-8", errors="replace")
-            if comment.startswith("///"):
-                return comment
-        return None
+        expected_line = node.start_point[0] - 1
+        while (
+            prev
+            and prev.type in ("line_comment", "block_comment")
+            and prev.end_point[0] == expected_line
+        ):
+            text = source[prev.start_byte : prev.end_byte].decode("utf-8", errors="replace")
+            if not text.startswith("///"):
+                break
+            lines.append(prev)
+            expected_line = prev.start_point[0] - 1
+            prev = prev.prev_named_sibling
+        if not lines:
+            return None
+        lines.reverse()
+        return source[lines[0].start_byte : lines[-1].end_byte].decode("utf-8", errors="replace")
 
     def extract_docstring(self, node: Node, language: str) -> str | None:
         raise NotImplementedError("Use parse_file which calls language-specific extractors")

@@ -210,7 +210,9 @@ async def paddle_webhook(request: Request) -> JSONResponse:
     signature = request.headers.get("Paddle-Signature", "")
     secret = os.getenv("PADDLE_WEBHOOK_SECRET", "")
 
-    if secret and signature:
+    if secret:
+        if not signature:
+            raise HTTPException(status_code=400, detail="Missing Paddle-Signature header")
         parts = {}
         for part in signature.split(";"):
             if "=" in part:

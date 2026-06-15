@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import base64
-import json
 import os
-from pathlib import Path
 
 import httpx
 from workos import WorkOSClient
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
+
+from api.token_store import load_token, save_token, user_id_from_api_key
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -132,10 +132,10 @@ async def callback_get(code: str, redirect_uri: str | None = None) -> dict:
 
     Args:
         code (str): The authorization code received from the OAuth provider after successful user authentication.
-        redirect_uri (str | None): Optional redirect URI to validate against the one used in the original authorization request. Defaults to None.
+        redirect_uri (str | None): Optional redirect URI parameter passed through to callback(); currently unused there too. Defaults to None.
 
     Returns:
-        dict: A dictionary containing the authentication result, typically including access tokens and user information returned by the OAuth provider.
+        dict: A dictionary containing 'api_key' (the user's API key string) and 'user' (a nested dict with 'id', 'email', and 'first_name' fields from the authenticated WorkOS user) — the same shape returned by callback().
 
     Example:
         ```
@@ -147,82 +147,13 @@ async def callback_get(code: str, redirect_uri: str | None = None) -> dict:
 
 # ── GitHub OAuth for private repo access ─────────────────────────────────────
 
-_REPOS_BASE = Path(os.getenv("REPOS_PATH", "/data/repos"))
 _GH_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "")
 _GH_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "")
 
 
-def _user_dir_from_key(api_key: str) -> Path:
-    """
-    Derives a filesystem-safe, user-specific directory path from the last 12 characters of the provided API key.
-
-    Extracts the trailing 12 characters of the given API key, replaces forward slashes and dots with underscores to ensure filesystem compatibility, and appends the resulting identifier to the base repositories directory (_REPOS_BASE). Used internally by _save_github_token(), github_repos(), and github_status() to resolve per-user storage locations.
-
-    Args:
-        api_key (str): The API key from which to derive the user directory. Only the last 12 characters are used as the unique user identifier.
-
-    Returns:
-        Path: A Path object representing the user-specific directory under the base repositories path (_REPOS_BASE), constructed from the sanitized last 12 characters of the API key.
-
-    Example:
-        ```
-        user_path = _user_dir_from_key('abc123xyz456789qwerty')  # Returns _REPOS_BASE / '789qwerty'
-        ```
-    """
-    user_id = api_key[-12:].replace("/", "_").replace(".", "_")
-    return _REPOS_BASE / user_id
-
-
 def _save_github_token(api_key: str, token: str) -> None:
-    """
-    Saves a GitHub OAuth access token to a JSON file within the user's directory identified by the given API key.
-
-    Creates the user directory derived from the API key if it does not already exist, loads any previously stored token data from a `.tokens.json` file in that directory, inserts or updates the `_github_oauth` key with the provided token, and writes the updated JSON back to disk. Any read errors on the existing token file are silently ignored, resulting in a fresh data object.
-
-    Args:
-        api_key (str): The API key used to identify the user and determine the target storage directory via `_user_dir_from_key`.
-        token (str): The GitHub OAuth access token to be stored under the `_github_oauth` key in the user's `.tokens.json` file.
-
-    Returns:
-        None: This function does not return a value.
-
-    Example:
-        ```
-        _save_github_token(api_key='user_api_key_123', token='gho_abc123def456')
-        ```
-    """
-    user_dir = _user_dir_from_key(api_key)
-    user_dir.mkdir(parents=True, exist_ok=True)
-    token_file = user_dir / ".tokens.json"
-    data: dict = {}
-    if token_file.exists():
-        try:
-            """
-            Handles the GitHub OAuth callback by exchanging an authorization code for an access token and saving it.
-
-            This endpoint is called by GitHub after the user authorizes the application. It exchanges the authorization code for an access token, optionally decodes the API key from the state parameter, saves the GitHub token associated with the API key, and redirects the user to the dashboard with a success indicator.
-
-            Args:
-                code (str): Authorization code returned by GitHub after user authorization.
-                state (str): Base64-encoded API key passed through the OAuth flow for associating the GitHub token with a user. Defaults to empty string.
-
-            Returns:
-                RedirectResponse: Redirect response to the frontend dashboard with a 'github=connected' query parameter.
-
-            Raises:
-                HTTPException: When GitHub OAuth credentials are not configured (status 503).
-                HTTPException: When GitHub fails to return an access token (status 400).
-
-            Example:
-                ```
-                response = await github_callback(code='abc123', state='ZXhhbXBsZV9hcGlfa2V5')
-                ```
-            """
-            data = json.loads(token_file.read_text())
-        except Exception:
-            pass
-    data["_github_oauth"] = token
-    token_file.write_text(json.dumps(data))
+    """Persist the user's GitHub OAuth token, keyed by '_github_oauth'."""
+    save_token(user_id_from_api_key(api_key), "_github_oauth", token)
 
 
 @router.get("/github")
@@ -323,7 +254,7 @@ async def github_repos(request: Request) -> dict:
     """
     Fetches all GitHub repositories for the authenticated user by paginating through the GitHub API using the stored OAuth token.
 
-    Retrieves the GitHub OAuth token from the user's local token file (identified via the X-Wright-API-Key header), then iterates through paginated GitHub API responses to collect all repositories where the user is an owner or collaborator. Each repository entry includes its full name, privacy status, and clone URL. Returns an error indicator if no valid GitHub token is found.
+    Retrieves the GitHub OAuth token from the Supabase tokens table (looked up via the user id derived from the X-Wright-API-Key header), then iterates through paginated GitHub API responses to collect all repositories where the user is an owner or collaborator. Each repository entry includes its full name, privacy status, and clone URL. Returns an error indicator if no valid GitHub token is found.
 
     Args:
         request (Request): FastAPI Request object used to extract the X-Wright-API-Key header for identifying and authenticating the current user.
@@ -341,15 +272,7 @@ async def github_repos(request: Request) -> dict:
     Complexity: O(n) time where n is the total number of repositories across all pages, O(n) space to store the aggregated repository list
     """
     api_key = request.headers.get("X-Wright-API-Key", "")
-    user_dir = _user_dir_from_key(api_key)
-    token_file = user_dir / ".tokens.json"
-    token = ""
-    if token_file.exists():
-        try:
-            data = json.loads(token_file.read_text())
-            token = data.get("_github_oauth", "")
-        except Exception:
-            pass
+    token = load_token(user_id_from_api_key(api_key), "_github_oauth") or ""
     if not token:
         return {"repos": [], "error": "GitHub not connected"}
 
@@ -390,15 +313,15 @@ async def github_repos(request: Request) -> dict:
 @router.get("/github/status")
 async def github_status(request: Request) -> dict:
     """
-    Checks whether a GitHub OAuth connection exists for the authenticated user by inspecting their stored token file.
+    Checks whether a GitHub OAuth connection exists for the authenticated user by looking up their stored token in the Supabase tokens table.
 
-    Retrieves the user's API key from the X-Wright-API-Key request header, resolves the corresponding user directory via _user_dir_from_key, and reads the .tokens.json file to determine if a GitHub OAuth token is present. Returns a dictionary indicating the connection status.
+    Retrieves the user's API key from the X-Wright-API-Key request header and looks up the user's GitHub OAuth token via the tokens table. Returns a dictionary indicating the connection status.
 
     Args:
         request (Request): The incoming HTTP request object containing the X-Wright-API-Key header used to identify and authenticate the user.
 
     Returns:
-        dict: A dictionary with a single key 'connected' whose value is True if a valid GitHub OAuth token exists in the user's token file, or False if the token file is absent, unreadable, or does not contain a GitHub OAuth token.
+        dict: A dictionary with a single key 'connected' whose value is True if a GitHub OAuth token row exists for the user, or False if no row exists or the lookup fails.
 
     Example:
         ```
@@ -407,13 +330,6 @@ async def github_status(request: Request) -> dict:
         ```
     """
     api_key = request.headers.get("X-Wright-API-Key", "")
-    user_dir = _user_dir_from_key(api_key)
-    token_file = user_dir / ".tokens.json"
-    if token_file.exists():
-        try:
-            data = json.loads(token_file.read_text())
-            if data.get("_github_oauth"):
-                return {"connected": True}
-        except Exception:
-            pass
+    if load_token(user_id_from_api_key(api_key), "_github_oauth"):
+        return {"connected": True}
     return {"connected": False}

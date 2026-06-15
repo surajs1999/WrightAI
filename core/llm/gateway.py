@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import re
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -93,8 +94,16 @@ class LLMGateway:
         if quality == "high":
             from core.llm.graph import run_doc_gen_graph
 
-            doc, tokens = await run_doc_gen_graph(self, func, contexts, style, verbosity)
-            return doc, LLMResult(text="", tokens=tokens, model=self.PRIMARY_MODEL)
+            doc, stats = await run_doc_gen_graph(self, func, contexts, style, verbosity)
+            return doc, LLMResult(
+                text="",
+                tokens=stats["tokens_used"],
+                model=stats["model"],
+                is_fallback=stats["is_fallback"],
+                retry_count=stats["retry_count"],
+                duration_ms=stats["duration_ms"],
+                cache_read_tokens=stats["cache_read_tokens"],
+            )
         prompt = build_docstring_prompt(func, contexts, style, func.language, verbosity)
         result = await self._call_claude_tracked(prompt, _DOCSTRING_SYSTEM)
         return self._parse_structured_output(result.text), result
@@ -234,9 +243,9 @@ class LLMGateway:
         return answer, cited_paths
 
     async def check_drift(
-        self, func: ParsedFunction, old_docstring: str
+        self, func: ParsedFunction, old_docstring: str, imports: list[str] | None = None
     ) -> tuple[bool, str, LLMResult]:
-        prompt = build_drift_check_prompt(func, old_docstring)
+        prompt = build_drift_check_prompt(func, old_docstring, imports)
         result = await self._call_claude_tracked(prompt, _DOCSTRING_SYSTEM, model=self.DRIFT_MODEL)
         try:
             data = json.loads(result.text.strip())
@@ -471,7 +480,7 @@ class LLMGateway:
             client: Any = self._gemini_client
             model_name = model or self.FALLBACK_MODEL
 
-            base_config: dict[str, Any] = {}
+            base_config: dict[str, Any] = {"max_output_tokens": 8192}
             if json_mode:
                 base_config["response_mime_type"] = "application/json"
 
@@ -569,6 +578,24 @@ class LLMGateway:
                     return DocstringSchema.model_validate_json(text[start:end])
                 except Exception:
                     pass
+
+            # Response is JSON-like but unparseable (e.g. truncated mid-object
+            # because max_output_tokens was hit). Pull out a complete "summary"
+            # field if present, rather than injecting raw/partial JSON as the
+            # docstring text.
+            if start >= 0:
+                match = re.search(r'"summary"\s*:\s*"((?:[^"\\]|\\.)*)"', text[start:])
+                if match:
+                    try:
+                        summary = json.loads(f'"{match.group(1)}"')
+                    except Exception:
+                        summary = match.group(1)
+                    return DocstringSchema(summary=summary, description=None)
+                return DocstringSchema(
+                    summary="Documentation generation produced an incomplete response.",
+                    description=None,
+                )
+
             # Return a minimal valid schema
             return DocstringSchema(
                 summary=text[:200] if text else "No documentation generated.",

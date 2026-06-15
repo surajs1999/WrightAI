@@ -220,11 +220,11 @@ def _count_connected_repos(api_key: str) -> int:
 
 
 def _trigger_email_alert(api_key: str, pct: int, used: int, limit: int) -> None:
-    """Fire-and-forget: dispatch quota alert email via Celery (non-blocking)."""
+    """Best-effort: send the quota alert email inline. Never blocks quota enforcement."""
     try:
         from api.tasks.email_tasks import send_quota_alert
 
-        send_quota_alert.delay(api_key, pct, used, limit)
+        send_quota_alert(api_key, pct, used, limit)
     except Exception:
         pass  # Never let email failures affect quota enforcement
 
@@ -252,7 +252,7 @@ def check_quota(
     (soft overage) — usage is still tracked for end-of-period billing.
 
     Returns QuotaResult; raises HTTP 429/403 when blocked and raise_on_blocked=True.
-    Fires a Celery email task at ≥80% and ≥100% usage (dedup handled in task).
+    Sends a quota alert email at ≥80% and ≥100% usage (dedup handled internally).
     """
     from fastapi import HTTPException
 
@@ -310,7 +310,7 @@ def check_quota(
         overage=overage,
     )
 
-    # Fire email alert at ≥80% (dedup handled inside Celery task)
+    # Fire email alert at ≥80% (dedup handled inside send_quota_alert)
     if result.pct >= 80:
         _trigger_email_alert(api_key, result.pct, used, limit)
 

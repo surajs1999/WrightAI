@@ -90,18 +90,18 @@ def _build_gateway() -> "LLMGateway":
     """
     Builds and returns a configured LLMGateway instance using API keys read from environment variables.
 
-    Reads the Anthropic API key (required) and OpenAI API key (optional) from environment variables and uses them to instantiate an LLMGateway object. If the ANTHROPIC_API_KEY environment variable is not set, a KeyError is raised before the gateway is created. This function is used internally by CLI commands such as generate, drift, chat, and llms_txt.
+    Reads the Anthropic API key (required) and Gemini API key (optional) from environment variables and uses them to instantiate an LLMGateway object. If the ANTHROPIC_API_KEY environment variable is not set, `_require_env` prints an error and raises `typer.Exit(1)` before the gateway is created. This function is used internally by CLI commands such as generate, drift, chat, and llms_txt.
 
     Returns:
-        LLMGateway: A fully configured LLMGateway instance initialised with the Anthropic API key and, if available, the OpenAI API key.
+        LLMGateway: A fully configured LLMGateway instance initialised with the Anthropic API key and, if available, the Gemini API key as a fallback model.
 
     Raises:
-        KeyError: When the ANTHROPIC_API_KEY environment variable is not set in the current environment.
+        typer.Exit: When the ANTHROPIC_API_KEY environment variable is not set in the current environment; exits with code 1.
 
     Example:
         ```
         gateway = _build_gateway()
-        response = gateway.complete(prompt='Explain dependency injection.')
+        answer, citations = await gateway.chat("What does this repo do?", contexts)
         ```
     """
     from core.llm.gateway import LLMGateway
@@ -116,7 +116,7 @@ def _build_embedder() -> "VoyageEmbedder":
     """
     Builds and returns a VoyageEmbedder instance configured with the API key retrieved from the VOYAGE_API_KEY environment variable.
 
-    This factory function reads the VOYAGE_API_KEY environment variable to initialize a VoyageEmbedder instance. If the environment variable is not set, an empty string is used as the fallback API key. It is called internally by the generate(), drift(), and chat() CLI commands to provide a consistent embedder object.
+    This factory function reads the VOYAGE_API_KEY environment variable to initialize a VoyageEmbedder instance. If the environment variable is not set, an empty string is used as the fallback API key. It is called internally by the init(), generate(), drift(), and chat() CLI commands to provide a consistent embedder object.
 
     Returns:
         VoyageEmbedder: A VoyageEmbedder instance initialized with the API key from the VOYAGE_API_KEY environment variable, or an empty string if the variable is not set.
@@ -166,7 +166,7 @@ def _get_chroma(repo_root: str) -> "ChromaStore":
     """
     Initializes and returns a configured ChromaStore instance for vector embeddings storage using the repository root path.
 
-    Acts as a factory method that constructs a ChromaStore object with a persistence path resolved from the CHROMA_PATH environment variable, falling back to the default '.wright/chroma' directory within the given repository root. This instance is used by generate(), drift(), and chat() to interact with the Chroma vector database.
+    Acts as a factory method that constructs a ChromaStore object with a persistence path resolved from the CHROMA_PATH environment variable, falling back to the default '.wright/chroma' directory within the given repository root. This instance is used by init(), generate(), drift(), and chat() to interact with the Chroma vector database.
 
     Args:
         repo_root (str): The absolute or relative root directory path of the repository where the Chroma database will be persisted if CHROMA_PATH is not set.
@@ -188,19 +188,18 @@ def _get_chroma(repo_root: str) -> "ChromaStore":
 @app.command()
 def init(repo: str = typer.Argument(".", help="Repository root")) -> None:
     """
-    Initializes Wright for a repository by scanning source files, reporting documentation coverage, and writing a .wright.json configuration file.
+    Initializes Wright for a repository by scanning source files, reporting documentation coverage, writing a .wright.json configuration file, and building a local semantic search index.
 
-    Scans the specified repository root directory for source files using a tree-sitter-based code parser, computes documentation coverage statistics (file count, total named functions, and percentage already documented), detects the dominant programming language by function count, displays up to three sample undocumented functions, and then prompts the user to confirm creation of a .wright.json configuration file.
+    Scans the specified repository root directory for source files using a tree-sitter-based code parser, computes documentation coverage statistics (file count, total named functions, and percentage already documented), detects the dominant programming language by function count, displays up to three sample undocumented functions, and then prompts the user to confirm creation of a .wright.json configuration file. Finally, if VOYAGE_API_KEY or OPENAI_API_KEY is set, chunks the parsed codebase and embeds it into a local ChromaDB collection (under .wright/chroma) so `wright chat`, `wright generate`, and `wright drift --fix` have retrieval context available immediately, without requiring a separate indexing step.
 
     Args:
         repo (str): Filesystem path to the repository root to initialize. Defaults to '.' (current working directory). Resolved to an absolute path before processing.
 
     Returns:
-        None: This function does not return a value; all output is written to the console and optionally to a .wright.json file on disk.
+        None: This function does not return a value; all output is written to the console, optionally to a .wright.json file, and to a local ChromaDB collection under .wright/chroma.
 
     Raises:
         SystemExit: Raised implicitly by Typer if required CLI arguments are malformed or if the user aborts the confirmation prompt.
-        FileNotFoundError: Raised if the provided repo path does not exist or is not accessible by the parser.
 
     Example:
         ```
@@ -270,6 +269,35 @@ def init(repo: str = typer.Argument(".", help="Repository root")) -> None:
         save_config(config, repo_path)
         console.print("[green]Created .wright.json[/green]")
 
+    # Build the semantic search index so `wright chat`, `wright generate`, and
+    # `wright drift --fix` have embeddings to retrieve from right away.
+    voyage_key = os.getenv("VOYAGE_API_KEY", "")
+    openai_key = os.getenv("OPENAI_API_KEY", "")
+    if not (voyage_key or openai_key):
+        console.print(
+            "\n[yellow]Tip: set VOYAGE_API_KEY (or OPENAI_API_KEY) to build a semantic "
+            "search index for [bold]wright chat[/bold], [bold]wright generate[/bold], "
+            "and [bold]wright drift --fix[/bold].[/yellow]"
+        )
+    else:
+        from core.parser.ast_chunker import ASTChunker
+
+        try:
+            with Progress(
+                SpinnerColumn(), TextColumn("{task.description}"), console=console
+            ) as progress:
+                t = progress.add_task("Building semantic search index...", total=None)
+                chunks = ASTChunker().chunk_directory(parsed_files)
+                if chunks:
+                    embeddings = _build_embedder().embed_chunks(chunks)
+                    _get_chroma(repo_path).upsert_chunks(chunks, embeddings)
+                progress.update(t, completed=True)
+            console.print(
+                f"[green]Indexed {len(chunks)} code chunk(s) for semantic search.[/green]"
+            )
+        except Exception as e:
+            console.print(f"[yellow]Could not build semantic search index: {e}[/yellow]")
+
 
 @app.command()
 def generate(
@@ -297,6 +325,7 @@ def generate(
         verbosity (str): Controls the level of detail in generated docstrings. Accepted values are 'concise', 'standard', or 'detailed'. Defaults to 'standard'.
         dry_run (bool): When True, previews the generated docstrings in the results table without writing any changes to disk. Defaults to False.
         watch (bool): When True, intended to watch the target path for file changes and re-generate docstrings automatically. Watch mode is not yet implemented and will display a notice if enabled. Defaults to False.
+        quality (str): Generation quality level, 'standard' or 'high'. 'high' enables an additional critic/rewriter loop in the LLM gateway for better results at the cost of more tokens. Defaults to 'standard'.
 
     Returns:
         None: Does not return a value. Outputs a Rich-formatted results table to the console summarising the generation status of each function.
@@ -341,15 +370,22 @@ def generate(
     dep_graph.build(parsed_files)
     retriever = HybridRetriever(chroma, dep_graph, embedder)
 
-    undoc_funcs = [
-        (pf, f)
-        for pf in parsed_files
-        for f in [
-            *pf.functions,
-            *(m for cls in pf.classes for m in cls.methods),
-        ]
-        if not f.existing_docstring and f.name != "<anonymous>"
-    ]
+    # Track a qualified name ("ClassName.method" for methods, bare name for
+    # top-level functions) per function so re-parsing after each injection
+    # (below) can find the right function even when a top-level function and
+    # a class method share the same bare name.
+    undoc_funcs: list = []
+    qualified_names: dict[int, str] = {}
+    for pf in parsed_files:
+        for f in pf.functions:
+            if not f.existing_docstring and f.name != "<anonymous>":
+                undoc_funcs.append((pf, f))
+                qualified_names[id(f)] = f.name
+        for cls in pf.classes:
+            for m in cls.methods:
+                if not m.existing_docstring and m.name != "<anonymous>":
+                    undoc_funcs.append((pf, m))
+                    qualified_names[id(m)] = f"{cls.name}.{m.name}"
 
     if not undoc_funcs:
         console.print("[green]All functions are already documented![/green]")
@@ -396,14 +432,14 @@ def generate(
                             # (previous injection shifted bytes for later functions).
                             if not dry_run:
                                 fresh_parsed = parser.parse_file(file_path)
-                                all_fresh = [
-                                    *fresh_parsed.functions,
-                                    *(m for cls in fresh_parsed.classes for m in cls.methods),
-                                ]
-                                func = next(
-                                    (f for f in all_fresh if f.name == func.name),
-                                    func,
-                                )
+                                fresh_by_qualified_name: dict = {
+                                    f.name: f for f in fresh_parsed.functions
+                                }
+                                for cls in fresh_parsed.classes:
+                                    for m in cls.methods:
+                                        fresh_by_qualified_name[f"{cls.name}.{m.name}"] = m
+                                qname = qualified_names[id(func)]
+                                func = fresh_by_qualified_name.get(qname, func)
 
                             effective_style = (
                                 doc_style
@@ -584,6 +620,7 @@ def drift(
         fix (bool): When True, automatically regenerates docstrings for all drifted and undocumented functions using an LLM gateway and injects them into the source files. Defaults to False.
         output (Optional[str]): Optional file path to write a JSON report containing counts of total, drifted, undocumented, and up-to-date functions. If None, no file is written.
         auto_pr (bool): When True, opens a GitHub Pull Request containing the list of functions with documentation drift. Only has an effect when --fix is not used. Defaults to False.
+        file (Optional[str]): If provided, checks only this single file instead of scanning the whole repository (fast path used by the VS Code extension on save). Defaults to None.
 
     Returns:
         None: This function does not return a value; all output is written to the console, optionally to a JSON file, or committed via a GitHub PR.
@@ -665,6 +702,8 @@ def drift(
                             "old_signature": r.old_signature,
                             "new_signature": r.new_signature,
                             "line": r.line,
+                            "src_hash": r.src_hash,
+                            "doc_hash": r.doc_hash,
                         }
                         for r in results
                     ],
@@ -811,21 +850,19 @@ def drift(
 
 def _open_drift_pr(repo_root: str, drifted: list) -> None:
     """
-    Attempts to open a GitHub pull request for drifted infrastructure resources, currently a placeholder that checks for a GITHUB_TOKEN and notifies the user the feature is not yet implemented.
+    Placeholder for opening a GitHub pull request listing drifted/undocumented functions.
 
-    Called by the drift() function when infrastructure drift is detected, this helper checks for the presence of the GITHUB_TOKEN environment variable and prints an appropriate message. If the token is absent, it prints an error and returns early. If the token is present, it informs the user that the automatic PR creation feature is coming soon. No actual PR is opened at this time.
+    Called by the drift() command when --auto-pr is set. Currently only checks
+    for the GITHUB_TOKEN environment variable and prints a status message — it
+    does not push changes or create a pull request yet.
 
     Args:
-        repo_root (str): The root directory path of the repository where the pull request would be created once the feature is fully implemented.
-        drifted (list): A list of drifted resources or configurations detected during infrastructure drift analysis that would be included in the pull request description.
+        repo_root (str): Root directory of the repository the PR would be opened against.
+        drifted (list): DriftResult items (drifted and/or undocumented functions) that
+            would be summarized in the pull request description.
 
     Returns:
         None: This function does not return a value.
-
-    Example:
-        ```
-        _open_drift_pr('/home/user/projects/my-infra-repo', ['aws_s3_bucket.my_bucket', 'aws_iam_role.app_role'])
-        ```
     """
     token = os.getenv("GITHUB_TOKEN")
     if not token:
@@ -850,7 +887,6 @@ def chat(path: str = typer.Argument(".", help="Repository root")) -> None:
 
     Raises:
         SystemExit: Raised by Typer if invalid CLI arguments are provided.
-        FileNotFoundError: Raised by _resolve_workspace if the provided path does not exist or cannot be resolved.
 
     Example:
         ```

@@ -264,7 +264,10 @@ class DocstringInjector:
             pre_start = max(0, func.start_byte - 2000)
             region_start_char = len(source_bytes[:pre_start].decode("utf-8", errors="replace"))
             region = source_str[region_start_char:func_end_char]
-            new_region = region.replace(old_doc, new_doc, 1)
+            # old_doc has no trailing newline (comment node ends at the closing
+            # delimiter), but new_doc does — strip it so we don't leave a blank
+            # line between the new comment and the function.
+            new_region = region.replace(old_doc, new_doc.rstrip("\n"), 1)
             return (
                 source_str[:region_start_char] + new_region + source_str[func_end_char:]
             ).encode("utf-8")
@@ -285,8 +288,10 @@ class DocstringInjector:
         inner_pad = " " * (indent + 4)
 
         # Language-native formats always take precedence over user style choice.
-        if language in ("javascript", "typescript", "java"):
+        if language in ("javascript", "typescript"):
             return self._format_jsdoc(doc, pad)
+        if language == "java":
+            return self._format_javadoc(doc, pad)
         if language == "go":
             return self._format_go(doc, pad)
         if language == "rust":
@@ -416,6 +421,34 @@ class DocstringInjector:
             lines.append(f"{pad} * @sideEffects {s(doc.side_effects)}")
         if doc.notes:
             lines.append(f"{pad} * @notes {s(doc.notes)}")
+        lines.append(f"{pad} */")
+        lines.append("")
+        return "\n".join(lines)
+
+    def _format_javadoc(self, doc: DocstringSchema, pad: str) -> str:
+        s = self._safe_jsdoc
+        lines = [f"{pad}/**"]
+        lines.append(f"{pad} * {s(doc.summary)}")
+        if doc.description:
+            lines.append(f"{pad} *")
+            lines.append(f"{pad} * {s(doc.description)}")
+        if doc.parameters:
+            lines.append(f"{pad} *")
+            for param in doc.parameters:
+                lines.append(f"{pad} * @param {param.name} {s(param.description)}")
+        if doc.returns:
+            lines.append(f"{pad} * @return {s(doc.returns.description)}")
+        if doc.raises:
+            for exc in doc.raises:
+                lines.append(f"{pad} * @throws {exc.exception} {s(exc.condition)}")
+        if doc.example:
+            lines.append(f"{pad} * @example")
+            for line in doc.example.split("\n"):
+                lines.append(f"{pad} * {s(line)}")
+        if doc.side_effects:
+            lines.append(f"{pad} * @implNote Side effects: {s(doc.side_effects)}")
+        if doc.notes:
+            lines.append(f"{pad} * @implNote {s(doc.notes)}")
         lines.append(f"{pad} */")
         lines.append("")
         return "\n".join(lines)

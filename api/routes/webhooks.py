@@ -112,6 +112,10 @@ async def github_webhook(
     user_id = token[-12:].replace("/", "_").replace(".", "_")
     repo_path = _REPOS_BASE / user_id / repo_name
 
+    from api.routes.repos import ensure_repo_local
+
+    if not repo_path.exists():
+        await ensure_repo_local(str(repo_path))
     if not repo_path.exists():
         _logger.warning("Webhook for unknown repo %s (user %s)", repo_name, user_id)
         return JSONResponse({"synced": False, "reason": "repo not connected"})

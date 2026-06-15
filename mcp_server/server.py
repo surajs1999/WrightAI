@@ -110,7 +110,7 @@ async def call_tool(request: CallToolRequest) -> CallToolResult:
 
     Example:
         ```
-        result = await call_tool(CallToolRequest(params=ToolCallParams(name='search_docs', arguments={'query': 'authentication'})))
+        result = await call_tool(CallToolRequest(params=CallToolRequestParams(name='search_docs', arguments={'query': 'authentication', 'repo_root': '/path/to/repo'})))
         ```
     """
     name = request.params.name
@@ -202,7 +202,7 @@ async def _get_function_doc(args: dict[str, Any]) -> dict:
         doc = await _get_function_doc({'function_name': 'parse_file', 'file_path': '/path/to/repo/core/parser/tree_sitter_parser.py', 'repo_root': '/path/to/repo'})
         # doc['function_name'] == 'parse_file'
         # doc['is_async'] == False
-        # doc['callers'] == [{'file': '/path/to/repo/mcp_server/server.py', 'function': '_get_function_doc'}]
+        # doc['callers'] == []  # dependency graph is built only from this single parsed file
         ```
 
     Complexity: O(n*m) time where n is the number of top-level functions and m is the number of class methods in the parsed file; O(k) space where k is the total number of dependency edges in the graph
@@ -225,10 +225,13 @@ async def _get_function_doc(args: dict[str, Any]) -> dict:
         if f.name == function_name:
             func = f
             break
-    for cls in parsed_file.classes:
-        for m in cls.methods:
-            if m.name == function_name:
-                func = m
+    if func is None:
+        for cls in parsed_file.classes:
+            for m in cls.methods:
+                if m.name == function_name:
+                    func = m
+                    break
+            if func is not None:
                 break
 
     if func is None:
@@ -294,7 +297,10 @@ async def _list_undocumented(args: dict[str, Any]) -> dict:
     documented = 0
 
     for pf in parsed_files:
-        for func in pf.functions:
+        all_funcs = list(pf.functions)
+        for cls in pf.classes:
+            all_funcs.extend(cls.methods)
+        for func in all_funcs:
             if func.name == "<anonymous>":
                 continue
             total += 1
@@ -321,7 +327,7 @@ async def run() -> None:
     """
     Starts the MCP server by establishing stdio communication streams and running the server with 'wright' initialization options.
 
-    Serves as the main async entry point for the MCP (Model Context Protocol) server. Opens a stdio server context to obtain read and write streams, then invokes the server's run loop with InitializationOptions specifying the server name 'wright', version '0.1.0', and the server's capability configuration. This function is called by the CLI entrypoint and various callers such as DriftPage and generate.
+    Serves as the main async entry point for the MCP (Model Context Protocol) server. Opens a stdio server context to obtain read and write streams, then invokes the server's run loop with InitializationOptions specifying the server name 'wright', version '0.1.0', and the server's capability configuration. This coroutine is the target of the `wright-mcp` console script defined in pyproject.toml, and is also awaited via asyncio.run(run()) by main() in this module.
 
     Returns:
         None: Does not return a value; runs the server until the stdio streams are closed or the process exits.
@@ -351,7 +357,7 @@ def main() -> None:
     """
     Serves as the synchronous entry point for the MCP server by bootstrapping and running the async event loop.
 
-    Acts as the top-level entry point called by the CLI (findWrightCli) to start the MCP server. It uses asyncio.run() to execute the run() coroutine, blocking until the server completes or is interrupted. This bridges the synchronous CLI invocation with the asynchronous server implementation.
+    Acts as the synchronous entry point invoked when this module is run directly (via the `if __name__ == "__main__":` guard below). It uses asyncio.run() to execute the run() coroutine, blocking until the server completes or is interrupted. This bridges a synchronous process invocation with the asynchronous server implementation.
 
     Returns:
         None: Does not return a value; blocks until the asyncio event loop completes.
