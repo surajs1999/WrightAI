@@ -9,7 +9,7 @@ No local server or Python installation required — the backend is fully hosted.
 ## Getting Started
 
 1. Install this extension from the VS Code Marketplace
-2. Sign in at **[www.wrightai.live](https://wrightai-web.fly.dev)** with GitHub or Google
+2. Sign in at the [WrightAI dashboard](https://wrightai-web-jroejkhf4q-as.a.run.app) with GitHub or Google
 3. Copy your personal API key (starts with `wai_`)
 4. Open VS Code Settings (`Cmd+,` / `Ctrl+,`), search for `WrightAI`, and paste the key into **Wright: Api Key**
 5. Open any supported file — a **Generate Docs** button will appear above each function
@@ -61,7 +61,7 @@ Run **Wright: Chat with codebase** from the Command Palette to open an interacti
 
 | Setting | Default | Description |
 |---|---|---|
-| `wright.apiUrl` | `https://wrightai-api.fly.dev` | WrightAI backend URL |
+| `wright.apiUrl` | `https://wrightai-api-jroejkhf4q-as.a.run.app` | WrightAI backend URL |
 | `wright.apiKey` | _(empty)_ | Your personal `wai_` API key |
 | `wright.style` | `google` | Default docstring style |
 | `wright.style.python` | `google` | Python style: `google`, `numpy`, `epytext` |
@@ -81,3 +81,11 @@ Python · JavaScript · TypeScript · Java · Go · Rust
 
 - Bug reports and feature requests: [GitHub Issues](https://github.com/surajs1999/WrightAI/issues)
 - Questions and feedback: [GitHub Discussions](https://github.com/surajs1999/WrightAI/discussions)
+
+---
+
+## License
+
+This extension is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0-or-later). See the bundled [LICENSE](LICENSE) file for the full text.
+
+For commercial/enterprise use without AGPL obligations, contact surajsahoo19991012@gmail.com.
