@@ -83,8 +83,10 @@ wright generate . --dry-run                # Preview without writing
 Options:
 - `--style` — `google` | `numpy` | `jsdoc` | `epytext` | `rust` | `go`
   (JS/TS/Java always use JSDoc; Go always uses `//` line comments; Rust always uses `///` — style only affects Python)
+- `--verbosity` — `concise` | `standard` | `detailed` (default: `standard`)
 - `--dry-run` — preview the generated docstring without modifying files
 - `--watch` — watch for file changes and regenerate on save
+- `--quality` — `standard` | `high` (default: `standard`); `high` runs an additional critic/rewriter loop (up to 2 retries) for better results at the cost of more tokens
 
 ### `wright coverage [PATH]`
 Show a documentation coverage table. Exits with code 1 if below threshold.
@@ -148,7 +150,7 @@ wright llms-txt .
 - **Hover** — shows the existing docstring and a regenerate link on hover
 - **Coverage panel** — live doc coverage %, undocumented count, and drifted count in the Explorer sidebar; auto-refreshes after every injection; uses local CLI + SQLite cache for zero token cost on unchanged functions
 - **Drift detection** — checked automatically on every file save (and on `wright drift` from the Coverage panel); detects structural changes (param renames, return type changes) and LLM-based semantic drift; SQLite-cached so re-saves are instant
-- **Dashboard sync** — drift results are pushed to the hosted Redis "function index" so `wrightai.live` shows your real, history-based drift count instead of falling back to a fresh-clone live scan. The repo is identified by its `origin` git remote slug (matching the server's `repo_slug`), not the local folder name, so this still works if you've renamed the folder
+- **Dashboard sync** — drift results are pushed to Supabase (`drift_results` table) so `wrightai.live` shows your real, history-based drift count instead of falling back to a fresh-clone live scan. LLM-verified verdicts (with their source/docstring hashes) are also mirrored into the shared `drift_llm_cache` table, so cold-start containers and other devices skip a redundant LLM call for code they've already checked. The repo is identified by its `origin` git remote slug (matching the server's `repo_slug`), not the local folder name, so this still works if you've renamed the folder
 - **Codebase chat** — ask questions, get answers with clickable file citations
 
 **Settings** (`settings.json`):
@@ -297,6 +299,8 @@ Add to your `.mcp.json`:
 
 ## Architecture
 
+> For a deep dive into every module, API endpoint, data store, and request flow, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ```
 wright/
 │
@@ -308,11 +312,13 @@ wright/
 │   │   └── cache.py                # SQLite mtime-tracked AST + LLM result cache
 │   ├── embeddings/          # Vector store
 │   │   ├── voyage_embeddings.py    # voyage-code-3 embeddings
-│   │   └── chroma_store.py         # ChromaDB wrapper
+│   │   ├── chroma_store.py         # ChromaDB wrapper
+│   │   └── pgvector_store.py       # Supabase pgvector mirror (hosted backend durability)
 │   ├── retrieval/           # Hybrid retrieval
 │   │   └── hybrid_retriever.py     # Graph (40%) + vector (60%)
 │   ├── llm/                 # LLM interface
 │   │   ├── gateway.py              # Anthropic SDK wrapper with retry/backoff
+│   │   ├── graph.py                # LangGraph critic/rewriter loop (--quality high)
 │   │   ├── prompts.py              # Prompt templates + DocStyle enum
 │   │   └── schema.py               # Pydantic output schema
 │   ├── output/              # Doc writers
@@ -325,7 +331,9 @@ wright/
 │
 ├── api/                     # FastAPI REST backend
 │   ├── routes/              # /auth, /generate, /coverage, /drift, /chat, /llms-txt
-│   ├── tasks/               # Async generation tasks
+│   ├── tasks/               # Transactional email tasks (Brevo)
+│   ├── repo_store.py        # Supabase repo_meta CRUD (connected-repo metadata)
+│   ├── token_store.py       # Supabase tokens CRUD (GitHub OAuth + per-repo deploy tokens)
 │   └── user_store.py        # Supabase user + API key management
 │
 ├── cli/                     # Typer CLI (wright command)
@@ -335,31 +343,30 @@ wright/
 ├── web/                     # Next.js dashboard (wrightai.live, Cloud Run)
 ├── github-action/           # GitHub Action (coverage/generate/drift)
 │
-├── Dockerfile               # Single image shared by the api and worker Cloud Run services
-├── start.sh / start_worker.sh  # Container entrypoints (API vs Celery worker+beat)
-└── cloudrun-{api,web,worker}.yaml  # Cloud Run service definitions
+├── Dockerfile               # Image for the api Cloud Run service
+├── start.sh                 # Container entrypoint (uvicorn api.main:app)
+└── cloudrun-{api,web}.yaml  # Cloud Run service definitions
 ```
 
 **Hosted infrastructure (Google Cloud, `asia-southeast1`):**
 
-All three services are built from the same Docker image (or the `web/` image for the dashboard) and deployed via GitHub Actions (`.github/workflows/deploy-api.yml`, `deploy-web.yml`) to Artifact Registry, then to Cloud Run pinned to an immutable `:<commit-sha>` tag — Cloud Run can skip re-pulling a `:latest` tag if the service spec string is otherwise unchanged, so the SHA tag guarantees every deploy actually picks up the new image.
+Both services are built from the same Docker image (or the `web/` image for the dashboard) and deployed via GitHub Actions (`.github/workflows/deploy-api.yml`, `deploy-web.yml`) to Artifact Registry, then to Cloud Run pinned to an immutable `:<commit-sha>` tag — Cloud Run can skip re-pulling a `:latest` tag if the service spec string is otherwise unchanged, so the SHA tag guarantees every deploy actually picks up the new image.
 
-- **`wrightai-api`** (Cloud Run, 512Mi/1vCPU, scales 0→10) — FastAPI backend at `api.wrightai.live`. `start.sh` warms ChromaDB by copying `/data/chroma` (GCS) → `/tmp/chroma` (local SSD) once at container boot, so reads/writes happen on fast local disk.
+- **`wrightai-api`** (Cloud Run, 512Mi/1vCPU, scales 0→10) — FastAPI backend at `api.wrightai.live`. `start.sh` warms ChromaDB by copying `/data/chroma` (GCS) → `/tmp/chroma` (local SSD) once at container boot, so reads/writes happen on fast local disk. A daily Cloud Scheduler job calls `POST /internal/cron/onboarding-drip` (shared-secret auth via `CRON_SECRET`) to send onboarding nudge emails — there is no separate worker service.
 - **`wrightai-web`** (Cloud Run, 1Gi/1vCPU, scales 0→10) — Next.js dashboard at `wrightai.live` / `www.wrightai.live`.
-- **`wrightai-worker`** (Cloud Run, 1Gi/2vCPU, always-on `minScale: 1`) — runs `celery -A api.tasks.celery_app worker --beat` via `start_worker.sh` (plus a tiny stdlib HTTP server so Cloud Run's health check passes). Handles transactional email and other async tasks.
-- **Redis** — shared by all three services:
-  - Celery broker/result backend (`REDIS_URL`, `rediss://` with TLS supported)
-  - LLM result cache, keyed by source + docstring hash (`core/parser/cache.py`), TTL = `WRIGHT_CACHE_TTL_DAYS` (default 30 days)
-  - Connected-repo metadata: hash `wright:repos:v1:{user_id}` → `{repo_slug: {git_url, branch, local_path}}`, 90-day TTL — this is what `list_repos` reads instead of scanning the filesystem
-  - Per-repo drift "function index" synced from the VS Code extension: hash `wright:repo:v1:{user_id}:{repo_slug}` → `{file_path}:{func_name} → {status, reason, checked_at}`, 7-day TTL
 - **Google Cloud Storage** (bucket `wrightai-data`, mounted via `gcsfuse` at `/data`) — durable backing store:
-  - `/data/repos` — backup of cloned repos (the API/worker work against fast local `/tmp/repos`; the GCS copy happens asynchronously, fire-and-forget)
-  - `/data/chroma` — ChromaDB vector store, read/written directly by the worker; the API copies it into `/tmp/chroma` once at startup
-  - `/data/ast_cache.db` — the worker's persistent AST/LLM SQLite cache (the API uses an ephemeral `/tmp/ast_cache.db` per container)
-- **Supabase** — Postgres for users, `wai_` API keys, usage tracking, and billing `plans`/subscription state
+  - `/data/repos` — backup of cloned repos (the API works against fast local `/tmp/repos`; the GCS copy happens asynchronously, fire-and-forget)
+  - `/data/chroma` — ChromaDB vector store; the API copies it into `/tmp/chroma` at startup and writes changes back after indexing
+  - `/data/ast_cache.db` — persistent AST/LLM SQLite cache (the API also uses an ephemeral `/tmp/ast_cache.db` per container)
+- **Supabase** — Postgres for users, `wai_` API keys, usage tracking, and billing `plans`/subscription state, plus:
+  - `repo_meta` — connected-repo metadata (`git_url`, `branch`, `local_path`) keyed by `(user_id, repo_slug)`, managed by `api/repo_store.py` — this is what `list_repos` reads instead of scanning the filesystem
+  - `tokens` — GitHub OAuth and per-repo deploy tokens keyed by `(user_id, key)`, managed by `api/token_store.py` (`key` is `_github_oauth` for the user's GitHub OAuth token, or a repo slug for a per-repo deploy token)
+  - `drift_results` — per-repo drift "function index" synced from the VS Code extension, keyed by `(user_id, repo_name, file_path, func_name)` → `{status, reason, checked_at}`
+  - `drift_llm_cache` — shared LLM drift-verdict cache (L2), keyed by `(src_hash, doc_hash)` → `{status, reason, updated_at}`, with a read-time `WRIGHT_CACHE_TTL_DAYS` (default 30 days) freshness check — mirrors `core/parser/cache.py`'s local SQLite cache (L1) so cold-start containers and other devices skip a redundant LLM call for unchanged code
+  - `code_embeddings` — pgvector mirror of each repo's Chroma collection, keyed by `(user_id, repo_slug, chunk_id)`, managed by `core/embeddings/pgvector_store.py`'s `PgVectorStore` — the durable backup used to rebuild Chroma on a cold container start, and the preferred read path for `/generate`, `/chat`, and `/fix-pr` via `DualVectorStore`
 - **WorkOS** — OAuth login (GitHub / Google)
 - **Paddle** — subscription billing: checkout, customer portal, and webhooks (see [Web Dashboard → Billing](#billing-paddle))
-- **Brevo** — transactional email (onboarding drip, quota alerts), sent from Celery tasks on the worker
+- **Brevo** — transactional email (welcome, quota alerts, onboarding drip), sent synchronously from `api/tasks/email_tasks.py`
 - **Gemini** (`gemini-2.5-pro` for chat/docs, `gemini-2.5-flash` for drift) — automatic fallback model used whenever an Anthropic call fails (e.g. rate limit/overload)
 
 **Data flow (doc generation):**
@@ -371,18 +378,21 @@ All three services are built from the same Docker image (or the `web/` image for
 6. Schema → Injector (byte-offset, language-aware) → Modified source file
 
 **Repo connect flow** (`POST /repos/connect`, `api/routes/repos.py`):
+0. `check_quota(api_key, "repo_connect", raise_on_blocked=True)` — 403 if the plan disables repo connections, 429 if the plan's repo limit is already reached
 1. Shallow `git clone --depth=1` (or fast-forward pull of an existing clone) into `/tmp/repos/{user_id}/{repo_slug}` on local SSD — `repo_slug` is derived from the git remote URL (last path segment, minus `.git`)
-2. Repo metadata (`git_url`, `branch`, `local_path`) is saved to the Redis `wright:repos:v1:{user_id}` hash (90-day TTL)
+2. Repo metadata (`git_url`, `branch`, `local_path`) is saved to Supabase (`repo_meta`, keyed by `user_id` + `repo_slug`, via `api/repo_store.py`)
 3. The response returns immediately while three things continue in the background:
    - Async copy of the clone to `/data/repos/{user_id}/{repo_slug}` (GCS) for durability
-   - Async ChromaDB indexing (parse → embed → upsert), if `VOYAGE_API_KEY` is set
+   - Async ChromaDB indexing (parse → embed → upsert), if `VOYAGE_API_KEY` is set — the same chunks/embeddings are also mirrored to Supabase pgvector (`code_embeddings`) as a durable backup for rebuilding Chroma on a cold start
    - Async GitHub webhook registration (push events → `/webhooks/github`), so future pushes re-sync automatically
+
+**Repo disconnect flow** (`DELETE /repos/{repo_name}`, `api/routes/repos.py`): deletes the repo's Chroma collection and its `code_embeddings` pgvector backup, removes the local clone directory, deletes the GCS tarball/legacy directory backups, removes the `repo_meta` row (`api/repo_store.py`), and deletes any stored GitHub token for that repo (`api/token_store.py`). Returns 404 if none of the local directory or its GCS backups exist.
 
 **Drift sync flow (VS Code extension → dashboard):**
 1. On file save (or `wright drift` from the Coverage panel), the extension runs a local drift scan against its SQLite-cached AST baseline
 2. It resolves the repo's identity the same way the server does — from the `origin` (or first available) git remote URL, not the local folder name — and POSTs results to `POST /drift-check/sync`
-3. The API writes each `{file_path}:{func_name}` result into the Redis function index (`wright:repo:v1:{user_id}:{repo_slug}`, 7-day TTL)
-4. The dashboard's `GET /drift-check/results/{repo_name}` reads this index for the home page's "Drifted" count; if it's empty (e.g. a freshly connected repo with no local extension activity yet), the dashboard falls back to a live, structural-only scan via `POST /drift-check`
+3. The API upserts each `{file_path}:{func_name}` result into `drift_results` (keyed by `user_id`/`repo_name`/`file_path`/`func_name`). Results backed by an LLM verdict also carry `src_hash`/`doc_hash`, which the API mirrors into `drift_llm_cache` (L2) — so cold-start containers and other devices skip a redundant LLM call for the same source + docstring
+4. The dashboard's `GET /drift-check/results/{repo_name}` reads `drift_results` for the home page's "Drifted" count; if it's empty (e.g. a freshly connected repo with no local extension activity yet), the dashboard falls back to a live, structural-only scan via `POST /drift-check`
 
 **Auth flow:**
 1. User signs in via WorkOS (GitHub/Google) at `www.wrightai.live`
@@ -400,8 +410,7 @@ ANTHROPIC_API_KEY    — Anthropic API key (required for doc generation)
 GEMINI_API_KEY       — Gemini API key; automatic fallback (gemini-2.5-pro/-flash) when an Anthropic call fails (optional)
 VOYAGE_API_KEY       — Voyage AI key for code embeddings (required for chat/search)
 GITHUB_TOKEN         — For auto-PR in drift mode (optional)
-REDIS_URL            — Redis URL for Celery, LLM cache, repo metadata, and the drift function index (default: redis://localhost:6379/0; rediss:// for TLS)
-WRIGHT_CACHE_TTL_DAYS — TTL in days for the Redis-backed LLM result cache (default: 30)
+WRIGHT_CACHE_TTL_DAYS — TTL in days for the shared LLM result cache (Supabase `drift_llm_cache`, default: 30)
 CHROMA_PATH          — ChromaDB storage path (default: .wright/chroma)
 SQLITE_CACHE_PATH    — AST cache DB path (default: .wright/ast_cache.db)
 WRIGHT_API_PORT      — API server port (default: 8765)
@@ -416,8 +425,9 @@ FRONTEND_URL         — Dashboard URL used for OAuth/billing redirects (hosted 
 PADDLE_API_KEY       — Paddle API key for checkout/portal/webhook calls (hosted backend only)
 PADDLE_WEBHOOK_SECRET — Verifies incoming Paddle webhook signatures (hosted backend only)
 PADDLE_API_URL       — Paddle API base URL (default: https://api.paddle.com)
-BREVO_API_KEY        — Brevo transactional email API key (hosted backend/worker only)
+BREVO_API_KEY        — Brevo transactional email API key (hosted backend only)
 BREVO_FROM_EMAIL     — From-address for transactional email (default: hello@wrightai.live)
+CRON_SECRET          — Shared secret required in the X-Cron-Secret header for POST /internal/cron/* (hosted backend only)
 ```
 
 ---
@@ -439,9 +449,6 @@ ruff check . --fix && ruff format .
 
 # Start API server
 wright-api
-
-# Start Celery worker (requires Redis)
-celery -A api.tasks.celery_app worker --loglevel=info
 
 # Start MCP server
 wright-mcp
