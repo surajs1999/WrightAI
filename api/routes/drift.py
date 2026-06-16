@@ -9,7 +9,14 @@ from pydantic import BaseModel
 
 from api.auth import verify_api_key
 from api.quota import check_feature_flag
-from core.parser.cache import ASTCache, _hash, flush_function_results, prefetch_function_results
+from core.parser.cache import (
+    ASTCache,
+    _hash,
+    flush_baselines,
+    flush_function_results,
+    prefetch_baselines,
+    prefetch_function_results,
+)
 
 _logger = logging.getLogger("wright.drift")
 
@@ -313,6 +320,16 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
     cache = ASTCache(cache_path)
     detector = DriftDetector()
 
+    # Resolve the Supabase user up front so the AST baseline can be
+    # read-through from (and written back to) ast_baseline — keeps the
+    # drift baseline alive across Cloud Run cold starts, which wipe /tmp.
+    from api.usage_store import _resolve_user_id
+
+    user_id = _resolve_user_id(_api_key)
+    repo_name = os.path.basename(request.repo_root)
+    remote_baselines = prefetch_baselines(user_id, repo_name) if user_id else {}
+    baseline_pending: list[dict] = []
+
     # Use async LLM path when API key is present AND user plan allows semantic drift.
     anthropic_key = os.getenv("ANTHROPIC_API_KEY")
     if anthropic_key and _semantic_ok:
@@ -324,14 +341,48 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
         )
         sem = _asyncio.Semaphore(5)
         if request.file_path and os.path.exists(request.file_path):
-            raw_results = await detector.check_file_async(request.file_path, cache, gateway, sem)
+            raw_results = await detector.check_file_async(
+                request.file_path,
+                cache,
+                gateway,
+                sem,
+                remote_baselines=remote_baselines,
+                baseline_pending=baseline_pending,
+                repo_root=request.repo_root,
+            )
         else:
-            raw_results = await detector.check_directory_async(request.repo_root, cache, gateway)
+            raw_results = await detector.check_directory_async(
+                request.repo_root,
+                cache,
+                gateway,
+                remote_baselines=remote_baselines,
+                baseline_pending=baseline_pending,
+                repo_root=request.repo_root,
+            )
     else:
         if request.file_path and os.path.exists(request.file_path):
-            raw_results = detector.check_file(request.file_path, cache)
+            raw_results = detector.check_file(
+                request.file_path,
+                cache,
+                remote_baselines=remote_baselines,
+                baseline_pending=baseline_pending,
+                repo_root=request.repo_root,
+            )
         else:
-            raw_results = detector.check_directory(request.repo_root, cache)
+            raw_results = detector.check_directory(
+                request.repo_root,
+                cache,
+                remote_baselines=remote_baselines,
+                baseline_pending=baseline_pending,
+                repo_root=request.repo_root,
+            )
+
+    # Persist any advanced baselines to Supabase so the next cold-started
+    # container picks them up via prefetch_baselines() above.
+    if user_id and baseline_pending:
+        flush_baselines(
+            [{**row, "user_id": user_id, "repo_name": repo_name} for row in baseline_pending]
+        )
 
     items: list[DriftResultItem] = []
 
@@ -352,7 +403,7 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
     undoc_count = sum(1 for r in raw_results if r.status == "undocumented")
     up_to_date_count = sum(1 for r in raw_results if r.status == "up_to_date")
 
-    from api.usage_store import record_event, _resolve_user_id
+    from api.usage_store import record_event
     import os as _os
 
     from core.llm.gateway import LLMGateway as _LLMGateway
@@ -362,18 +413,17 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
         http_request.headers.get("X-Wright-API-Key", ""),
         "drift_checks_run",
         tokens=_tokens_sum,
-        repo_name=_os.path.basename(request.repo_root),
+        repo_name=repo_name,
         model=_LLMGateway.DRIFT_MODEL if _semantic_ok else None,
         cache_hit=_semantic_ok and _tokens_sum == 0 and bool(raw_results),
     )
 
     # Mirror results into the Supabase drift_results table so the dashboard
     # reflects this run immediately, even if the VS Code extension never syncs.
-    user_id = _resolve_user_id(_api_key)
     if user_id:
         _save_drift_results(
             user_id,
-            _os.path.basename(request.repo_root),
+            repo_name,
             [
                 {
                     "file_path": _os.path.relpath(r.file_path, request.repo_root),

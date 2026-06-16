@@ -72,6 +72,43 @@ def flush_function_results(rows: list[dict]) -> None:
         pass
 
 
+# ── AST baseline cache (per-file structural snapshot) ─────────────────────────
+# Keyed by (user_id, repo_name, file_path) — Backed by Supabase (ast_baseline).
+# Lets ASTCache.get_baseline() survive Cloud Run cold starts: read-through on
+# local SQLite miss, write-through when the baseline advances.
+
+
+def prefetch_baselines(user_id: str, repo_name: str) -> dict[str, str]:
+    """Batch-load all stored AST baselines for (user_id, repo_name) in ONE
+    query. Returns {relative_file_path: parsed_json}."""
+    try:
+        result = (
+            _db()
+            .table("ast_baseline")
+            .select("file_path, parsed_json")
+            .eq("user_id", user_id)
+            .eq("repo_name", repo_name)
+            .execute()
+        )
+    except Exception:
+        return {}
+    return {row["file_path"]: row["parsed_json"] for row in (result.data or [])}
+
+
+def flush_baselines(rows: list[dict]) -> None:
+    """Batch-upsert AST baseline snapshots in ONE query. `rows` is the list
+    built up by ASTCache.set(remote_pending=...) calls. No-op on an empty
+    list or Supabase error."""
+    if not rows:
+        return
+    try:
+        _db().table("ast_baseline").upsert(
+            rows, on_conflict="user_id,repo_name,file_path"
+        ).execute()
+    except Exception:
+        pass
+
+
 def _hash(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()[:16]
 
@@ -269,7 +306,12 @@ class ASTCache:
         except Exception:
             return None
 
-    def set(self, parsed_file: ParsedFile) -> None:
+    def set(
+        self,
+        parsed_file: ParsedFile,
+        remote_pending: list[dict] | None = None,
+        repo_root: str | None = None,
+    ) -> None:
         mtime = (
             os.path.getmtime(parsed_file.path)
             if os.path.exists(parsed_file.path)
@@ -286,19 +328,39 @@ class ASTCache:
                        updated_at = excluded.updated_at""",
                 (parsed_file.path, mtime, parsed_json, time.time()),
             )
+        if remote_pending is not None and repo_root is not None:
+            remote_pending.append(
+                {
+                    "file_path": os.path.relpath(parsed_file.path, repo_root),
+                    "parsed_json": parsed_json,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
 
-    def get_baseline(self, file_path: str) -> ParsedFile | None:
-        """Return the stored snapshot regardless of mtime — used by drift detection."""
+    def get_baseline(self, file_path: str, remote_json: str | None = None) -> ParsedFile | None:
+        """Return the stored snapshot regardless of mtime — used by drift detection.
+
+        Falls back to `remote_json` (a Supabase-backed ast_baseline row, from
+        prefetch_baselines()) on a local SQLite miss, backfilling SQLite so
+        subsequent calls hit L1.
+        """
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT parsed_json FROM ast_cache WHERE file_path = ?", (file_path,)
             ).fetchone()
-        if row is None:
-            return None
-        try:
-            return _deserialize_parsed_file(row[0])
-        except Exception:
-            return None
+        if row is not None:
+            try:
+                return _deserialize_parsed_file(row[0])
+            except Exception:
+                pass
+        if remote_json:
+            try:
+                pf = _deserialize_parsed_file(remote_json)
+                self.set(pf)
+                return pf
+            except Exception:
+                pass
+        return None
 
     def invalidate(self, file_path: str) -> None:
         with self._connect() as conn:

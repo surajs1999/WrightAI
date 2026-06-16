@@ -54,6 +54,15 @@ def _signature_str(func: ParsedFunction) -> str:
     return f"{async_prefix}{func.name}({params}){ret}"
 
 
+def _remote_baseline_for(
+    file_path: str, remote_baselines: dict[str, str] | None, repo_root: str | None
+) -> str | None:
+    """Look up the prefetched Supabase ast_baseline row for `file_path`, if any."""
+    if not remote_baselines or not repo_root:
+        return None
+    return remote_baselines.get(os.path.relpath(file_path, repo_root))
+
+
 def _collect_all_funcs(pf: ParsedFile) -> dict[str, ParsedFunction]:
     """Return all named functions and class methods keyed by qualified name (ClassName.method)."""
     result: dict[str, ParsedFunction] = {}
@@ -71,8 +80,17 @@ class DriftDetector:
     def __init__(self) -> None:
         self._parser = CodeParser()
 
-    def check_file(self, file_path: str, cache: ASTCache) -> list[DriftResult]:
-        cached = cache.get_baseline(file_path)
+    def check_file(
+        self,
+        file_path: str,
+        cache: ASTCache,
+        remote_baselines: dict[str, str] | None = None,
+        baseline_pending: list[dict] | None = None,
+        repo_root: str | None = None,
+    ) -> list[DriftResult]:
+        cached = cache.get_baseline(
+            file_path, remote_json=_remote_baseline_for(file_path, remote_baselines, repo_root)
+        )
         current_parsed = self._parser.parse_file(file_path)
 
         results: list[DriftResult] = []
@@ -93,7 +111,7 @@ class DriftDetector:
                         new_signature=_signature_str(func),
                     )
                 )
-            cache.set(current_parsed)
+            cache.set(current_parsed, remote_pending=baseline_pending, repo_root=repo_root)
             return results
 
         cached_funcs = _collect_all_funcs(cached)
@@ -162,11 +180,18 @@ class DriftDetector:
 
         # Only advance the baseline when the file is fully clean.
         if not any(r.status == "drifted" for r in results):
-            cache.set(current_parsed)
+            cache.set(current_parsed, remote_pending=baseline_pending, repo_root=repo_root)
 
         return results
 
-    def check_directory(self, dir_path: str, cache: ASTCache) -> list[DriftResult]:
+    def check_directory(
+        self,
+        dir_path: str,
+        cache: ASTCache,
+        remote_baselines: dict[str, str] | None = None,
+        baseline_pending: list[dict] | None = None,
+        repo_root: str | None = None,
+    ) -> list[DriftResult]:
         results: list[DriftResult] = []
         for root, dirs, files in os.walk(dir_path):
             dirs[:] = [d for d in dirs if d not in self._parser._DEFAULT_EXCLUDE]
@@ -175,7 +200,15 @@ class DriftDetector:
                 lang = self._parser.detect_language(file_path)
                 if lang:
                     try:
-                        results.extend(self.check_file(file_path, cache))
+                        results.extend(
+                            self.check_file(
+                                file_path,
+                                cache,
+                                remote_baselines=remote_baselines,
+                                baseline_pending=baseline_pending,
+                                repo_root=repo_root,
+                            )
+                        )
                     except Exception:
                         pass
         return results
@@ -186,8 +219,13 @@ class DriftDetector:
         cache: ASTCache,
         gateway: LLMGateway,
         sem: asyncio.Semaphore,
+        remote_baselines: dict[str, str] | None = None,
+        baseline_pending: list[dict] | None = None,
+        repo_root: str | None = None,
     ) -> list[DriftResult]:
-        cached = cache.get_baseline(file_path)
+        cached = cache.get_baseline(
+            file_path, remote_json=_remote_baseline_for(file_path, remote_baselines, repo_root)
+        )
         current_parsed = self._parser.parse_file(file_path)
         # NOTE: cache is updated AFTER results, only when nothing is drifted.
         # Updating the cache with stale code would contaminate the baseline and
@@ -312,7 +350,7 @@ class DriftDetector:
         # If any function is drifted the old baseline is preserved so the next
         # save still sees a source-code delta and re-runs the LLM check.
         if not any(r.status == "drifted" for r in results):
-            cache.set(current_parsed)
+            cache.set(current_parsed, remote_pending=baseline_pending, repo_root=repo_root)
 
         return results
 
@@ -322,6 +360,9 @@ class DriftDetector:
         cache: ASTCache,
         gateway: LLMGateway,
         concurrency: int = 5,
+        remote_baselines: dict[str, str] | None = None,
+        baseline_pending: list[dict] | None = None,
+        repo_root: str | None = None,
     ) -> list[DriftResult]:
         sem = asyncio.Semaphore(concurrency)
         file_paths = []
@@ -334,7 +375,15 @@ class DriftDetector:
 
         async def _safe_check(fp: str) -> list[DriftResult]:
             try:
-                return await self.check_file_async(fp, cache, gateway, sem)
+                return await self.check_file_async(
+                    fp,
+                    cache,
+                    gateway,
+                    sem,
+                    remote_baselines=remote_baselines,
+                    baseline_pending=baseline_pending,
+                    repo_root=repo_root,
+                )
             except Exception:
                 return []
 
