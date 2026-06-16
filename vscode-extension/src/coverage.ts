@@ -153,7 +153,14 @@ export function runCli(
 ): Promise<string | null> {
   const fullArgs = [...cli.args, ...extraArgs, "--output", tmpOut];
   // Merge .env from the project root so the CLI subprocess gets ANTHROPIC_API_KEY etc.
-  const env = { ...process.env, ...loadDotEnv(repoRoot) };
+  // Also pass the Wright API credentials so the CLI can sync baselines to Supabase.
+  const wCfg = vscode.workspace.getConfiguration("wright");
+  const env = {
+    ...process.env,
+    ...loadDotEnv(repoRoot),
+    WRIGHT_API_KEY: wCfg.get<string>("apiKey", ""),
+    WRIGHT_API_URL: wCfg.get<string>("apiUrl", "https://api.wrightai.live"),
+  };
   return new Promise(resolve => {
     cp.execFile(cli.cmd, fullArgs, { cwd: repoRoot, timeout: timeoutMs, env }, (err, _out, stderr) => {
       if (err && !(allowExitOne && err.code === 1)) {

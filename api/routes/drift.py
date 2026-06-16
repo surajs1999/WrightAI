@@ -330,14 +330,19 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
     remote_baselines = prefetch_baselines(user_id, repo_name) if user_id else {}
     baseline_pending: list[dict] = []
 
-    # Use async LLM path when API key is present AND user plan allows semantic drift.
-    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
-    if anthropic_key and _semantic_ok:
+    # Use async LLM path whenever the server has an API key — semantic drift detection
+    # works without a prior baseline (LLM evaluates current source vs current docstring),
+    # so gating it behind _semantic_ok would produce zero results on every first scan.
+    # _semantic_ok is still used for record_event (cost attribution) and the per-file
+    # on-save endpoint (check_drift_file) which raises on blocked.
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if anthropic_key or gemini_key:
         from core.llm.gateway import LLMGateway
 
         gateway = LLMGateway(
             anthropic_key=anthropic_key,
-            gemini_key=os.getenv("GEMINI_API_KEY"),
+            gemini_key=gemini_key,
         )
         sem = _asyncio.Semaphore(5)
         if request.file_path and os.path.exists(request.file_path):
@@ -409,13 +414,16 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
     from core.llm.gateway import LLMGateway as _LLMGateway
 
     _tokens_sum = sum(r.tokens for r in raw_results)
+    _llm_active = bool(anthropic_key or gemini_key)
     record_event(
         http_request.headers.get("X-Wright-API-Key", ""),
         "drift_checks_run",
         tokens=_tokens_sum,
         repo_name=repo_name,
-        model=_LLMGateway.DRIFT_MODEL if _semantic_ok else None,
-        cache_hit=_semantic_ok and _tokens_sum == 0 and bool(raw_results),
+        model=_LLMGateway.DRIFT_MODEL
+        if anthropic_key
+        else (_LLMGateway.DRIFT_FALLBACK_MODEL if gemini_key else None),
+        cache_hit=_llm_active and _tokens_sum == 0 and bool(raw_results),
     )
 
     # Mirror results into the Supabase drift_results table so the dashboard
@@ -461,6 +469,48 @@ class DriftSyncItem(BaseModel):
 class DriftSyncRequest(BaseModel):
     repo_name: str
     results: list[DriftSyncItem]
+
+
+class BaselineFileItem(BaseModel):
+    file_path: str
+    parsed_json: str
+
+
+class BaselineSyncRequest(BaseModel):
+    repo_name: str
+    files: list[BaselineFileItem]
+
+
+@router.post("/sync-baseline")
+async def sync_baseline(request: BaselineSyncRequest, http_request: Request) -> dict:
+    """Receive AST baseline snapshots from the local CLI and write them to ast_baseline.
+
+    Called after each local `wright drift` run so the server-side drift detector
+    can read a real, history-based baseline on cold start instead of resetting
+    to 'first run = everything up to date'.
+    """
+    from api.usage_store import _resolve_user
+
+    api_key = http_request.headers.get("X-Wright-API-Key", "")
+    resolved = _resolve_user(api_key)
+    if not resolved:
+        return {"ok": False, "error": "unresolvable api key"}
+    user_id, _ = resolved
+
+    now = datetime.now(timezone.utc).isoformat()
+    flush_baselines(
+        [
+            {
+                "user_id": user_id,
+                "repo_name": request.repo_name,
+                "file_path": f.file_path,
+                "parsed_json": f.parsed_json,
+                "updated_at": now,
+            }
+            for f in request.files
+        ]
+    )
+    return {"ok": True}
 
 
 @router.post("/sync")

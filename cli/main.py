@@ -162,6 +162,55 @@ def _get_cache(repo_root: str) -> "ASTCache":
     return ASTCache(cache_path)
 
 
+def _sync_baselines_to_api(cache: "ASTCache", results: list, repo_root: str) -> None:
+    """Fire-and-forget: push AST baselines for scanned files to the Wright API so the
+    server-side drift detector keeps a real baseline across Cloud Run cold starts.
+    No-op when WRIGHT_API_KEY is not set in the environment."""
+    import sqlite3 as _sqlite3
+
+    api_key = os.getenv("WRIGHT_API_KEY", "")
+    if not api_key:
+        return
+    api_url = os.getenv("WRIGHT_API_URL", "https://api.wrightai.live").rstrip("/")
+    repo_name = os.path.basename(repo_root)
+
+    scanned_abs = list({r.file_path for r in results})
+    if not scanned_abs:
+        return
+
+    files = []
+    try:
+        with _sqlite3.connect(cache._db_path) as conn:
+            for abs_path in scanned_abs:
+                row = conn.execute(
+                    "SELECT parsed_json FROM ast_cache WHERE file_path = ?", (abs_path,)
+                ).fetchone()
+                if row and row[0]:
+                    files.append(
+                        {
+                            "file_path": os.path.relpath(abs_path, repo_root),
+                            "parsed_json": row[0],
+                        }
+                    )
+    except Exception:
+        return
+
+    if not files:
+        return
+
+    try:
+        import httpx as _httpx
+
+        _httpx.post(
+            f"{api_url}/drift-check/sync-baseline",
+            json={"repo_name": repo_name, "files": files},
+            headers={"X-Wright-API-Key": api_key},
+            timeout=15.0,
+        )
+    except Exception:
+        pass
+
+
 def _get_chroma(repo_root: str) -> "ChromaStore":
     """
     Initializes and returns a configured ChromaStore instance for vector embeddings storage using the repository root path.
@@ -644,18 +693,21 @@ def drift(
     cache = _get_cache(path_abs)
     detector = DriftDetector()
 
-    # Use LLM path only when API key is present; fall back to signature-only otherwise.
+    # Use LLM path when either Anthropic or Gemini key is present; structural-only otherwise.
     # This allows the extension subprocess (which may not inherit .env) to still run.
-    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+    # When only GEMINI_API_KEY is set, LLMGateway receives an empty anthropic_key and
+    # its internal fallback routes all calls to Gemini after the first 401.
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+    gemini_key = os.getenv("GEMINI_API_KEY")
 
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as progress:
         t = progress.add_task("Checking drift...", total=None)
-        if anthropic_key:
+        if anthropic_key or gemini_key:
             from core.llm.gateway import LLMGateway
 
             gateway = LLMGateway(
                 anthropic_key=anthropic_key,
-                gemini_key=os.getenv("GEMINI_API_KEY"),
+                gemini_key=gemini_key,
             )
             if file:
                 file_abs = os.path.abspath(file)
@@ -670,6 +722,10 @@ def drift(
             else:
                 results = detector.check_directory(path_abs, cache)
         progress.update(t, completed=True)
+
+    # Push baselines to Supabase (via the API) so the server-side drift detector
+    # uses a real, history-based baseline instead of resetting on cold start.
+    _sync_baselines_to_api(cache, results, path_abs)
 
     total = len(results)
     drifted_res = [r for r in results if r.status == "drifted"]
