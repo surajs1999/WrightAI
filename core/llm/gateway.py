@@ -57,11 +57,13 @@ class LLMGateway:
     DRIFT_MODEL = (
         "claude-haiku-4-5-20251001"  # drift check is simple true/false JSON — no need for Sonnet
     )
-    FALLBACK_MODEL = "gemini-2.5-pro"
-    DRIFT_FALLBACK_MODEL = "gemini-2.5-flash"
+    FALLBACK_MODEL = "gemini-2.5-flash-lite"
+    DRIFT_FALLBACK_MODEL = "gemini-2.5-flash-lite"
 
     # Gemini min-token thresholds for CachedContent eligibility
     _GEMINI_CACHE_MIN = {
+        "gemini-2.5-flash-lite": 1_024,
+        "gemini-2.5-flash": 1_024,
         "gemini-2.5-pro": 32_768,
         "gemini-2.0-flash": 4_096,
     }
@@ -480,7 +482,7 @@ class LLMGateway:
             client: Any = self._gemini_client
             model_name = model or self.FALLBACK_MODEL
 
-            base_config: dict[str, Any] = {"max_output_tokens": 8192}
+            base_config: dict[str, Any] = {"max_output_tokens": 2048}
             if json_mode:
                 base_config["response_mime_type"] = "application/json"
 
