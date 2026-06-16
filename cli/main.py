@@ -211,6 +211,37 @@ def _sync_baselines_to_api(cache: "ASTCache", results: list, repo_root: str) -> 
         pass
 
 
+def _sync_results_to_api(results: list, repo_root: str) -> None:
+    """Fire-and-forget: push per-function drift results to the Wright API so the
+    dashboard reflects local CLI runs without needing the VS Code extension.
+    No-op when WRIGHT_API_KEY is not set."""
+    api_key = os.getenv("WRIGHT_API_KEY", "")
+    if not api_key or not results:
+        return
+    api_url = os.getenv("WRIGHT_API_URL", "https://api.wrightai.live").rstrip("/")
+    repo_name = os.path.basename(repo_root)
+    items = [
+        {
+            "file_path": os.path.relpath(r.file_path, repo_root),
+            "func_name": r.function_name,
+            "status": r.status,
+            "reason": r.reason,
+        }
+        for r in results
+    ]
+    try:
+        import httpx as _httpx
+
+        _httpx.post(
+            f"{api_url}/drift-check/sync",
+            json={"repo_name": repo_name, "results": items},
+            headers={"X-Wright-API-Key": api_key},
+            timeout=15.0,
+        )
+    except Exception:
+        pass
+
+
 def _get_chroma(repo_root: str) -> "ChromaStore":
     """
     Initializes and returns a configured ChromaStore instance for vector embeddings storage using the repository root path.
@@ -723,9 +754,10 @@ def drift(
                 results = detector.check_directory(path_abs, cache)
         progress.update(t, completed=True)
 
-    # Push baselines to Supabase (via the API) so the server-side drift detector
-    # uses a real, history-based baseline instead of resetting on cold start.
+    # Push baselines + drift results to Supabase so the dashboard reflects this
+    # CLI run without needing the VS Code extension to be active.
     _sync_baselines_to_api(cache, results, path_abs)
+    _sync_results_to_api(results, path_abs)
 
     total = len(results)
     drifted_res = [r for r in results if r.status == "drifted"]
