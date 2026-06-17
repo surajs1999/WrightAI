@@ -344,7 +344,37 @@ class DriftDetector:
             return_exceptions=True,
         )
         flush_function_results(l2_pending)
-        results.extend(r for r in raw if isinstance(r, DriftResult))
+        for (func_name, func, old_sig), outcome in zip(tasks, raw):
+            if isinstance(outcome, DriftResult):
+                results.append(outcome)
+            else:
+                # Tier 1 (Anthropic) and Tier 2 (Gemini) both failed inside
+                # gateway.check_drift — fall back to structural comparison as
+                # Tier 3 so the function is never silently dropped from results.
+                old_func = cached_funcs.get(func_name)
+                if old_func and self._signature_changed(old_func, func):
+                    status = "drifted"
+                    reason = "Function signature changed since documentation was written"
+                elif old_func is None:
+                    # New function with a docstring but no baseline — can't assess
+                    # semantic drift without LLM; treat as undocumented so the user
+                    # knows the docstring hasn't been validated yet.
+                    status = "undocumented"
+                    reason = "LLM check unavailable — docstring not yet validated"
+                else:
+                    status = "up_to_date"
+                    reason = None
+                results.append(
+                    DriftResult(
+                        function_name=func_name,
+                        file_path=file_path,
+                        status=status,
+                        reason=reason,
+                        old_signature=old_sig,
+                        new_signature=_signature_str(func),
+                        line=func.start_line,
+                    )
+                )
 
         # Only advance the baseline when the file is fully clean.
         # If any function is drifted the old baseline is preserved so the next

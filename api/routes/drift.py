@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
 from api.auth import verify_api_key
-from api.quota import check_feature_flag
 from core.parser.cache import (
     ASTCache,
     _hash,
@@ -140,10 +139,6 @@ async def check_drift_file(
     runs LLM drift checks on every documented function using the server-side
     ANTHROPIC_API_KEY, then returns per-function results.
     """
-    # Semantic (LLM) drift is a Pro feature; structural drift still runs for everyone
-    api_key = http_request.headers.get("X-Wright-API-Key", "")
-    check_feature_flag(api_key, "semantic_drift", raise_on_blocked=True)
-
     import asyncio as _asyncio
     import tempfile
     from core.drift.drift_detector import _collect_all_funcs, _signature_str
@@ -303,9 +298,7 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
 
     Complexity: O(n) time where n is the number of Python functions in the scanned files, O(n) space for storing per-function drift result items
     """
-    # Semantic (LLM) drift requires Pro; structural drift runs for all plans
     _api_key = http_request.headers.get("X-Wright-API-Key", "")
-    _semantic_ok = check_feature_flag(_api_key, "semantic_drift", raise_on_blocked=False)
 
     import asyncio as _asyncio
     from api.routes.repos import ensure_repo_local

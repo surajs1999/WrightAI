@@ -143,7 +143,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
   }
 
-  // 2. Onboarding — prompt for API key if missing
+  // 2. Inject WRIGHT_API_KEY into every VS Code integrated terminal so
+  //    `wright drift` / `wright generate` in the terminal picks up the key
+  //    without users needing to add it to .env manually.
+  const applyTerminalEnv = () => {
+    const apiKey = vscode.workspace.getConfiguration("wright").get<string>("apiKey", "");
+    if (apiKey) {
+      context.environmentVariableCollection.replace("WRIGHT_API_KEY", apiKey);
+    } else {
+      context.environmentVariableCollection.delete("WRIGHT_API_KEY");
+    }
+  };
+  applyTerminalEnv();
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration(e => {
+      if (e.affectsConfiguration("wright.apiKey")) applyTerminalEnv();
+    })
+  );
+
+  // 2b. Onboarding — prompt for API key if missing
   await checkApiKeyOnboarding();
 
   // 3. Register CodeLens provider
@@ -286,9 +304,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     vscode.commands.registerCommand("wright.checkDrift", async () => {
       const editor = vscode.window.activeTextEditor;
-      if (!editor) return;
-      await runDriftCheck(editor.document.uri, codeLensProvider);
-      refreshGutter(editor);
+      // Run per-file gutter check on the active file (if any)
+      if (editor) {
+        await runDriftCheck(editor.document.uri, codeLensProvider);
+        refreshGutter(editor);
+      }
+      // Also run the full repo CLI scan so results sync to the dashboard
+      await refreshCoverage();
       vscode.window.showInformationMessage("Wright: Drift check complete.");
     }),
 

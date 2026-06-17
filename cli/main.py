@@ -162,6 +162,30 @@ def _get_cache(repo_root: str) -> "ASTCache":
     return ASTCache(cache_path)
 
 
+def _git_repo_slug(repo_root: str) -> str:
+    """Return the git remote slug (last path segment of origin URL, minus .git).
+    Falls back to the local folder name when no remote is configured."""
+    import subprocess as _sp
+
+    try:
+        url = (
+            _sp.check_output(
+                ["git", "remote", "get-url", "origin"],
+                cwd=repo_root,
+                stderr=_sp.DEVNULL,
+                timeout=5,
+            )
+            .decode()
+            .strip()
+        )
+        slug = url.rstrip("/").split("/")[-1].removesuffix(".git")
+        if slug:
+            return slug
+    except Exception:
+        pass
+    return os.path.basename(repo_root)
+
+
 def _sync_baselines_to_api(cache: "ASTCache", results: list, repo_root: str) -> None:
     """Fire-and-forget: push AST baselines for scanned files to the Wright API so the
     server-side drift detector keeps a real baseline across Cloud Run cold starts.
@@ -172,7 +196,7 @@ def _sync_baselines_to_api(cache: "ASTCache", results: list, repo_root: str) -> 
     if not api_key:
         return
     api_url = os.getenv("WRIGHT_API_URL", "https://api.wrightai.live").rstrip("/")
-    repo_name = os.path.basename(repo_root)
+    repo_name = _git_repo_slug(repo_root)
 
     scanned_abs = list({r.file_path for r in results})
     if not scanned_abs:
@@ -219,7 +243,7 @@ def _sync_results_to_api(results: list, repo_root: str) -> None:
     if not api_key or not results:
         return
     api_url = os.getenv("WRIGHT_API_URL", "https://api.wrightai.live").rstrip("/")
-    repo_name = os.path.basename(repo_root)
+    repo_name = _git_repo_slug(repo_root)
     items = [
         {
             "file_path": os.path.relpath(r.file_path, repo_root),
