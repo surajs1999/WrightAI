@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import logging
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -47,7 +48,8 @@ def _verify_signature(body: bytes, signature_header: str | None, secret: str) ->
 @router.post("/github")
 async def github_webhook(
     request: Request,
-    token: str = Query(..., description="Your WrightAI API key"),
+    uid: str | None = Query(None, description="User routing identifier (preferred)"),
+    token: str | None = Query(None, description="Deprecated: full API key — use uid instead"),
 ) -> JSONResponse:
     """
     Handles incoming GitHub push webhooks by verifying the request signature, pulling the latest code via git, and scheduling an asynchronous re-indexing task.
@@ -93,12 +95,22 @@ async def github_webhook(
     if event != "push":
         return JSONResponse({"ignored": True, "event": event})
 
-    # Validate the API key token
-    from api.user_store import get_user_by_api_key
+    # Resolve user_id: prefer uid (new-style, auth via HMAC above),
+    # fall back to token (legacy, validate as full API key).
+    if uid is not None:
+        if not webhook_secret:
+            raise HTTPException(
+                status_code=403, detail="Webhook secret not configured — uid auth unavailable"
+            )
+        user_id = re.sub(r"[^a-zA-Z0-9_-]", "_", uid)[:20]
+    elif token is not None:
+        from api.user_store import get_user_by_api_key
 
-    user = get_user_by_api_key(token)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid API key")
+        if not get_user_by_api_key(token):
+            raise HTTPException(status_code=401, detail="Invalid API key")
+        user_id = token[-12:].replace("/", "_").replace(".", "_")
+    else:
+        raise HTTPException(status_code=400, detail="Missing uid or token parameter")
 
     try:
         payload = await request.json()
@@ -108,8 +120,6 @@ async def github_webhook(
     repo_name = payload.get("repository", {}).get("name", "")
     if not repo_name:
         raise HTTPException(status_code=400, detail="Cannot determine repository name from payload")
-
-    user_id = token[-12:].replace("/", "_").replace(".", "_")
     repo_path = _REPOS_BASE / user_id / repo_name
 
     from api.routes.repos import ensure_repo_local

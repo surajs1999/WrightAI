@@ -66,9 +66,15 @@ export default function GeneratePage() {
   // Snippet mode
   const [code, setCode] = useState("");
 
-  // Repo file mode
+  // Repo file mode — driven by dropdowns
   const [filePath, setFilePath] = useState("");
   const [funcName, setFuncName] = useState("");
+  const [repoFiles, setRepoFiles] = useState<string[]>([]);
+  const [loadingFiles, setLoadingFiles] = useState(false);
+  const [repoFuncs, setRepoFuncs] = useState<string[]>([]);
+  const [loadingFuncs, setLoadingFuncs] = useState(false);
+  const [fileSearch, setFileSearch] = useState("");
+  const [fileDropOpen, setFileDropOpen] = useState(false);
 
   const [output, setOutput] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -90,6 +96,37 @@ export default function GeneratePage() {
       } catch {}
     }
   }, []);
+
+  // Fetch file list when repo changes
+  useEffect(() => {
+    if (!selectedRepo) { setRepoFiles([]); setFilePath(""); setFuncName(""); return; }
+    const repoName = selectedRepo.id.split("/").pop() ?? selectedRepo.name;
+    setLoadingFiles(true);
+    setRepoFiles([]);
+    setFilePath("");
+    setFuncName("");
+    fetch(`/api/proxy/repos/${repoName}/files`)
+      .then(r => r.ok ? r.json() : { files: [] })
+      .then(d => setRepoFiles(d.files ?? []))
+      .catch(() => setRepoFiles([]))
+      .finally(() => setLoadingFiles(false));
+  }, [selectedRepo?.id]);
+
+  // Fetch functions when file changes
+  useEffect(() => {
+    if (!selectedRepo || !filePath) { setRepoFuncs([]); setFuncName(""); return; }
+    // Guard: if files haven't loaded for this repo yet, skip (prevents stale-filePath fetch on repo switch)
+    if (repoFiles.length > 0 && !repoFiles.includes(filePath)) { setRepoFuncs([]); setFuncName(""); return; }
+    const repoName = selectedRepo.id.split("/").pop() ?? selectedRepo.name;
+    setLoadingFuncs(true);
+    setRepoFuncs([]);
+    setFuncName("");
+    fetch(`/api/proxy/repos/${repoName}/functions?file=${encodeURIComponent(filePath)}`)
+      .then(r => r.ok ? r.json() : { functions: [] })
+      .then(d => setRepoFuncs(d.functions ?? []))
+      .catch(() => setRepoFuncs([]))
+      .finally(() => setLoadingFuncs(false));
+  }, [filePath, selectedRepo?.id, repoFiles]);
 
   const createPR = async () => {
     if (!selectedRepo) return;
@@ -252,36 +289,105 @@ export default function GeneratePage() {
                 ) : repos.length === 0 ? (
                   <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>No repos connected. Go to Home first.</span>
                 ) : (
-                  <select value={selectedRepoId} onChange={e => setSelectedRepoId(e.target.value)} style={selectStyle}>
+                  <select value={selectedRepoId} onChange={e => { setSelectedRepoId(e.target.value); setFileSearch(""); }} style={selectStyle}>
                     {repos.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                   </select>
                 )}
               </div>
 
-              {/* File path */}
-              <div>
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>File path (relative to repo root)</div>
-                <input
-                  value={filePath}
-                  onChange={e => setFilePath(e.target.value)}
-                  placeholder="e.g. core/embeddings/voyage_embeddings.py"
-                  style={{ ...selectStyle, padding: "9px 12px" }}
-                  onFocus={e => (e.currentTarget.style.borderColor = "rgba(175,169,236,0.5)")}
-                  onBlur={e => (e.currentTarget.style.borderColor = "var(--border)")}
-                />
+              {/* File path — searchable dropdown */}
+              <div style={{ position: "relative" }}>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>
+                  File path
+                  {loadingFiles && <span style={{ marginLeft: 8, color: "var(--purple-light)" }}>loading…</span>}
+                </div>
+                {repoFiles.length === 0 && !loadingFiles ? (
+                  <input
+                    value={filePath}
+                    onChange={e => setFilePath(e.target.value)}
+                    placeholder={selectedRepo ? "No files found — type path manually" : "Select a repo first"}
+                    style={{ ...selectStyle, padding: "9px 12px" }}
+                    onFocus={e => (e.currentTarget.style.borderColor = "rgba(175,169,236,0.5)")}
+                    onBlur={e => (e.currentTarget.style.borderColor = "var(--border)")}
+                  />
+                ) : (
+                  <>
+                    <input
+                      value={fileSearch}
+                      onChange={e => { setFileSearch(e.target.value); setFileDropOpen(true); }}
+                      onFocus={() => setFileDropOpen(true)}
+                      onBlur={() => setTimeout(() => setFileDropOpen(false), 150)}
+                      placeholder={filePath || "Search files…"}
+                      style={{ ...selectStyle, padding: "9px 12px", borderColor: fileDropOpen ? "rgba(175,169,236,0.5)" : "var(--border)" }}
+                    />
+                    {fileDropOpen && (
+                      <div style={{
+                        position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 50,
+                        background: "var(--surface)", border: "1px solid rgba(175,169,236,0.25)",
+                        borderRadius: 8, maxHeight: 220, overflowY: "auto",
+                        boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                      }}>
+                        {repoFiles
+                          .filter(f => !fileSearch || f.toLowerCase().includes(fileSearch.toLowerCase()))
+                          .map(f => (
+                            <div
+                              key={f}
+                              onMouseDown={() => { setFilePath(f); setFileSearch(""); setFileDropOpen(false); }}
+                              style={{
+                                padding: "8px 12px",
+                                fontFamily: "var(--font-mono)", fontSize: 12,
+                                color: f === filePath ? "var(--text)" : "var(--text-muted)",
+                                background: f === filePath ? "rgba(83,74,183,0.15)" : "transparent",
+                                cursor: "pointer",
+                                borderBottom: "1px solid rgba(175,169,236,0.05)",
+                              }}
+                              onMouseEnter={e => { if (f !== filePath) (e.currentTarget as HTMLElement).style.background = "rgba(175,169,236,0.06)"; }}
+                              onMouseLeave={e => { if (f !== filePath) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                            >
+                              {f}
+                            </div>
+                          ))}
+                        {repoFiles.filter(f => !fileSearch || f.toLowerCase().includes(fileSearch.toLowerCase())).length === 0 && (
+                          <div style={{ padding: "10px 12px", fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>No matches</div>
+                        )}
+                      </div>
+                    )}
+                    {filePath && (
+                      <div style={{ marginTop: 5, fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--purple-light)", wordBreak: "break-all" }}>
+                        ↳ {filePath}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
 
-              {/* Function name */}
+              {/* Function name — dropdown once file is selected */}
               <div>
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>Function name <span style={{ textTransform: "none", fontSize: 9 }}>(optional — defaults to first function)</span></div>
-                <input
-                  value={funcName}
-                  onChange={e => setFuncName(e.target.value)}
-                  placeholder="e.g. calculate_total"
-                  style={{ ...selectStyle, padding: "9px 12px" }}
-                  onFocus={e => (e.currentTarget.style.borderColor = "rgba(175,169,236,0.5)")}
-                  onBlur={e => (e.currentTarget.style.borderColor = "var(--border)")}
-                />
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>
+                  Function{" "}
+                  <span style={{ textTransform: "none", fontSize: 9 }}>(optional — defaults to all)</span>
+                  {loadingFuncs && <span style={{ marginLeft: 8, color: "var(--purple-light)" }}>loading…</span>}
+                </div>
+                {repoFuncs.length > 0 ? (
+                  <select
+                    value={funcName}
+                    onChange={e => setFuncName(e.target.value)}
+                    style={selectStyle}
+                  >
+                    <option value="">— all functions in file —</option>
+                    {repoFuncs.map(fn => <option key={fn} value={fn}>{fn}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    value={funcName}
+                    onChange={e => setFuncName(e.target.value)}
+                    placeholder={filePath ? (loadingFuncs ? "Loading…" : "No functions found — type manually") : "Select a file first"}
+                    disabled={!filePath || loadingFuncs}
+                    style={{ ...selectStyle, padding: "9px 12px", opacity: (!filePath || loadingFuncs) ? 0.5 : 1 }}
+                    onFocus={e => (e.currentTarget.style.borderColor = "rgba(175,169,236,0.5)")}
+                    onBlur={e => (e.currentTarget.style.borderColor = "var(--border)")}
+                  />
+                )}
               </div>
 
               {selectedRepo && (
@@ -300,8 +406,8 @@ export default function GeneratePage() {
             {loading ? "Generating…" : "Generate docstring →"}
           </button>
           <p style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "rgba(175,169,236,0.35)", marginTop: 8, textAlign: "center" }}>
-            Free: 100 generations/month ·{" "}
-            <a href="/pricing" style={{ color: "rgba(175,169,236,0.55)", textDecoration: "none" }}>Upgrade for 10×</a>
+            Free: 500 generations/month ·{" "}
+            <a href="/dashboard/pricing" style={{ color: "rgba(175,169,236,0.55)", textDecoration: "none" }}>Upgrade for 1,500 →</a>
           </p>
         </div>
 

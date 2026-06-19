@@ -20,3 +20,19 @@ async def onboarding_drip_cron() -> dict:
     from api.tasks.email_tasks import run_onboarding_drip
 
     return run_onboarding_drip()
+
+
+@router.post("/cron/ops-alert", dependencies=[Depends(_verify_cron_secret)])
+async def ops_alert_cron() -> dict:
+    """
+    Hourly Cloud Scheduler entrypoint: check for LLM anomalies in the last 24 h
+    and email hello@wrightai.live if any thresholds are breached.
+
+    Recommended schedule: every hour (0 * * * *)
+    Required env vars: CRON_SECRET, BREVO_API_KEY
+    Optional thresholds: OPS_FALLBACK_RATE_THRESHOLD, OPS_HIGH_RETRY_THRESHOLD,
+                         OPS_LATENCY_MS_THRESHOLD, OPS_MIN_CALLS_THRESHOLD
+    """
+    from api.tasks.ops_alerts import run_ops_alert_check
+
+    return run_ops_alert_check()

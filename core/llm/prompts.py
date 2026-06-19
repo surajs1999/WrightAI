@@ -437,8 +437,11 @@ Check ALL of the following drift types:
 6. SIDE EFFECT DRIFT — documented side effects (I/O, state mutation) no longer match what the code does
 7. ASYNC DRIFT — the function changed between sync and async (or vice versa) and the docs don't reflect it
 
-Be strict: flag as drifted if ANY of the above is true, even partially.
-Do NOT flag as drifted if the docs are merely incomplete or could be more detailed — only flag real inaccuracies.
+Rules:
+- Flag as drifted if ANY of the above is true, even partially.
+- When uncertain, default to {{"is_drifted": true}}. A false positive is far less harmful than missing real drift.
+- Do NOT flag as drifted if the docs are merely incomplete or could be more detailed — only flag real inaccuracies.
+- Do NOT reverse a drift verdict just because the source code changed — the docstring must be updated by the developer to clear drift.
 
 Return a JSON object:
 {{"is_drifted": true/false, "reason": "one-sentence explanation of the specific drift type found, or null if accurate"}}

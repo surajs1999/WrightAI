@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from api.auth import verify_api_key
 from api.quota import check_feature_flag
+from api.rate_limit import limiter
 
 router = APIRouter(prefix="/fix-pr", tags=["fix-pr"], dependencies=[Depends(verify_api_key)])
 
@@ -134,6 +135,7 @@ def _get_default_branch(repo_path: Path, git_env: dict) -> str:
 
 
 @router.post("")
+@limiter.limit("10/minute")
 async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
     """
     Generates docstrings for specified functions, commits them to a new Git branch, and creates a GitHub pull request.

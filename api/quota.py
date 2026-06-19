@@ -53,17 +53,37 @@ class QuotaResult:
 _FREE_LIMITS = PlanLimits(
     id="free",
     display_name="Free",
-    docs_per_month=100,
-    chat_messages_per_month=0,
-    drift_checks_per_month=-1,
+    docs_per_month=500,
+    chat_messages_per_month=300,
+    drift_checks_per_month=200,
     repos_limit=1,
     api_keys_limit=1,
-    semantic_drift_enabled=False,
+    semantic_drift_enabled=True,
     auto_pr_enabled=False,
     github_action_comments_enabled=False,
     llms_txt_enabled=True,
     overage_rate_per_doc=0.0,
 )
+
+_PRO_LIMITS = PlanLimits(
+    id="pro",
+    display_name="Pro",
+    docs_per_month=1500,
+    chat_messages_per_month=1000,
+    drift_checks_per_month=1000,
+    repos_limit=5,
+    api_keys_limit=5,
+    semantic_drift_enabled=True,
+    auto_pr_enabled=True,
+    github_action_comments_enabled=True,
+    llms_txt_enabled=True,
+    overage_rate_per_doc=0.0,
+)
+
+_PLAN_DEFAULTS: dict[str, PlanLimits] = {
+    "free": _FREE_LIMITS,
+    "pro": _PRO_LIMITS,
+}
 
 _UNLIMITED_RESULT = QuotaResult(allowed=True, warning=False, used=0, limit=-1, plan="unknown")
 
@@ -133,7 +153,7 @@ def get_plan_limits(plan_id: str) -> PlanLimits:
             return limits
     except Exception:
         pass
-    return _FREE_LIMITS
+    return _PLAN_DEFAULTS.get(plan_id, _FREE_LIMITS)
 
 
 def get_user_plan(api_key: str) -> str:
@@ -389,6 +409,7 @@ def get_full_quota_status(api_key: str) -> dict:
 
     docs_used = _usage("docs_generated")
     chat_used = _usage("chat_message")
+    drift_used = _usage("drift_checks_run")
     repos_used = _count_connected_repos(api_key)
 
     return {
@@ -401,6 +422,7 @@ def get_full_quota_status(api_key: str) -> dict:
         },
         "quotas": {
             "docs_generated": _quota_entry(docs_used, limits.docs_per_month),
+            "drift_checks": _quota_entry(drift_used, limits.drift_checks_per_month),
             "chat_messages": _quota_entry(chat_used, limits.chat_messages_per_month),
             "repos": _quota_entry(repos_used, limits.repos_limit),
         },

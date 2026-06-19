@@ -8,6 +8,8 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
 from api.auth import verify_api_key
+from api.quota import check_quota
+from api.rate_limit import limiter
 from core.parser.cache import (
     ASTCache,
     _hash,
@@ -129,6 +131,7 @@ _LANG_SUFFIX: dict[str, str] = {
 
 
 @router.post("/file", response_model=DriftCheckFileResponse)
+@limiter.limit("30/minute")
 async def check_drift_file(
     request: DriftCheckFileRequest, http_request: Request
 ) -> DriftCheckFileResponse:
@@ -139,6 +142,10 @@ async def check_drift_file(
     runs LLM drift checks on every documented function using the server-side
     ANTHROPIC_API_KEY, then returns per-function results.
     """
+    check_quota(
+        http_request.headers.get("X-Wright-API-Key", ""), "drift_checks_run", raise_on_blocked=True
+    )
+
     import asyncio as _asyncio
     import tempfile
     from core.drift.drift_detector import _collect_all_funcs, _signature_str
@@ -271,6 +278,7 @@ async def check_drift_file(
 
 
 @router.post("", response_model=DriftCheckResponse)
+@limiter.limit("10/minute")
 async def check_drift(request: DriftCheckRequest, http_request: Request) -> DriftCheckResponse:
     """
     Analyzes a Python codebase for documentation drift by comparing function signatures against their docstrings and returns a structured summary of drifted, undocumented, and up-to-date functions.
@@ -299,6 +307,7 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
     Complexity: O(n) time where n is the number of Python functions in the scanned files, O(n) space for storing per-function drift result items
     """
     _api_key = http_request.headers.get("X-Wright-API-Key", "")
+    check_quota(_api_key, "drift_checks_run", raise_on_blocked=True)
 
     import asyncio as _asyncio
     from api.routes.repos import ensure_repo_local

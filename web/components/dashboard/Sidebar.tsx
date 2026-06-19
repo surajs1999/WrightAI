@@ -31,7 +31,7 @@ const NAV = [
     group: "ACCOUNT",
     items: [
       { label: "API Keys", href: "/dashboard/keys", icon: Key },
-      { label: "Pricing", href: "/pricing", icon: CreditCard },
+      { label: "Pricing", href: "/dashboard/pricing", icon: CreditCard },
       { label: "Settings", href: "/dashboard/settings", icon: Settings },
       { label: "Need Help?", href: "/dashboard/help", icon: HelpCircle },
     ],

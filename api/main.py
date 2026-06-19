@@ -12,12 +12,7 @@ import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    datefmt="%Y-%m-%dT%H:%M:%S",
-)
+from fastapi.responses import JSONResponse
 
 load_dotenv()
 
@@ -26,6 +21,15 @@ app = FastAPI(
     version="1.0.0",
     description="AI-powered code documentation API",
 )
+
+from api.observability import setup_observability  # noqa: E402
+from api.rate_limit import limiter  # noqa: E402
+from slowapi import _rate_limit_exceeded_handler  # noqa: E402
+from slowapi.errors import RateLimitExceeded  # noqa: E402
+
+setup_observability(app)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 _ALLOWED_ORIGINS = [
     o.strip()
@@ -74,11 +78,13 @@ async def log_requests(request: Request, call_next):
     response = await call_next(request)
     duration_ms = (time.perf_counter() - start) * 1000
     _logger.info(
-        "%s %s %d %.1fms",
-        request.method,
-        request.url.path,
-        response.status_code,
-        duration_ms,
+        "http_request",
+        extra={
+            "http_method": request.method,
+            "http_path": request.url.path,
+            "http_status": response.status_code,
+            "duration_ms": round(duration_ms, 1),
+        },
     )
     return response
 
@@ -114,22 +120,33 @@ app.include_router(internal.router)
 
 @app.get("/health")
 async def health() -> dict:
-    """
-    Returns the health status and version information of the API as a dictionary.
-
-    An asynchronous GET endpoint registered at '/health' that is polled by monitoring systems, load balancers, and orchestration platforms to verify the API service is running and responsive. Always returns a fixed payload indicating a healthy status and the current API version.
-
-    Returns:
-        dict: A dictionary with two keys: 'status' set to 'ok' indicating the service is healthy, and 'version' set to '1.0.0' indicating the current API version.
-
-    Example:
-        ```
-        import httpx
-        response = httpx.get('http://localhost:8000/health')
-        print(response.json())  # {'status': 'ok', 'version': '1.0.0'}
-        ```
-    """
+    """Liveness probe — returns immediately. Used by Cloud Run to detect crashes."""
     return {"status": "ok", "version": "1.0.0"}
+
+
+@app.get("/ready")
+async def ready() -> JSONResponse:
+    """Readiness probe — checks live dependencies before accepting traffic."""
+    checks: dict[str, str] = {}
+
+    # Supabase reachability
+    try:
+        from api.user_store import _db
+
+        _db().table("plans").select("id").limit(1).execute()
+        checks["database"] = "ok"
+    except Exception:
+        checks["database"] = "error"
+
+    # Required LLM credentials
+    checks["anthropic_key"] = "ok" if os.getenv("ANTHROPIC_API_KEY") else "missing"
+    checks["voyage_key"] = "ok" if os.getenv("VOYAGE_API_KEY") else "missing"
+
+    all_ok = all(v == "ok" for v in checks.values())
+    return JSONResponse(
+        {"status": "ready" if all_ok else "degraded", "checks": checks},
+        status_code=200 if all_ok else 503,
+    )
 
 
 from fastapi import Depends  # noqa: E402

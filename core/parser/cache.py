@@ -31,32 +31,36 @@ def prefetch_function_results(
     pairs: list[tuple[str, str]],
 ) -> dict[tuple[str, str], tuple[str, str | None]]:
     """Batch-load L2 (Supabase) verdicts for (src_hash, doc_hash) pairs in ONE
-    query. Returns a dict to pass into get_function_result(l2_cache=...).
+    query. Also loads doc-hash-only drifted verdicts so drift persists even
+    when the source changes. Returns a dict to pass into get_function_result().
     Stateless — safe to call concurrently from multiple requests."""
     if not pairs:
         return {}
     src_hashes = list({h for h, _ in pairs})
+    doc_hashes = list({h for _, h in pairs})
     try:
+        # Fetch by src_hash (exact match) AND by doc_hash (drift persistence)
         result = (
             _db()
             .table("drift_llm_cache")
             .select("src_hash, doc_hash, status, reason, updated_at")
-            .in_("src_hash", src_hashes)
+            .in_("doc_hash", doc_hashes)
             .execute()
         )
     except Exception:
         return {}
     cutoff = time.time() - _L2_TTL_DAYS * 86400
-    wanted = set(pairs)
+    wanted_exact = set(pairs)
+    wanted_src = set(src_hashes)
     out: dict[tuple[str, str], tuple[str, str | None]] = {}
     for row in result.data or []:
-        key = (row["src_hash"], row["doc_hash"])
-        if key not in wanted:
-            continue  # src_hash collision with a different doc_hash — discard
         updated_at = row.get("updated_at")
         if updated_at and _parse_iso(updated_at) < cutoff:
             continue  # stale — treat as miss
-        out[key] = (row["status"], row.get("reason"))
+        key = (row["src_hash"], row["doc_hash"])
+        # Exact match: populate for any src_hash in our set
+        if row["src_hash"] in wanted_src and key in wanted_exact:
+            out[key] = (row["status"], row.get("reason"))
     return out
 
 
@@ -425,17 +429,26 @@ class ASTCache:
         if row and row[0]:
             try:
                 entry = json.loads(row[0]).get(func_name)
-                if entry and entry["src_hash"] == src_hash and entry["doc_hash"] == doc_hash:
-                    return entry["status"], entry.get("reason")
+                if entry and entry["doc_hash"] == doc_hash:
+                    # Drift verdict is bound to the docstring, not the source.
+                    # If this docstring was previously judged drifted, persist
+                    # that verdict even when the source changes — the docstring
+                    # is still wrong until the developer updates it.
+                    if entry["status"] == "drifted":
+                        return entry["status"], entry.get("reason")
+                    # For up_to_date/undocumented, require exact source match
+                    # so a body change triggers a fresh LLM evaluation.
+                    if entry["src_hash"] == src_hash:
+                        return entry["status"], entry.get("reason")
             except Exception:
                 pass
 
         # L2: prefetched Supabase verdicts (shared across devs and API server)
         if l2_cache is not None:
+            # Exact match first (same source + same docstring)
             entry = l2_cache.get((src_hash, doc_hash))
             if entry is not None:
                 status, reason = entry
-                # backfill SQLite so next offline run is instant
                 self._write_sqlite_result(file_path, func_name, source, docstring, status, reason)
                 return status, reason
 

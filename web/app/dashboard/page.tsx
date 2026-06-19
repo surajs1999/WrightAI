@@ -196,7 +196,7 @@ export default function DashboardHome() {
           borderRadius: 10, padding: "13px 18px", marginBottom: 20,
           fontFamily: "var(--font-body)", fontSize: 13.5, color: "#1D9E75",
         }}>
-          <span>🎉 Welcome to Pro! Your account has been upgraded — enjoy 1,000 doc generations/month, semantic drift detection, codebase chat, and more.</span>
+          <span>🎉 Welcome to Pro! Your account has been upgraded — enjoy 1,500 doc generations, 1,000 drift detections, 1,000 chats/month, auto-PR, GitHub Action comments, and more.</span>
           <button
             onClick={() => setShowUpgraded(false)}
             aria-label="Dismiss"
@@ -461,9 +461,9 @@ export default function DashboardHome() {
         display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
       }}>
         <span style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "rgba(175,169,236,0.65)" }}>
-          Pro unlocks semantic drift, codebase chat, auto-PR, and 10× more generations.
+          Pro gives you 3× more generations, drift detections & chat, auto-PR, GitHub Action comments, and enhanced dashboard analytics.
         </span>
-        <a href="/pricing" style={{
+        <a href="/dashboard/pricing" style={{
           fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 12.5,
           color: "#AFA9EC", textDecoration: "none", whiteSpace: "nowrap",
           padding: "6px 14px", borderRadius: 7,

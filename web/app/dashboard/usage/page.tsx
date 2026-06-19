@@ -35,6 +35,7 @@ interface UsageStats {
   };
   quotas?: {
     docs_generated: QuotaEntry;
+    drift_checks: QuotaEntry;
     chat_messages: QuotaEntry;
     repos: QuotaEntry;
   };
@@ -157,8 +158,9 @@ export default function UsagePage() {
   const features = stats.features ?? { semantic_drift: false, auto_pr: false, github_action_comments: false };
 
   const quotas = stats.quotas ?? {
-    docs_generated: { used: stats.docs_generated, limit: 100, unlimited: false, pct: Math.min(100, Math.round(stats.docs_generated / 100 * 100)), warning: false, blocked: false },
-    chat_messages: { used: stats.chat_messages ?? 0, limit: 0, unlimited: false, pct: 0, warning: false, blocked: false },
+    docs_generated: { used: stats.docs_generated, limit: 500, unlimited: false, pct: Math.min(100, Math.round(stats.docs_generated / 500 * 100)), warning: false, blocked: false },
+    drift_checks:   { used: stats.drift_checks_run ?? 0, limit: 200, unlimited: false, pct: Math.min(100, Math.round((stats.drift_checks_run ?? 0) / 200 * 100)), warning: false, blocked: false },
+    chat_messages:  { used: stats.chat_messages ?? 0, limit: 300, unlimited: false, pct: Math.min(100, Math.round((stats.chat_messages ?? 0) / 300 * 100)), warning: false, blocked: false },
     repos: { used: 0, limit: 1, unlimited: false, pct: 0, warning: false, blocked: false },
   };
 
@@ -183,10 +185,10 @@ export default function UsagePage() {
                 You&apos;re on the Free plan
               </div>
               <div style={{ fontFamily: "var(--font-body)", fontSize: 13.5, color: "var(--text-muted)" }}>
-                Upgrade to Pro for 10× more generations, semantic drift, codebase chat, and auto-PR.
+                Upgrade to Pro for 3× higher limits, auto-PR, GitHub Action comments, enhanced dashboard, and prioritized support.
               </div>
             </div>
-            <Link href="/pricing" style={{
+            <Link href="/dashboard/pricing" style={{
               padding: "9px 20px", borderRadius: 8, whiteSpace: "nowrap",
               background: "linear-gradient(135deg, #534AB7 0%, #7F77DD 100%)",
               fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 13, color: "#fff",
@@ -207,7 +209,7 @@ export default function UsagePage() {
             <span style={{ color: "#EF9F27", fontSize: 16 }}>⚠</span>
             <span style={{ fontFamily: "var(--font-body)", fontSize: 13.5, color: "var(--text-muted)" }}>
               You&apos;re approaching or have reached a usage limit.{" "}
-              <Link href="/pricing" style={{ color: "#EF9F27", textDecoration: "underline" }}>Upgrade to Pro</Link>
+              <Link href="/dashboard/pricing" style={{ color: "#EF9F27", textDecoration: "underline" }}>Upgrade to Pro</Link>
               {" "}to continue without interruption.
             </span>
           </div>
@@ -265,7 +267,7 @@ export default function UsagePage() {
           </div>
           {loading ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              {[0, 1, 2].map(i => (
+              {[0, 1, 2, 3].map(i => (
                 <div key={i}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                     <SkeletonBlock width={120} height={12} />
@@ -278,6 +280,7 @@ export default function UsagePage() {
           ) : (
             <>
               <QuotaBar label="Doc generations" entry={quotas.docs_generated} color="var(--purple-light, #AFA9EC)" />
+              <QuotaBar label="Drift detections" entry={quotas.drift_checks} color="var(--amber, #EF9F27)" />
               <QuotaBar label="Chat messages" entry={quotas.chat_messages} color="var(--cyan, #00D4FF)" />
               <QuotaBar label="Connected repos" entry={quotas.repos} color="var(--green, #1D9E75)" />
             </>
@@ -312,7 +315,7 @@ export default function UsagePage() {
           )}
 
           {!loading && !isPro && (
-            <Link href="/pricing" style={{
+            <Link href="/dashboard/pricing" style={{
               display: "block", textAlign: "center",
               padding: "9px 0", borderRadius: 8,
               background: "linear-gradient(135deg, #534AB7 0%, #7F77DD 100%)",
@@ -357,7 +360,7 @@ export default function UsagePage() {
           <FeatureFlag label="GitHub Action comments" enabled={features.github_action_comments} />
           {!isPro && (
             <div style={{ marginTop: 14 }}>
-              <Link href="/pricing" style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#AFA9EC", textDecoration: "none" }}>
+              <Link href="/dashboard/pricing" style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#AFA9EC", textDecoration: "none" }}>
                 See what Pro unlocks →
               </Link>
             </div>

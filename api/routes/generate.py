@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from api.auth import verify_api_key
 from api.quota import check_quota
+from api.rate_limit import limiter
 
 router = APIRouter(prefix="/generate", tags=["generate"], dependencies=[Depends(verify_api_key)])
 
@@ -32,6 +33,7 @@ class GenerateResponse(BaseModel):
 
 
 @router.post("", response_model=GenerateResponse)
+@limiter.limit("20/minute")
 async def generate_docstring(
     request: GenerateRequest, http_request: Request, response: Response
 ) -> GenerateResponse:

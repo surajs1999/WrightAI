@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from api.auth import verify_api_key
 from api.quota import check_quota
+from api.rate_limit import limiter
 
 router = APIRouter(prefix="/chat", tags=["chat"], dependencies=[Depends(verify_api_key)])
 
@@ -26,6 +27,7 @@ class ChatRequest(BaseModel):
 
 
 @router.post("")
+@limiter.limit("40/minute")
 async def chat(request: ChatRequest, http_request: Request) -> StreamingResponse:
     """
     Handles an incoming chat POST request by retrieving relevant code context via hybrid retrieval and streaming AI-generated responses back to the client as server-sent events.

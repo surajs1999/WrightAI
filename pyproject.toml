@@ -43,6 +43,11 @@ dependencies = [
     "supabase>=2.0.0",
     "brevo-python>=1.0.0",
     "google-genai>=2.0.0",
+    # Observability
+    "sentry-sdk[fastapi]>=2.0.0",
+    "python-json-logger>=2.0.7",
+    # Rate limiting
+    "slowapi>=0.1.9",
 ]
 keywords = [
   "docstring",

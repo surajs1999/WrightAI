@@ -39,9 +39,12 @@ const PLANS = [
     features: [
       { label: "VS Code extension", included: true },
       { label: "CLI & MCP server (self-hosted)", included: true },
-      { label: "100 doc generations / month", included: true },
-      { label: "Structural drift detection", included: true },
-      { label: "Unlimited coverage scans", included: true },
+      { label: "500 doc generations / month", included: true },
+      { label: "200 drift detections / month", included: true },
+      { label: "300 chat messages / month", included: true },
+      { label: "Structural + semantic drift detection", included: true },
+      { label: "Unlimited automated coverage scans", included: true },
+      { label: "Usage dashboard + email support", included: true },
       { label: "1 repository · 1 API key", included: true },
     ],
   },
@@ -51,7 +54,7 @@ const PLANS = [
     badge: "Most popular",
     monthlyPrice: 18,
     annualPrice: 14,
-    description: "For active developers who need unlimited documentation power.",
+    description: "For active developers who need more power and automation.",
     cta: "Get started",
     ctaHref: "/dashboard",
     ctaExternal: false,
@@ -59,12 +62,14 @@ const PLANS = [
     comingSoon: false,
     features: [
       { label: "Everything in Free", included: true },
-      { label: "1,000 doc generations / month", included: true },
-      { label: "Semantic (LLM) drift detection", included: true },
-      { label: "100 chat messages / month", included: true },
-      { label: "GitHub Action PR comments + Auto-PR", included: true },
-      { label: "5 repositories · 3 API keys", included: true },
-      { label: "Dashboard analytics + Email support", included: true },
+      { label: "1,500 doc generations / month", included: true },
+      { label: "1,000 drift detections / month", included: true },
+      { label: "1,000 chat messages / month", included: true },
+      { label: "Auto-PR for drift fixes", included: true },
+      { label: "GitHub Action PR comments", included: true },
+      { label: "5 repositories · 5 API keys", included: true },
+      { label: "Enhanced dashboard (drift history & trends)", included: true },
+      { label: "Prioritized support", included: true },
     ],
   },
   {
@@ -81,9 +86,9 @@ const PLANS = [
     comingSoon: true,
     features: [
       { label: "Everything in Pro — per seat", included: true },
-      { label: "800 generations / seat / month (pooled)", included: true },
-      { label: "Unlimited chat + repositories", included: true },
+      { label: "Pooled generations, drift & chat quota", included: true },
       { label: "Org-wide coverage analytics", included: true },
+      { label: "Centralized team dashboard", included: true },
       { label: "Priority support (48 hr SLA)", included: true },
       { label: "Minimum 3 seats", included: true },
     ],
@@ -97,7 +102,7 @@ const FAQ = [
   },
   {
     q: "Can I use Wright AI without paying?",
-    a: "Yes. The Free plan includes the VS Code extension, CLI, and MCP server with 100 hosted doc generations per month — no credit card required. Structural drift detection and coverage scans are always free.",
+    a: "Yes. The Free plan includes the VS Code extension, CLI, and MCP server with 500 doc generations, 200 drift detections, and 300 chat messages per month — no credit card required. Structural and semantic drift detection are both included on Free.",
   },
   {
     q: "What happens when I hit my monthly limit?",
@@ -122,10 +127,11 @@ const COMPARISON: { category: string; icon: string; rows: [string, string, strin
     category: "Usage limits",
     icon: "⚡",
     rows: [
-      ["Doc generations / month", "100", "1,000", "800 / seat (pooled)"],
-      ["Chat messages / month", "—", "100", "Unlimited"],
+      ["Doc generations / month", "500", "1,500", "Pooled / seat"],
+      ["Drift detections / month", "200", "1,000", "Pooled / seat"],
+      ["Chat messages / month", "300", "1,000", "Pooled / seat"],
       ["Connected repositories", "1", "5", "Unlimited"],
-      ["API keys", "1", "3", "10"],
+      ["API keys", "1", "5", "10"],
     ],
   },
   {
@@ -135,20 +141,25 @@ const COMPARISON: { category: string; icon: string; rows: [string, string, strin
       ["VS Code extension", "✓", "✓", "✓"],
       ["CLI tool (self-hosted)", "✓", "✓", "✓"],
       ["MCP server", "✓", "✓", "✓"],
-      ["Structural drift detection", "✓", "✓", "✓"],
+      ["Structural + semantic drift detection", "✓", "✓", "✓"],
+      ["Codebase chat", "✓", "✓", "✓"],
+      ["Coverage dashboard", "✓", "✓", "✓"],
       ["llms.txt generation", "✓", "✓", "✓"],
-      ["Semantic (LLM) drift detection", "—", "✓", "✓"],
       ["Auto-PR for drift fixes", "—", "✓", "✓"],
       ["GitHub Action PR comments", "—", "✓", "✓"],
     ],
   },
   {
-    category: "Team & analytics",
+    category: "Support & analytics",
     icon: "◈",
     rows: [
-      ["Dashboard analytics", "—", "Individual", "Team-wide"],
+      ["Email support", "✓", "✓", "✓"],
+      ["Usage dashboard", "✓", "✓", "✓"],
+      ["Enhanced dashboard (drift history & trends)", "—", "✓", "✓"],
+      ["Prioritized support", "—", "✓", "✓"],
       ["Org-wide coverage reports", "—", "—", "✓"],
       ["Centralized team dashboard", "—", "—", "✓"],
+      ["Priority support (SLA)", "—", "—", "✓"],
     ],
   },
 ];
@@ -204,7 +215,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
   );
 }
 
-export default function PricingPage() {
+export function PricingContent({ embedded = false }: { embedded?: boolean }) {
   const [interval, setInterval] = useState<Interval>("annual");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState<CheckoutNotice | null>(null);
@@ -214,10 +225,11 @@ export default function PricingPage() {
   const checkoutCompletedRef = useRef(false);
 
   useEffect(() => {
+    if (embedded) return;
     const onScroll = () => setScrolled(window.scrollY > 24);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [embedded]);
 
   // Pre-fetch user info on load so handleProCheckout stays synchronous
   useEffect(() => {
@@ -229,6 +241,7 @@ export default function PricingPage() {
 
   // Load Paddle.js
   useEffect(() => {
+    if (embedded) return;
     const token = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN;
     if (!token) return;
     const init = () => {
@@ -309,9 +322,10 @@ export default function PricingPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg, #06040f)" }}>
+    <div style={embedded ? {} : { minHeight: "100vh", background: "var(--bg, #06040f)" }}>
 
-      {/* ── Navbar ── */}
+      {/* ── Navbar (public page only) ── */}
+      {!embedded && (
       <div style={{
         position: "sticky", top: 0, zIndex: 50,
         background: scrolled ? "rgba(8,6,18,0.88)" : "transparent",
@@ -339,6 +353,7 @@ export default function PricingPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* ── Hero ── */}
       <div style={{ textAlign: "center", padding: "80px 24px 56px", maxWidth: 640, margin: "0 auto" }}>
@@ -813,7 +828,11 @@ export default function PricingPage() {
         </div>
       </div>
 
-      <Footer />
+      {!embedded && <Footer />}
     </div>
   );
+}
+
+export default function PricingPage() {
+  return <PricingContent />;
 }

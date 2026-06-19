@@ -11,7 +11,23 @@ _logger = logging.getLogger("wright.chroma_cache")
 _cache: dict[str, tuple[object, float]] = {}
 _lock = threading.Lock()
 _TTL = 300  # seconds — accept up to 5 min staleness from cross-container writes
-_restored = False  # one-time /data/chroma -> /tmp/chroma restore per container
+_restored_paths: set[str] = set()  # per persist_path, one-time GCS restore
+
+
+def _restore_chroma_from_gcs(persist_path: str, repo_root: str) -> None:
+    """Copy the per-user/repo GCS backup into persist_path on first access."""
+    from api.routes.repos import _parse_repo_root  # lazy — avoids circular import
+
+    dst = Path(persist_path)
+    if dst.exists():
+        return
+    parsed = _parse_repo_root(repo_root)
+    src = Path("/data/chroma") / parsed[0] / parsed[1] if parsed else Path("/data/chroma")
+    if src.exists():
+        try:
+            shutil.copytree(str(src), str(dst))
+        except Exception as e:
+            _logger.warning("ChromaDB GCS restore failed for %s: %s", persist_path, e)
 
 
 def get(persist_path: str, repo_root: str):
@@ -28,16 +44,17 @@ def get(persist_path: str, repo_root: str):
     """
     from core.embeddings.chroma_store import ChromaStore
 
-    global _restored
     key = f"{persist_path}::{repo_root}"
     now = time.monotonic()
     needs_rebuild = False
+    needs_restore = False
     with _lock:
-        if not _restored:
-            _restored = True
-            src, dst = Path("/data/chroma"), Path(persist_path)
-            if src.exists() and not dst.exists():
-                shutil.copytree(src, dst)
+        if persist_path not in _restored_paths:
+            _restored_paths.add(persist_path)
+            needs_restore = True
+    if needs_restore:
+        _restore_chroma_from_gcs(persist_path, repo_root)
+    with _lock:
         if key in _cache:
             store, ts = _cache[key]
             if now - ts < _TTL:

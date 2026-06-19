@@ -155,7 +155,9 @@ export async function runDriftCheck(
   const tmpOut = path.join(os.tmpdir(), `wright-drift-file-${Date.now()}.json`);
 
   try {
-    const out = await runCli(cli, repoRoot, ["drift", uri.fsPath], tmpOut, true);
+    // Pass --file so the CLI scans only the saved file, not the whole repo.
+    // The full repo scan still happens via refreshCoverage() on file-watcher events.
+    const out = await runCli(cli, repoRoot, ["drift", repoRoot, "--file", uri.fsPath], tmpOut, true);
     if (!out) return false;
 
     const data = JSON.parse(fs.readFileSync(out, "utf8")) as {

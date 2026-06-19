@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from api.auth import verify_api_key
 from api.quota import check_quota
+from api.rate_limit import limiter
 from api.repo_store import save_repo, list_repos as _list_repos_db, delete_repo as _delete_repo_db
 from api.token_store import save_token as _save_token, load_token, delete_token
 
@@ -23,11 +24,22 @@ _logger = logging.getLogger("wright.repos")
 _indexing: set[str] = set()
 
 
+def _chroma_path_for(repo_root: str) -> str:
+    """Return the ChromaDB persist path for this repo, scoped per user/repo."""
+    base = os.getenv("CHROMA_PATH", "")
+    if base:
+        parsed = _parse_repo_root(repo_root)
+        if parsed:
+            return os.path.join(base, parsed[0], parsed[1])
+        # CHROMA_PATH is set but repo isn't under the managed base — use it directly
+        return os.path.join(base, "unmanaged", os.path.basename(repo_root.rstrip("/")))
+    return os.path.join(repo_root, ".wright", "chroma")
+
+
 def _chroma_for(repo_root: str):
     from api.chroma_cache import get as get_chroma
 
-    chroma_path = os.getenv("CHROMA_PATH", os.path.join(repo_root, ".wright", "chroma"))
-    return get_chroma(chroma_path, repo_root)
+    return get_chroma(_chroma_path_for(repo_root), repo_root)
 
 
 async def _index_repo(repo_root: str) -> None:
@@ -83,16 +95,13 @@ async def _index_repo(repo_root: str) -> None:
         # sees the freshly written embeddings rather than the pre-index snapshot.
         from api.chroma_cache import invalidate as invalidate_chroma
 
-        chroma_path = os.getenv("CHROMA_PATH", os.path.join(repo_root, ".wright", "chroma"))
-        invalidate_chroma(chroma_path, repo_root)
-        # Persist /tmp/chroma → /data/chroma so the next container start
-        # sees the fresh embeddings.
-        asyncio.create_task(asyncio.to_thread(_backup_chroma_to_gcs))
+        invalidate_chroma(_chroma_path_for(repo_root), repo_root)
 
-        # Mirror the same chunks to Supabase pgvector — the durable backup
-        # used to rebuild Chroma on a cold container start.
+        # Mirror chunks to Supabase pgvector (durable backup) and persist the
+        # scoped per-user/repo chroma dir to GCS.
         parsed = _parse_repo_root(repo_root)
         if parsed:
+            asyncio.create_task(asyncio.to_thread(_backup_chroma_to_gcs, *parsed))
             from core.embeddings.pgvector_store import PgVectorStore
 
             asyncio.create_task(
@@ -129,25 +138,27 @@ def _backup_to_gcs(user_id: str, repo_slug: str) -> None:
         _logger.warning("GCS backup failed for %s/%s: %s", user_id, repo_slug, e)
 
 
-def _backup_chroma_to_gcs() -> None:
-    """Copy /tmp/chroma → /data/chroma so the next container start warms up with
-    fresh embeddings.
+def _backup_chroma_to_gcs(user_id: str, repo_slug: str) -> None:
+    """Copy per-user/repo chroma dir → /data/chroma/{user_id}/{repo_slug}.
 
-    Note: this is a full replace, not a merge. Two API containers indexing
-    simultaneously could overwrite each other — acceptable at current scale, but
-    the long-term fix is per-user chroma paths or a managed vector DB (Qdrant Cloud).
+    Only runs when CHROMA_PATH is set; when it's not, chroma lives inside the
+    repo root and is already covered by the _backup_to_gcs tarball.
     """
-    src = Path("/tmp/chroma")
-    dst = Path("/data/chroma")
+    base = os.getenv("CHROMA_PATH", "")
+    if not base:
+        return
+    src = Path(base) / user_id / repo_slug
+    dst = Path("/data/chroma") / user_id / repo_slug
     if not src.exists():
         return
     try:
+        dst.parent.mkdir(parents=True, exist_ok=True)
         if dst.exists():
             shutil.rmtree(str(dst))
         shutil.copytree(str(src), str(dst))
-        _logger.info("ChromaDB GCS backup complete")
+        _logger.info("ChromaDB GCS backup complete: %s/%s", user_id, repo_slug)
     except Exception as e:
-        _logger.warning("ChromaDB GCS backup failed: %s", e)
+        _logger.warning("ChromaDB GCS backup failed for %s/%s: %s", user_id, repo_slug, e)
 
 
 def _restore_from_gcs(user_id: str, repo_slug: str) -> bool:
@@ -206,17 +217,17 @@ def _delete_repo_chroma(repo_root: str) -> None:
     from api.chroma_cache import invalidate as invalidate_chroma
     from core.embeddings.chroma_store import ChromaStore
 
-    chroma_path = os.getenv("CHROMA_PATH", os.path.join(repo_root, ".wright", "chroma"))
+    chroma_path = _chroma_path_for(repo_root)
     if os.path.exists(chroma_path):
         try:
             ChromaStore(persist_path=chroma_path, repo_root=repo_root).delete_collection()
         except Exception:
             _logger.warning("Failed to delete chroma collection for %s", repo_root)
     invalidate_chroma(chroma_path, repo_root)
-    asyncio.create_task(asyncio.to_thread(_backup_chroma_to_gcs))
 
     parsed = _parse_repo_root(repo_root)
     if parsed:
+        asyncio.create_task(asyncio.to_thread(_backup_chroma_to_gcs, *parsed))
         from core.embeddings.pgvector_store import PgVectorStore
 
         asyncio.create_task(asyncio.to_thread(PgVectorStore(*parsed).delete_collection))
@@ -255,7 +266,8 @@ def _register_github_webhook(github_token: str, git_url: str, api_key: str) -> N
         return
     owner, repo = match.group(1), match.group(2)
 
-    webhook_url = f"{_API_URL}/webhooks/github?token={api_key}"
+    user_id = api_key[-12:].replace("/", "_").replace(".", "_")
+    webhook_url = f"{_API_URL}/webhooks/github?uid={user_id}"
     payload = _json.dumps(
         {
             "name": "web",
@@ -335,6 +347,7 @@ class RepoInfo(BaseModel):
 
 
 @router.post("/connect", response_model=RepoInfo)
+@limiter.limit("5/minute")
 async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
     """
     Connects a Git repository for a specific user by cloning it fresh or pulling the latest changes into an existing local copy.
@@ -768,3 +781,74 @@ async def trigger_index(repo_name: str, request: Request) -> dict:
 
     record_event(request.headers.get("X-Wright-API-Key", ""), "repo_index", repo_name=repo_name)
     return {"started": not already, "indexing": True}
+
+
+_PARSEABLE_EXTS = {".py", ".ts", ".tsx", ".js", ".jsx", ".java", ".go", ".rs"}
+
+
+@router.get("/{repo_name}/files")
+async def list_repo_files(repo_name: str, request: Request) -> dict:
+    """Return all parseable source files in the repo as relative paths."""
+    user_id = _user_id_from_request(request)
+    repo_path = _REPOS_BASE / user_id / repo_name
+    if not repo_path.exists():
+        await ensure_repo_local(str(repo_path))
+    if not repo_path.exists():
+        raise HTTPException(status_code=404, detail="Repo not found")
+
+    def _walk() -> list[str]:
+        found: list[str] = []
+        for dirpath, dirnames, filenames in os.walk(str(repo_path)):
+            dirnames[:] = [
+                d
+                for d in dirnames
+                if not d.startswith(".")
+                and d
+                not in (
+                    "node_modules",
+                    "__pycache__",
+                    ".git",
+                    "dist",
+                    "build",
+                    ".next",
+                    "venv",
+                    ".venv",
+                )
+            ]
+            for fname in filenames:
+                if Path(fname).suffix in _PARSEABLE_EXTS:
+                    rel = os.path.relpath(os.path.join(dirpath, fname), str(repo_path))
+                    found.append(rel)
+        return found
+
+    loop = asyncio.get_running_loop()
+    files = await loop.run_in_executor(None, _walk)
+    return {"files": sorted(files)}
+
+
+@router.get("/{repo_name}/functions")
+async def list_file_functions(repo_name: str, file: str, request: Request) -> dict:
+    """Return all function names in the given repo-relative file path."""
+    user_id = _user_id_from_request(request)
+    repo_path = _REPOS_BASE / user_id / repo_name
+    if not repo_path.exists():
+        await ensure_repo_local(str(repo_path))
+    if not repo_path.exists():
+        raise HTTPException(status_code=404, detail="Repo not found")
+
+    abs_path = (repo_path / file.lstrip("/")).resolve()
+    if not abs_path.is_relative_to(repo_path.resolve()):
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    if not abs_path.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    try:
+        from core.parser.tree_sitter_parser import CodeParser
+
+        loop = asyncio.get_running_loop()
+        parsed = await loop.run_in_executor(None, CodeParser().parse_file, str(abs_path))
+        funcs = [f.name for f in parsed.functions if f.name != "<anonymous>"]
+    except Exception:
+        funcs = []
+
+    return {"functions": funcs}

@@ -16,10 +16,13 @@ WRIGHT_MODE = os.getenv("WRIGHT_MODE", "coverage")
 WRIGHT_THRESHOLD = float(os.getenv("WRIGHT_THRESHOLD", "0.7"))
 WRIGHT_AUTO_PR = os.getenv("WRIGHT_AUTO_PR", "false").lower() == "true"
 WRIGHT_PATH = os.getenv("WRIGHT_PATH", ".")
+WRIGHT_API_KEY = os.getenv("WRIGHT_API_KEY", "")
+WRIGHT_API_URL = os.getenv("WRIGHT_API_URL", "https://api.wrightai.live")
 GITHUB_STEP_SUMMARY = os.getenv("GITHUB_STEP_SUMMARY", "")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 GITHUB_REPOSITORY = os.getenv("GITHUB_REPOSITORY", "")
 GITHUB_REF = os.getenv("GITHUB_REF", "main")
+GITHUB_EVENT_PATH = os.getenv("GITHUB_EVENT_PATH", "")
 
 
 def write_summary(content: str) -> None:
@@ -74,6 +77,59 @@ def set_output(name: str, value: str) -> None:
             f.write(f"{name}={value}\n")
     else:
         print(f"::set-output name={name}::{value}")
+
+
+def _get_pr_number() -> int | None:
+    """Read the pull_request number from the GitHub event payload, if available."""
+    if not GITHUB_EVENT_PATH:
+        return None
+    try:
+        import json as _json
+
+        with open(GITHUB_EVENT_PATH) as f:
+            event = _json.load(f)
+        return event.get("pull_request", {}).get("number")
+    except Exception:
+        return None
+
+
+def _github_action_comments_enabled() -> bool:
+    """Return True if the Wright API key has github_action_comments enabled (Pro feature)."""
+    if not WRIGHT_API_KEY:
+        return False
+    try:
+        import httpx as _httpx
+
+        resp = _httpx.get(
+            f"{WRIGHT_API_URL.rstrip('/')}/usage",
+            headers={"X-Wright-API-Key": WRIGHT_API_KEY},
+            timeout=8.0,
+        )
+        if resp.status_code == 200:
+            return resp.json().get("features", {}).get("github_action_comments", False)
+    except Exception:
+        pass
+    return False
+
+
+def _post_pr_comment(pr_number: int, body: str) -> None:
+    """Post a comment on the GitHub PR with the drift summary."""
+    if not GITHUB_TOKEN or not GITHUB_REPOSITORY:
+        return
+    try:
+        import httpx as _httpx
+
+        _httpx.post(
+            f"https://api.github.com/repos/{GITHUB_REPOSITORY}/issues/{pr_number}/comments",
+            json={"body": body},
+            headers={
+                "Authorization": f"token {GITHUB_TOKEN}",
+                "Accept": "application/vnd.github.v3+json",
+            },
+            timeout=10.0,
+        )
+    except Exception:
+        pass
 
 
 def run_coverage() -> None:
@@ -298,6 +354,23 @@ def run_drift() -> None:
 """
     write_summary(summary)
     set_output("drifted-functions", str(len(drifted)))
+
+    # Post inline PR comment (Pro feature — requires wright-api-key with github_action_comments enabled)
+    pr_number = _get_pr_number()
+    if pr_number and drifted and _github_action_comments_enabled():
+        rows = "\n".join(
+            f"| `{r.function_name}` | `{r.file_path}` | {r.status} |" for r in drifted[:30]
+        )
+        comment = (
+            "## ⚠️ Wright Drift Check\n\n"
+            f"{len(drifted)} function{'s' if len(drifted) != 1 else ''} need documentation updates.\n\n"
+            "| Function | File | Status |\n"
+            "|----------|------|--------|\n"
+            f"{rows}\n\n"
+            + (f"_...and {len(drifted) - 30} more._\n\n" if len(drifted) > 30 else "")
+            + "_Fix individually via the Wright dashboard, or upgrade to Pro for **Fix all → Open PR**._"
+        )
+        _post_pr_comment(pr_number, comment)
 
     if WRIGHT_AUTO_PR and drifted and GITHUB_TOKEN:
         _open_pr(drifted)

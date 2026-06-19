@@ -54,9 +54,19 @@ export default function DriftPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [autoPrEnabled, setAutoPrEnabled] = useState(false);
   const [prModal, setPrModal] = useState<PRModalState>({
     open: false, running: false, result: null, error: null, fallbackToken: "",
   });
+
+  useEffect(() => {
+    fetch("/api/proxy/usage")
+      .then(r => r.json())
+      .then((d: { features?: { auto_pr?: boolean } }) => {
+        setAutoPrEnabled(d?.features?.auto_pr ?? false);
+      })
+      .catch(() => {});
+  }, []);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -250,7 +260,7 @@ export default function DriftPage() {
             ))}
           </div>
 
-          {/* Semantic drift Pro CTA */}
+          {/* Auto-PR Pro CTA */}
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
             padding: "10px 16px", marginBottom: 18,
@@ -258,10 +268,10 @@ export default function DriftPage() {
             flexWrap: "wrap",
           }}>
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(175,169,236,0.6)" }}>
-              Free plan shows structural drift only — semantic (LLM) analysis catches subtle logic changes.
+              Upgrade to Pro for bulk auto-PR fixes, GitHub Action PR comments, and enhanced dashboard analytics.
             </span>
-            <a href="/pricing" style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#AFA9EC", textDecoration: "none", whiteSpace: "nowrap" }}>
-              Upgrade for semantic drift →
+            <a href="/dashboard/pricing" style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#AFA9EC", textDecoration: "none", whiteSpace: "nowrap" }}>
+              See Pro plans →
             </a>
           </div>
 
@@ -296,10 +306,16 @@ export default function DriftPage() {
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>
                   {drifted.length} function{drifted.length !== 1 ? "s" : ""} need attention
                 </span>
-                <button onClick={fixAll} style={{ padding: "8px 18px", background: "var(--purple)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-body)", fontSize: 13, cursor: "pointer", transition: "background 0.15s" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "#6058C8")}
-                  onMouseLeave={e => (e.currentTarget.style.background = "var(--purple)")}
-                >Fix all → Open PR</button>
+                {autoPrEnabled ? (
+                  <button onClick={fixAll} style={{ padding: "8px 18px", background: "var(--purple)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-body)", fontSize: 13, cursor: "pointer", transition: "background 0.15s" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "#6058C8")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "var(--purple)")}
+                  >Fix all → Open PR</button>
+                ) : (
+                  <a href="/dashboard/pricing" style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", background: "rgba(83,74,183,0.08)", border: "1px solid rgba(83,74,183,0.2)", borderRadius: 8, fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--purple-light)", textDecoration: "none" }}>
+                    <span>⚡</span> Fix all → Open PR · Pro
+                  </a>
+                )}
               </div>
             </div>
           )}
