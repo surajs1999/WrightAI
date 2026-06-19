@@ -115,18 +115,18 @@ export default function GeneratePage() {
   // Fetch functions when file changes
   useEffect(() => {
     if (!selectedRepo || !filePath) { setRepoFuncs([]); setFuncName(""); return; }
-    // Guard: if files haven't loaded for this repo yet, skip (prevents stale-filePath fetch on repo switch)
-    if (repoFiles.length > 0 && !repoFiles.includes(filePath)) { setRepoFuncs([]); setFuncName(""); return; }
     const repoName = selectedRepo.id.split("/").pop() ?? selectedRepo.name;
+    let cancelled = false;
     setLoadingFuncs(true);
     setRepoFuncs([]);
     setFuncName("");
     fetch(`/api/proxy/repos/${repoName}/functions?file=${encodeURIComponent(filePath)}`)
       .then(r => r.ok ? r.json() : { functions: [] })
-      .then(d => setRepoFuncs(d.functions ?? []))
-      .catch(() => setRepoFuncs([]))
-      .finally(() => setLoadingFuncs(false));
-  }, [filePath, selectedRepo?.id, repoFiles]);
+      .then(d => { if (!cancelled) setRepoFuncs(d.functions ?? []); })
+      .catch(() => { if (!cancelled) setRepoFuncs([]); })
+      .finally(() => { if (!cancelled) setLoadingFuncs(false); });
+    return () => { cancelled = true; };
+  }, [filePath, selectedRepo?.id]);
 
   const createPR = async () => {
     if (!selectedRepo) return;
