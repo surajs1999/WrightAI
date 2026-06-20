@@ -76,10 +76,11 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
       {/* Logo */}
       <div style={{ padding: "20px 18px 16px", borderBottom: "1px solid var(--border)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-          <Image src="/wright-logo.svg" alt="Wright AI" width={30} height={30} style={{ width: 30, height: 30, flexShrink: 0 }} />
-          <span style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 15, color: "var(--text)", letterSpacing: "-0.02em" }}>
-            Wright AI
-          </span>
+          <Image src="/wright-logo.svg" alt="Wright AI" width={36} height={36} style={{ height: 36, width: "auto", flexShrink: 0 }} priority />
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 17, color: "var(--text)", letterSpacing: "-0.02em", lineHeight: 1 }}>Wright AI</span>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--purple-light)", letterSpacing: "0.08em", textTransform: "uppercase", lineHeight: 1.4 }}>Doc Intelligence</span>
+          </div>
         </div>
         <span style={{
           fontFamily: "var(--font-mono)",

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import Footer from "@/components/landing/Footer";
+import Footer from "@/components/landing-v1/Footer";
 
 const LAST_UPDATED = "June 3, 2026";
 
@@ -62,8 +62,11 @@ export default function RefundPolicyPage() {
       }}>
         <div style={{ maxWidth: 1200, width: "100%", margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8 }}>
-            <Image src="/wright-logo.svg" alt="Wright AI" width={24} height={24} style={{ height: 24, width: "auto", opacity: 0.9 }} />
-            <span style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 15, color: "var(--text)", letterSpacing: "-0.02em" }}>Wright AI</span>
+            <Image src="/wright-logo.svg" alt="Wright AI" width={36} height={36} style={{ height: 36, width: "auto" }} priority />
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 17, color: "var(--text)", letterSpacing: "-0.02em", lineHeight: 1 }}>Wright AI</span>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--purple-light)", letterSpacing: "0.08em", textTransform: "uppercase", lineHeight: 1.4 }}>Doc Intelligence</span>
+            </div>
           </Link>
           <Link href="/dashboard" style={{ padding: "8px 18px", borderRadius: 8, background: "linear-gradient(135deg, #534AB7 0%, #7F77DD 100%)", fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 13.5, color: "#fff", textDecoration: "none", boxShadow: "0 4px 14px rgba(83,74,183,0.3)" }}>
             Start for free →

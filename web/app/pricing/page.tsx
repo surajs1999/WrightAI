@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import Footer from "@/components/landing/Footer";
+import Footer from "@/components/landing-v1/Footer";
 
 
 type Interval = "monthly" | "annual";
@@ -335,10 +335,11 @@ export function PricingContent({ embedded = false }: { embedded?: boolean }) {
       }}>
         <div className="nav-inner">
           <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8 }}>
-            <Image src="/wright-logo.svg" alt="Wright AI" width={24} height={24} style={{ opacity: 0.9 }} />
-            <span style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 16, color: "var(--text)", letterSpacing: "-0.02em" }}>
-              Wright AI
-            </span>
+            <Image src="/wright-logo.svg" alt="Wright AI" width={36} height={36} style={{ height: 36, width: "auto" }} priority />
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 17, color: "var(--text)", letterSpacing: "-0.02em", lineHeight: 1 }}>Wright AI</span>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--purple-light)", letterSpacing: "0.08em", textTransform: "uppercase", lineHeight: 1.4 }}>Doc Intelligence</span>
+            </div>
           </Link>
           <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
             <Link href="/docs" style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "rgba(175,169,236,0.6)", textDecoration: "none" }}>Docs</Link>

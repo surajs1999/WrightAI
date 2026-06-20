@@ -113,17 +113,11 @@ function LoginContent() {
         {/* Logo */}
         <div style={{ position: "relative", zIndex: 1 }}>
           <Link href="/" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8 }}>
-            <Image src="/wright-logo.svg" alt="Wright AI" width={28} height={28} style={{ height: 28, width: "auto", opacity: 0.9 }} />
-            <span style={{
-              fontFamily: "var(--font-heading)",
-              fontWeight: 700,
-              fontSize: 16,
-              color: "var(--text)",
-              letterSpacing: "-0.02em",
-              opacity: 0.9,
-            }}>
-              Wright AI
-            </span>
+            <Image src="/wright-logo.svg" alt="Wright AI" width={36} height={36} style={{ height: 36, width: "auto" }} priority />
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 17, color: "var(--text)", letterSpacing: "-0.02em", lineHeight: 1 }}>Wright AI</span>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--purple-light)", letterSpacing: "0.08em", textTransform: "uppercase", lineHeight: 1.4 }}>Doc Intelligence</span>
+            </div>
           </Link>
         </div>
 

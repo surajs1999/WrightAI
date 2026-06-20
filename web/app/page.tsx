@@ -1,35 +1,37 @@
-import Navbar from "@/components/landing/Navbar";
-import Hero from "@/components/landing/Hero";
-import ProblemStrip from "@/components/landing/ProblemStrip";
-import FeatureScroll from "@/components/landing/FeatureScroll";
-import InstallGrid from "@/components/landing/InstallGrid";
-import DashboardPreview from "@/components/landing/DashboardPreview";
-import FeedbackSection from "@/components/landing/FeedbackSection";
-import CompareSection from "@/components/landing/CompareSection";
-import FinalCTA from "@/components/landing/FinalCTA";
-import Footer from "@/components/landing/Footer";
+import ScrollRuler from "@/components/landing-v2/ScrollRuler";
+import NavbarV2 from "@/components/landing-v2/NavbarV2";
+import HeroV2 from "@/components/landing-v2/HeroV2";
+import TrustStrip from "@/components/landing-v2/TrustStrip";
+import ProblemV2 from "@/components/landing-v2/ProblemV2";
+import ThreePillars from "@/components/landing-v2/ThreePillars";
+import DriftSection from "@/components/landing-v2/DriftSection";
+import GetStarted from "@/components/landing-v2/GetStarted";
+import CommandCenter from "@/components/landing-v2/CommandCenter";
+import AIContextSection from "@/components/landing-v2/AIContextSection";
+import CompareV2 from "@/components/landing-v2/CompareV2";
+import WhyNow from "@/components/landing-v2/WhyNow";
+import FeedbackV2 from "@/components/landing-v2/FeedbackV2";
+import FinalCTAV2 from "@/components/landing-v2/FinalCTAV2";
+import FooterV2 from "@/components/landing-v2/FooterV2";
 
-/**
- * Renders the main landing page component containing all sections of the application homepage.
- *
- * This component serves as the primary landing page for the application, composing multiple child components (Navbar, Hero, ProblemStrip, FeatureScroll, InstallGrid, DashboardPreview, FeedbackSection, CompareSection, FinalCTA, and Footer) within a semantic main element to create a complete marketing page layout.
- * @returns {JSX.Element} A React element containing the complete landing page structure with all composed sections wrapped in a main element.
- * @example
- * <LandingPage />
- */
 export default function LandingPage() {
   return (
     <main>
-      <Navbar />
-      <Hero />
-      <ProblemStrip />
-      <FeatureScroll />
-      <InstallGrid />
-      <DashboardPreview />
-      <FeedbackSection />
-      <CompareSection />
-      <FinalCTA />
-      <Footer />
+      <ScrollRuler />
+      <NavbarV2 />
+      <HeroV2 />
+      <TrustStrip />
+      <ProblemV2 />
+      <ThreePillars />
+      <DriftSection />
+      <GetStarted />
+      <CommandCenter />
+      <AIContextSection />
+      <CompareV2 />
+      <WhyNow />
+      <FeedbackV2 />
+      <FinalCTAV2 />
+      <FooterV2 />
     </main>
   );
 }

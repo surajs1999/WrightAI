@@ -63,15 +63,10 @@ export default function Navbar() {
             style={{ height: 36, width: "auto" }}
             priority
           />
-          <span style={{
-            fontFamily: "var(--font-heading)",
-            fontWeight: 700,
-            fontSize: 18,
-            color: "var(--text)",
-            letterSpacing: "-0.02em",
-          }}>
-            Wright AI
-          </span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 17, color: "var(--text)", letterSpacing: "-0.02em", lineHeight: 1 }}>Wright AI</span>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--purple-light)", letterSpacing: "0.08em", textTransform: "uppercase", lineHeight: 1.4 }}>Doc Intelligence</span>
+          </div>
         </Link>
 
         {/* Center links */}
