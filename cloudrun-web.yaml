@@ -29,7 +29,7 @@ spec:
             cpu: "1"
         env:
         - name: APP_URL
-          value: https://wrightai.live
+          value: https://www.wrightai.live
         - name: NODE_ENV
           value: production
         - name: NEXT_TELEMETRY_DISABLED

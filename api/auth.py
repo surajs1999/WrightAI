@@ -8,6 +8,7 @@ from pathlib import Path
 import httpx
 from fastapi import HTTPException, Request, Security
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
 
 _API_KEY_HEADER = APIKeyHeader(name="X-Wright-API-Key", auto_error=False)
 _BEARER = HTTPBearer(auto_error=False)
@@ -53,35 +54,62 @@ def _load_or_generate_key() -> str:
 _WRIGHT_API_KEY = _load_or_generate_key()
 
 
+_jwks_cache: dict | None = None
+
+
+def _get_jwks() -> dict:
+    """Fetch and cache the WorkOS JWKS public key set."""
+    global _jwks_cache
+    if _jwks_cache is None:
+        client_id = os.getenv("WORKOS_CLIENT_ID", "")
+        resp = httpx.get(
+            f"https://api.workos.com/user_management/jwks/{client_id}",
+            timeout=5,
+        )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=503, detail="Could not fetch WorkOS JWKS")
+        _jwks_cache = resp.json()
+    return _jwks_cache
+
+
 def _verify_workos_token(token: str) -> dict:
     """
-    Validates a WorkOS access token by calling the WorkOS JWKS userinfo endpoint and returning the parsed JSON response.
+    Validates a WorkOS JWT access token by fetching the JWKS public keys and verifying the signature.
 
-    Sends a synchronous GET request to the WorkOS user management JWKS endpoint with the provided Bearer token. If the endpoint returns a non-200 status code, an HTTP 401 exception is raised indicating an invalid token. On success, the decoded JSON payload (typically containing user identity claims) is returned as a dictionary. This function is called internally by verify_api_key() and is not intended for direct external use.
+    Fetches the WorkOS JWKS (JSON Web Key Set) for the configured client ID, then decodes and
+    verifies the provided JWT against those public keys. Raises HTTP 401 if the token is invalid,
+    expired, or the signature doesn't match.
 
     Args:
-        token (str): The WorkOS access token to validate, passed as a Bearer token in the Authorization header.
+        token (str): The WorkOS JWT access token to validate.
 
     Returns:
-        dict: A dictionary containing the parsed JSON response from the WorkOS JWKS userinfo endpoint, typically including user identity and claims data.
+        dict: The decoded JWT payload containing user identity claims.
 
     Raises:
-        HTTPException: Raised with HTTP status code 401 and detail 'Invalid WorkOS token' when the WorkOS endpoint returns a non-200 status code.
-
-    Example:
-        ```
-        user_info = _verify_workos_token('eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...')
-        print(user_info['sub'])  # prints the user's subject identifier
-        ```
+        HTTPException: Raised with HTTP status code 401 when the token is invalid or expired.
+        HTTPException: Raised with HTTP status code 503 when the JWKS endpoint is unreachable.
     """
-    resp = httpx.get(
-        "https://api.workos.com/user_management/jwks/client_01KPEHF4MX8EVWZ2Z3C7JGETRB",
-        headers={"Authorization": f"Bearer {token}"},
-        timeout=5,
-    )
-    if resp.status_code != 200:
-        raise HTTPException(status_code=401, detail="Invalid WorkOS token")
-    return resp.json()
+    try:
+        jwks = _get_jwks()
+        # Extract the key ID from the JWT header to pick the right key from the set
+        header = jwt.get_unverified_header(token)
+        kid = header.get("kid")
+        key = next(
+            (k for k in jwks.get("keys", []) if k.get("kid") == kid),
+            jwks.get("keys", [None])[0] if jwks.get("keys") else None,
+        )
+        if key is None:
+            raise HTTPException(status_code=401, detail="Invalid WorkOS token: no matching key")
+        claims = jwt.decode(
+            token,
+            key,
+            algorithms=["RS256"],
+            audience=os.getenv("WORKOS_CLIENT_ID", ""),
+        )
+        return claims
+    except JWTError as exc:
+        raise HTTPException(status_code=401, detail=f"Invalid WorkOS token: {exc}") from exc
 
 
 async def verify_api_key(

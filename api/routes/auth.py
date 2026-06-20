@@ -48,28 +48,34 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 
 @router.get("/login")
-async def login(provider: str = "GoogleOAuth", redirect_uri: str | None = None) -> RedirectResponse:
+async def login(
+    provider: str = "GoogleOAuth",
+    redirect_uri: str | None = None,
+    state: str | None = None,
+) -> RedirectResponse:
     """
     Initiates the OAuth login flow by redirecting the user to the authentication provider's authorization URL.
 
-    This async endpoint starts the OAuth authentication process using WorkOS user management. It constructs an authorization URL with the specified provider and redirect URI, then returns a RedirectResponse to send the user to the provider's login page. If no redirect URI is provided, it defaults to '{FRONTEND_URL}/auth/callback'.
+    This async endpoint starts the OAuth authentication process using WorkOS user management. It constructs an authorization URL with the specified provider, redirect URI, and optional state, then returns a RedirectResponse to send the user to the provider's login page. If no redirect URI is provided, it defaults to '{FRONTEND_URL}/auth/callback'.
 
     Args:
         provider (str): The OAuth provider to use for authentication. Defaults to 'GoogleOAuth'.
         redirect_uri (str | None): The URI to redirect to after successful authentication. If not provided, defaults to '{FRONTEND_URL}/auth/callback'.
+        state (str | None): An opaque value passed through the OAuth flow and echoed back in the callback, used to restore the user's intended destination after sign-in.
 
     Returns:
         RedirectResponse: A redirect response that sends the user's browser to the OAuth provider's authorization URL to complete the login process.
 
     Example:
         ```
-        response = await login(provider='GoogleOAuth', redirect_uri='https://example.com/auth/callback')
+        response = await login(provider='GoogleOAuth', redirect_uri='https://example.com/auth/callback', state='/dashboard')
         ```
     """
     uri = redirect_uri or f"{FRONTEND_URL}/auth/callback"
     url = _get_workos().user_management.get_authorization_url(
         provider=provider,
         redirect_uri=uri,
+        state=state,
     )
     return RedirectResponse(url)
 
