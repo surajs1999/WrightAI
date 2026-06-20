@@ -1,8 +1,8 @@
 # Wright AI
 
-> AI-powered code documentation tool. Auto-generates docstrings, detects documentation drift, and exposes your codebase to AI assistants via MCP.
+> The Documentation Intelligence Platform — the AI code documentation tool that never lies.
 
-Wright AI automatically generates, maintains, and serves code documentation using Claude AI. It supports Python, TypeScript, JavaScript, Go, and Rust across four surfaces: a VS Code extension, a CLI tool, a GitHub Action, and an MCP server.
+Wright AI is built around three pillars: Generate (auto-generate docstrings for Python, TypeScript, JavaScript, Go, and Rust), Verify (detect drift so documentation never lies), and Understand (expose your codebase to AI assistants via MCP so Claude Code, Cursor, and Copilot always have a reliable source of truth). Available as a VS Code extension, CLI tool, GitHub Action, and MCP server.
 
 ## Key Pages
 

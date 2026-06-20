@@ -13,6 +13,13 @@ const LINKS: Record<string, NavLink[]> = {
     { label: "Dashboard", href: "/dashboard" },
     { label: "Pricing", href: "/pricing" },
   ],
+  Languages: [
+    { label: "Python", href: "/python" },
+    { label: "TypeScript", href: "/typescript" },
+    { label: "JavaScript", href: "/javascript" },
+    { label: "Go", href: "/go" },
+    { label: "Rust", href: "/rust" },
+  ],
   Integrations: [
     { label: "VS Code Extension", href: "https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai", ext: true },
     { label: "GitHub Actions", href: "/docs#github-action" },

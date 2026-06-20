@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     template: "%s | Wright AI",
   },
   description:
-    "Auto-generate docstrings for Python, TypeScript, Go & Rust. Detect doc drift. Serve live docs to Claude Code & Cursor via MCP. Free to start.",
+    "The AI code documentation tool that never lies. Auto-generate docstrings, detect drift, and give Claude Code & Cursor a source of truth via MCP. Free.",
   keywords: [
     "ai code documentation tools",
     "ai code documentation tool",
@@ -61,7 +61,7 @@ export const metadata: Metadata = {
     siteName: "Wright AI",
     title: "Wright AI — AI Code Documentation Tool for VS Code, CLI & CI",
     description:
-      "Auto-generate docstrings for Python, TypeScript, Go & more. Detect documentation drift. Serve live docs to Claude Code, Cursor, and Copilot via MCP. Free to start.",
+      "The AI code documentation tool that never lies. Auto-generate docstrings, detect drift, and give Claude Code, Cursor, and Copilot a reliable source of truth via MCP.",
     images: [
       {
         url: "/opengraph-image",
@@ -108,7 +108,7 @@ const softwareAppSchema = {
   applicationCategory: "DeveloperApplication",
   operatingSystem: "Windows, macOS, Linux",
   description:
-    "AI-powered code documentation generator. Auto-generates docstrings for Python, TypeScript, JavaScript, Go, and Rust. Detects documentation drift and serves live docs via MCP to Claude Code, Cursor, and Copilot.",
+    "The Documentation Intelligence Platform. Auto-generates docstrings for Python, TypeScript, JavaScript, Go, and Rust. Detects drift so documentation never lies. Serves live docs via MCP to Claude Code, Cursor, and Copilot.",
   url: SITE_URL,
   downloadUrl: "https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai",
   offers: {
@@ -130,7 +130,7 @@ const organizationSchema = {
   url: SITE_URL,
   logo: `${SITE_URL}/wright-logo.svg`,
   description:
-    "Wright AI builds AI-powered code documentation tools for developers. Auto-generate docstrings, detect documentation drift, and expose your codebase to AI assistants via MCP.",
+    "Wright AI is the Documentation Intelligence Platform — the AI code documentation tool that never lies. Generate docstrings, verify with drift detection, and expose your codebase to AI assistants via MCP.",
   sameAs: [
     "https://github.com/surajs1999/WrightAI",
     "https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai",
@@ -143,6 +143,22 @@ const organizationSchema = {
   },
 };
 
+const websiteSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "Wright AI",
+  url: SITE_URL,
+  description: "The Documentation Intelligence Platform — the AI code documentation tool that never lies.",
+  potentialAction: {
+    "@type": "SearchAction",
+    target: {
+      "@type": "EntryPoint",
+      urlTemplate: `${SITE_URL}/docs?q={search_term_string}`,
+    },
+    "query-input": "required name=search_term_string",
+  },
+};
+
 const homepageFaqSchema = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
@@ -152,7 +168,7 @@ const homepageFaqSchema = {
       name: "What is Wright AI?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Wright AI is an AI code documentation tool that automatically generates docstrings for Python, TypeScript, JavaScript, Go, and Rust. It detects documentation drift when code changes, and exposes your codebase to AI assistants like Claude Code, Cursor, and Copilot via an MCP server.",
+        text: "Wright AI is the Documentation Intelligence Platform — an AI code documentation tool built around three pillars: Generate (auto-generate docstrings for Python, TypeScript, JavaScript, Go, and Rust), Verify (detect drift when code changes so documentation never lies), and Understand (expose your codebase to Claude Code, Cursor, and Copilot via MCP so AI tools always have a reliable source of truth).",
       },
     },
     {
@@ -230,6 +246,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${bricolage.variable} ${dmMono.variable} ${poppins.variable}`}>
       <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareAppSchema) }}

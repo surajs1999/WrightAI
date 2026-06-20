@@ -182,9 +182,9 @@ export default function HeroV2() {
               marginBottom: 36,
               maxWidth: 500,
             }}>
-              Generate documentation automatically.
-              Detect drift continuously.
-              Give developers and AI tools a source of truth they can trust.
+              The AI code documentation tool that generates docstrings
+              automatically, detects drift continuously, and gives developers
+              and AI tools a source of truth they can trust.
             </p>
 
             {/* Pillar micro-tags */}

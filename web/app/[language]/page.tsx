@@ -425,8 +425,68 @@ export default async function LanguagePage({
   const lang = LANGUAGES[language as LangKey];
   if (!lang) notFound();
 
+  const BASE = "https://www.wrightai.live";
+
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: BASE },
+      { "@type": "ListItem", position: 2, name: lang.title, item: `${BASE}/${language}` },
+    ],
+  };
+
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: `How do I auto-generate ${lang.name} documentation with AI?`,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: `Install Wright AI with pip install wright or the VS Code extension. Run wright generate . in your ${lang.name} project — Wright AI reads every function and generates ${lang.styles.join(", ")} style documentation automatically.`,
+        },
+      },
+      {
+        "@type": "Question",
+        name: `What documentation styles does Wright AI support for ${lang.name}?`,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: `Wright AI supports ${lang.styles.join(", ")} style documentation for ${lang.name}. The style can be set globally in wright.json or overridden per-run with the --style flag.`,
+        },
+      },
+      {
+        "@type": "Question",
+        name: `How does Wright AI detect documentation drift in ${lang.name}?`,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: `Wright AI compares function signatures against existing docstrings on every file save (VS Code) or via wright drift . (CLI). If a parameter is renamed, added, or removed — or the return type changes — the function is flagged as drifted and a regeneration is prompted.`,
+        },
+      },
+      {
+        "@type": "Question",
+        name: `Can I use Wright AI for ${lang.name} in CI/CD?`,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: `Yes. The Wright AI GitHub Action supports coverage, generate, and drift modes. Add it to your workflow to enforce a documentation coverage threshold on every pull request, auto-generate missing docs, or block merges when docstrings are stale.`,
+        },
+      },
+      {
+        "@type": "Question",
+        name: `Is Wright AI free for ${lang.name} projects?`,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: `Yes. The VS Code extension, CLI (pip install wright), and MCP server are completely free. Sign in at wrightai.live with GitHub or Google to get your personal API key and start generating ${lang.name} documentation immediately.`,
+        },
+      },
+    ],
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
 
       {/* Nav */}
       <header style={{
