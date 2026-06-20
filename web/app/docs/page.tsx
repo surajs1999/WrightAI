@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import Footer from "@/components/landing-v1/Footer";
+import NavbarV2 from "@/components/landing-v2/NavbarV2";
+import FooterV2 from "@/components/landing-v2/FooterV2";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -489,14 +490,7 @@ function Table({ headers, rows }: { headers: string[]; rows: React.ReactNode[][]
  */
 export default function DocsPage() {
   const [activeId, setActiveId] = useState("what-is-wright");
-  const [scrolled, setScrolled] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   // Track active section via IntersectionObserver
   useEffect(() => {
@@ -518,76 +512,22 @@ export default function DocsPage() {
   }, []);
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", position: "relative" }}>
+      {/* Background */}
+      <div style={{ position: "fixed", top: 0, left: 0, right: 0, height: "40vh", background: "radial-gradient(ellipse at 50% 0%, rgba(83,74,183,0.18) 0%, rgba(0,212,255,0.05) 50%, transparent 75%)", pointerEvents: "none", zIndex: 0 }} />
+      <div style={{ position: "fixed", inset: 0, backgroundImage: "radial-gradient(circle, rgba(175,169,236,0.05) 1px, transparent 1px)", backgroundSize: "44px 44px", pointerEvents: "none", zIndex: 0 }} />
 
       {/* ── Navbar ── */}
-      <div style={{
-        position: "fixed", top: 0, left: 0, right: 0, zIndex: 50,
-        height: 60,
-        background: scrolled ? "rgba(8,6,18,0.88)" : "transparent",
-        backdropFilter: scrolled ? "blur(20px) saturate(180%)" : "none",
-        borderBottom: scrolled ? "1px solid var(--border)" : "1px solid transparent",
-        transition: "all 0.3s ease",
-        display: "flex", alignItems: "center",
-      }}>
-        <div style={{ maxWidth: 1400, width: "100%", margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-            <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8 }}>
-              <Image src="/wright-logo.svg" alt="Wright AI" width={36} height={36} style={{ height: 36, width: "auto" }} priority />
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <span style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 17, color: "var(--text)", letterSpacing: "-0.02em", lineHeight: 1 }}>Wright AI</span>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--purple-light)", letterSpacing: "0.08em", textTransform: "uppercase", lineHeight: 1.4 }}>Doc Intelligence</span>
-              </div>
-            </Link>
-            <div style={{ width: 1, height: 18, background: "rgba(175,169,236,0.12)" }} />
-            <span style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--text-muted)" }}>
-              Documentation
-            </span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <Link
-              href="/dashboard/help"
-              style={{
-                color: "var(--text-muted)", textDecoration: "none",
-                display: "flex", alignItems: "center", gap: 6,
-                fontFamily: "var(--font-body)", fontSize: 13.5,
-                padding: "6px 14px", borderRadius: 7,
-                border: "1px solid rgba(175,169,236,0.12)",
-                transition: "all 0.15s",
-              }}
-              onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "rgba(175,169,236,0.25)"; el.style.color = "var(--text)"; }}
-              onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "rgba(175,169,236,0.12)"; el.style.color = "var(--text-muted)"; }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                <line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
-              Need Help?
-            </Link>
-            <Link
-              href="/dashboard"
-              style={{
-                padding: "7px 16px", borderRadius: 7,
-                background: "rgba(83,74,183,0.2)", border: "1px solid rgba(127,119,221,0.3)",
-                fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 13, color: "#AFA9EC",
-                textDecoration: "none",
-              }}
-            >
-              Dashboard →
-            </Link>
-          </div>
-        </div>
-      </div>
+      <NavbarV2 />
 
       {/* ── Layout ── */}
-      <div style={{ maxWidth: 1400, margin: "0 auto", padding: "60px 24px 0", display: "flex", gap: 0 }}>
+      <div style={{ maxWidth: 1400, margin: "0 auto", padding: "72px 24px 0", display: "flex", gap: 0 }}>
 
         {/* ── Sidebar ── */}
         <aside style={{
           width: 240, flexShrink: 0,
-          position: "sticky", top: 60,
-          height: "calc(100vh - 60px)",
+          position: "sticky", top: 72,
+          height: "calc(100vh - 72px)",
           overflowY: "auto",
           padding: "32px 0 48px",
           borderRight: "1px solid rgba(175,169,236,0.06)",
@@ -662,19 +602,17 @@ export default function DocsPage() {
 
           {/* Hero */}
           <div style={{ paddingTop: 48, paddingBottom: 16 }}>
-            <div style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              padding: "5px 12px", borderRadius: 999,
-              background: "rgba(0,212,255,0.07)", border: "1px solid rgba(0,212,255,0.18)",
-              marginBottom: 20,
-            }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#00D4FF", display: "block" }} />
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#00D4FF", letterSpacing: "0.08em" }}>v1.0 · Wright AI Docs</span>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 16px", borderRadius: 999, background: "rgba(0,212,255,0.07)", border: "1px solid rgba(0,212,255,0.22)", marginBottom: 24 }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#00D4FF", boxShadow: "0 0 8px #00D4FF", display: "block", animation: "pulse-soft 0.8s ease-in-out infinite" }} />
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 11.5, color: "#00D4FF", letterSpacing: "0.06em", textTransform: "uppercase" }}>v1.0 · Wright AI Docs</span>
             </div>
-            <h1 style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 40, color: "var(--text)", letterSpacing: "-0.04em", lineHeight: 1.1, marginBottom: 16 }}>
-              Documentation
+            <h1 style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: "clamp(34px, 4vw, 52px)", letterSpacing: "-0.04em", lineHeight: 1.05, marginBottom: 18 }}>
+              <span style={{ background: "linear-gradient(135deg, #F0EEF8 0%, #7F77DD 50%, #00D4FF 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
+                Documentation
+              </span>
+              {" "}Intelligence.
             </h1>
-            <p style={{ fontFamily: "var(--font-body)", fontSize: 16, color: "var(--text-muted)", lineHeight: 1.8, maxWidth: 560 }}>
+            <p style={{ fontFamily: "var(--font-body)", fontSize: 17, color: "var(--text-muted)", lineHeight: 1.8, maxWidth: 540, marginBottom: 0 }}>
               Everything you need to generate, track, and maintain documentation across your entire codebase — automatically.
             </p>
           </div>
@@ -692,20 +630,24 @@ export default function DocsPage() {
             The core problem Wright solves: teams write documentation once, then the code drifts away from it over months of iteration. Wright makes documentation a living part of your workflow rather than a one-time chore.
           </P>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, margin: "24px 0" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, margin: "28px 0" }}>
             {[
-              { icon: "⚡", label: "Generate", desc: "One command for your entire repo" },
-              { icon: "📊", label: "Coverage", desc: "Know exactly what's undocumented" },
-              { icon: "🔍", label: "Drift", desc: "Catch stale docs before they merge" },
-              { icon: "💬", label: "Chat", desc: "Ask questions, get sourced answers" },
-              { icon: "🔌", label: "MCP", desc: "Live docs for Claude Code, Cursor & Copilot" },
-              { icon: "📄", label: "llms.txt", desc: "Machine-readable index for any LLM" },
+              { color: "#7F77DD", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>, label: "Generate", desc: "One command for your entire repo" },
+              { color: "#1D9E75", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>, label: "Coverage", desc: "Know exactly what's undocumented" },
+              { color: "#EF9F27", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>, label: "Drift", desc: "Catch stale docs before they merge" },
+              { color: "#00D4FF", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, label: "Chat", desc: "Ask questions, get sourced answers" },
+              { color: "#7F77DD", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>, label: "MCP", desc: "Live docs for Claude Code & Cursor" },
+              { color: "#1D9E75", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>, label: "llms.txt", desc: "Machine-readable index for any LLM" },
             ].map(f => (
               <div key={f.label} style={{
-                padding: "18px 16px", borderRadius: 10,
+                padding: "18px 16px", borderRadius: 12,
                 background: "var(--surface)", border: "1px solid var(--border)",
-              }}>
-                <div style={{ fontSize: 20, marginBottom: 8 }}>{f.icon}</div>
+                transition: "border-color 0.2s, box-shadow 0.2s",
+              }}
+              onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = `${f.color}40`; el.style.boxShadow = `0 8px 24px rgba(0,0,0,0.25)`; }}
+              onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "var(--border)"; el.style.boxShadow = "none"; }}
+              >
+                <div style={{ width: 30, height: 30, borderRadius: 8, background: `${f.color}15`, border: `1px solid ${f.color}30`, display: "flex", alignItems: "center", justifyContent: "center", color: f.color, marginBottom: 10 }}>{f.icon}</div>
                 <div style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 14, color: "var(--text)", marginBottom: 4 }}>{f.label}</div>
                 <div style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--text-muted)" }}>{f.desc}</div>
               </div>
@@ -1428,7 +1370,7 @@ wright-mcp
         </div>
 
       </div>
-      <Footer />
+      <FooterV2 />
     </div>
   );
 }

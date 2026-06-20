@@ -24,7 +24,7 @@ const LINKS: Record<string, NavLink[]> = {
     { label: "VS Code Extension", href: "https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai", ext: true },
     { label: "GitHub Actions", href: "/docs#github-action" },
     { label: "MCP Server", href: "/docs#mcp-reference" },
-    { label: "CLI (pip install wright)", href: "/docs" },
+    { label: "CLI", href: "/docs" },
   ],
   Resources: [
     { label: "Documentation", href: "/docs" },
@@ -85,7 +85,7 @@ export default function FooterV2() {
               </div>
             </Link>
 
-            <p style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--text-muted)", lineHeight: 1.65, maxWidth: 220, marginBottom: 24 }}>
+            <p style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--text-muted)", lineHeight: 1.65, maxWidth: "100%", marginBottom: 24 }}>
               Documentation that never lies. Generate, verify and understand your codebase — continuously.
             </p>
 

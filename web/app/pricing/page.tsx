@@ -3,7 +3,8 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import Footer from "@/components/landing-v1/Footer";
+import NavbarV2 from "@/components/landing-v2/NavbarV2";
+import FooterV2 from "@/components/landing-v2/FooterV2";
 
 
 type Interval = "monthly" | "annual";
@@ -220,16 +221,8 @@ export function PricingContent({ embedded = false }: { embedded?: boolean }) {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState<CheckoutNotice | null>(null);
   const [tableOpen, setTableOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
   const [userInfo, setUserInfo] = useState<{ email?: string; api_key?: string } | null>(null);
   const checkoutCompletedRef = useRef(false);
-
-  useEffect(() => {
-    if (embedded) return;
-    const onScroll = () => setScrolled(window.scrollY > 24);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [embedded]);
 
   // Pre-fetch user info on load so handleProCheckout stays synchronous
   useEffect(() => {
@@ -325,60 +318,41 @@ export function PricingContent({ embedded = false }: { embedded?: boolean }) {
     <div style={embedded ? {} : { minHeight: "100vh", background: "var(--bg, #06040f)" }}>
 
       {/* ── Navbar (public page only) ── */}
-      {!embedded && (
-      <div style={{
-        position: "sticky", top: 0, zIndex: 50,
-        background: scrolled ? "rgba(8,6,18,0.88)" : "transparent",
-        backdropFilter: scrolled ? "blur(20px) saturate(180%)" : "none",
-        borderBottom: scrolled ? "1px solid var(--border)" : "1px solid transparent",
-        transition: "all 0.3s ease",
-      }}>
-        <div className="nav-inner">
-          <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8 }}>
-            <Image src="/wright-logo.svg" alt="Wright AI" width={36} height={36} style={{ height: 36, width: "auto" }} priority />
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 17, color: "var(--text)", letterSpacing: "-0.02em", lineHeight: 1 }}>Wright AI</span>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--purple-light)", letterSpacing: "0.08em", textTransform: "uppercase", lineHeight: 1.4 }}>Doc Intelligence</span>
-            </div>
-          </Link>
-          <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-            <Link href="/docs" style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "rgba(175,169,236,0.6)", textDecoration: "none" }}>Docs</Link>
-            <Link href="/dashboard" style={{
-              padding: "8px 18px", borderRadius: 8,
-              background: "rgba(83,74,183,0.2)", border: "1px solid rgba(127,119,221,0.3)",
-              fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 14, color: "#AFA9EC",
-              textDecoration: "none",
-            }}>
-              Dashboard →
-            </Link>
-          </div>
-        </div>
-      </div>
-      )}
+      {!embedded && <NavbarV2 />}
 
       {/* ── Hero ── */}
-      <div style={{ textAlign: "center", padding: "80px 24px 56px", maxWidth: 640, margin: "0 auto" }}>
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          padding: "5px 14px", borderRadius: 999,
-          background: "rgba(83,74,183,0.1)", border: "1px solid rgba(127,119,221,0.25)",
-          marginBottom: 22,
-        }}>
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#AFA9EC", letterSpacing: "0.06em" }}>Simple, transparent pricing</span>
-        </div>
-        <h1 style={{
-          fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 52,
-          color: "var(--text)", letterSpacing: "-0.04em", lineHeight: 1.06,
-          marginBottom: 18,
-        }}>
-          Documentation that pays<br />for itself
-        </h1>
-        <p style={{
-          fontFamily: "var(--font-body)", fontSize: 17, color: "rgba(175,169,236,0.65)",
-          lineHeight: 1.75, marginBottom: 40,
-        }}>
-          Start free. Upgrade when you need more — cancel any time.
-        </p>
+      <div style={{ position: "relative", overflow: "hidden", paddingBottom: 8 }}>
+        {/* Background */}
+        {!embedded && <>
+          <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(175,169,236,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(175,169,236,0.025) 1px, transparent 1px)", backgroundSize: "56px 56px", pointerEvents: "none", zIndex: 0 }} />
+          <div style={{ position: "absolute", top: "-10%", left: "50%", transform: "translateX(-50%)", width: 900, height: 600, background: "radial-gradient(ellipse, rgba(83,74,183,0.25) 0%, rgba(0,212,255,0.07) 50%, transparent 72%)", pointerEvents: "none", zIndex: 0 }} />
+          <div style={{ position: "absolute", top: "20%", right: "-5%", width: 400, height: 400, background: "rgba(29,158,117,0.07)", borderRadius: "50%", filter: "blur(100px)", pointerEvents: "none", zIndex: 0 }} />
+        </>}
+
+        <div style={{ textAlign: "center", padding: "112px 24px 56px", maxWidth: 640, margin: "0 auto", position: "relative", zIndex: 1 }}>
+          <div style={{
+            display: "inline-flex", alignItems: "center", gap: 8,
+            padding: "6px 16px", borderRadius: 999, marginBottom: 28,
+            background: "rgba(83,74,183,0.1)", border: "1px solid rgba(127,119,221,0.3)",
+          }}>
+            <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "var(--purple-light)", boxShadow: "0 0 8px var(--purple-light)" }} />
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11.5, color: "var(--purple-light)", letterSpacing: "0.06em", textTransform: "uppercase" }}>Simple, transparent pricing</span>
+          </div>
+          <h1 style={{
+            fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: "clamp(38px, 5vw, 60px)",
+            color: "var(--text)", letterSpacing: "-0.04em", lineHeight: 1.05, marginBottom: 20,
+          }}>
+            Documentation that{" "}
+            <span style={{ background: "linear-gradient(135deg, #7F77DD 0%, #00D4FF 55%, #1D9E75 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
+              pays for itself.
+            </span>
+          </h1>
+          <p style={{
+            fontFamily: "var(--font-body)", fontSize: 18, color: "var(--text-muted)",
+            lineHeight: 1.75, marginBottom: 40,
+          }}>
+            Start free. Upgrade when you need more — cancel any time.
+          </p>
 
         {/* Interval toggle */}
         <div style={{
@@ -406,6 +380,7 @@ export function PricingContent({ embedded = false }: { embedded?: boolean }) {
           ))}
         </div>
       </div>
+      </div>{/* end hero background wrapper */}
 
       {/* ── Checkout notice ── */}
       {checkoutNotice && (
@@ -829,7 +804,7 @@ export function PricingContent({ embedded = false }: { embedded?: boolean }) {
         </div>
       </div>
 
-      {!embedded && <Footer />}
+      {!embedded && <FooterV2 />}
     </div>
   );
 }

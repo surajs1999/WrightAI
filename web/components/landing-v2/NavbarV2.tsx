@@ -63,9 +63,9 @@ export default function NavbarV2() {
 
         <div className="desktop-only" style={{ display: "none", alignItems: "center", gap: 40 }}>
           {[
-            { label: "How It Works", href: "#pillars" },
-            { label: "Drift Detection", href: "#drift" },
-            { label: "Compare", href: "#compare" },
+            { label: "How It Works", href: "/#pillars" },
+            { label: "Drift Detection", href: "/#drift" },
+            { label: "Compare", href: "/#compare" },
             { label: "Pricing", href: "/pricing" },
             { label: "Docs", href: "/docs" },
           ].map(l => (

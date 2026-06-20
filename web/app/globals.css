@@ -419,11 +419,11 @@ main, nav, header, aside, footer, [data-layer="above"] {
 @media (max-width: 900px)  { .v2-feedback-body { grid-template-columns: 1fr; gap: 28px; } }
 
 /* ── FooterV2 grid ──────────────────────────────────────────────────── */
-.v2-footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 40px; }
-@media (max-width: 1280px) { .v2-footer-grid { grid-template-columns: 2fr 1fr 1fr 1fr; } }
-@media (max-width: 1100px) { .v2-footer-grid { grid-template-columns: 1fr 1fr 1fr; } }
-@media (max-width: 900px)  { .v2-footer-grid { grid-template-columns: 1fr 1fr; gap: 28px; } }
-@media (max-width: 640px)  { .v2-footer-grid { grid-template-columns: 1fr; gap: 24px; } }
+.v2-footer-grid { display: flex; flex-wrap: nowrap; gap: 28px; align-items: flex-start; }
+.v2-footer-grid > * { flex: 1 1 0; min-width: 0; overflow: hidden; }
+.v2-footer-grid > *:first-child { flex: 1.8 1 0; }
+@media (max-width: 640px)  { .v2-footer-grid { flex-wrap: wrap; } .v2-footer-grid > * { flex: 1 1 40%; } }
+@media (max-width: 480px)  { .v2-footer-grid > * { flex: 1 1 100%; } }
 
 /* ── Cyan accent glow button */
 .btn-cyan {

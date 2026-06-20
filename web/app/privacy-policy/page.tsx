@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import Footer from "@/components/landing-v1/Footer";
+import NavbarV2 from "@/components/landing-v2/NavbarV2";
+import FooterV2 from "@/components/landing-v2/FooterV2";
 
 const LAST_UPDATED = "June 3, 2026";
 
@@ -26,14 +27,7 @@ function toId(title: string) {
 }
 
 export default function PrivacyPolicyPage() {
-  const [scrolled, setScrolled] = useState(false);
   const [activeId, setActiveId] = useState(toId(SECTIONS[0]));
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   useEffect(() => {
     const observers: IntersectionObserver[] = [];
@@ -51,40 +45,22 @@ export default function PrivacyPolicyPage() {
   }, []);
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", position: "relative", overflow: "hidden" }}>
+      {/* Background */}
+      <div style={{ position: "absolute", top: "-15%", left: "50%", transform: "translateX(-50%)", width: 900, height: 600, background: "radial-gradient(ellipse, rgba(83,74,183,0.22) 0%, rgba(0,212,255,0.08) 45%, transparent 72%)", pointerEvents: "none", zIndex: 0 }} />
+      <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(circle, rgba(175,169,236,0.06) 1px, transparent 1px)", backgroundSize: "44px 44px", pointerEvents: "none", zIndex: 0 }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
 
-      {/* Navbar */}
-      <div style={{
-        position: "fixed", top: 0, left: 0, right: 0, zIndex: 50,
-        height: 60,
-        background: scrolled ? "rgba(8,6,18,0.88)" : "transparent",
-        backdropFilter: scrolled ? "blur(20px) saturate(180%)" : "none",
-        borderBottom: scrolled ? "1px solid var(--border)" : "1px solid transparent",
-        transition: "all 0.3s ease",
-        display: "flex", alignItems: "center",
-      }}>
-        <div style={{ maxWidth: 1200, width: "100%", margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8 }}>
-            <Image src="/wright-logo.svg" alt="Wright AI" width={36} height={36} style={{ height: 36, width: "auto" }} priority />
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 17, color: "var(--text)", letterSpacing: "-0.02em", lineHeight: 1 }}>Wright AI</span>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--purple-light)", letterSpacing: "0.08em", textTransform: "uppercase", lineHeight: 1.4 }}>Doc Intelligence</span>
-            </div>
-          </Link>
-          <Link href="/dashboard" style={{ padding: "8px 18px", borderRadius: 8, background: "linear-gradient(135deg, #534AB7 0%, #7F77DD 100%)", fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 13.5, color: "#fff", textDecoration: "none", boxShadow: "0 4px 14px rgba(83,74,183,0.3)" }}>
-            Start for free →
-          </Link>
-        </div>
-      </div>
+      <NavbarV2 />
 
       {/* Layout */}
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "60px 24px 0", display: "flex", gap: 0 }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "72px 24px 0", display: "flex", gap: 0 }}>
 
         {/* Sidebar */}
         <aside style={{
           width: 220, flexShrink: 0,
-          position: "sticky", top: 60,
-          height: "calc(100vh - 60px)",
+          position: "sticky", top: 72,
+          height: "calc(100vh - 72px)",
           overflowY: "auto",
           padding: "48px 0 48px",
           borderRight: "1px solid rgba(175,169,236,0.06)",
@@ -135,11 +111,12 @@ export default function PrivacyPolicyPage() {
 
           {/* Hero */}
           <div style={{ marginBottom: 48 }}>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 999, background: "rgba(83,74,183,0.1)", border: "1px solid rgba(127,119,221,0.2)", marginBottom: 20 }}>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#AFA9EC", letterSpacing: "0.08em" }}>Legal</span>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", borderRadius: 999, background: "rgba(83,74,183,0.1)", border: "1px solid rgba(127,119,221,0.28)", marginBottom: 22 }}>
+              <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#7F77DD", boxShadow: "0 0 8px #7F77DD" }} />
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 11.5, color: "var(--purple-light)", letterSpacing: "0.06em", textTransform: "uppercase" }}>Legal</span>
             </div>
             <h1 style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 40, color: "var(--text)", letterSpacing: "-0.04em", lineHeight: 1.1, marginBottom: 16 }}>
-              Privacy Policy
+              <span style={{ background: "linear-gradient(135deg, var(--text) 0%, #7F77DD 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>Privacy Policy</span>
             </h1>
             <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--text-muted)", lineHeight: 1.7 }}>
               Last updated: {LAST_UPDATED}
@@ -236,7 +213,8 @@ export default function PrivacyPolicyPage() {
         </main>
       </div>
 
-      <Footer />
+      </div>
+      <FooterV2 />
     </div>
   );
 }
