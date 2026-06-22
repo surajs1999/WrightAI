@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     canonical: SITE_URL,
   },
   title: {
-    default: "Wright AI — Documentation Intelligence Platform | Documentation that Never Lies",
+    default: "Wright AI — Documentation that Never Lies",
     template: "%s | Wright AI",
   },
   description:
@@ -71,7 +71,7 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: SITE_URL,
     siteName: "Wright AI",
-    title: "Wright AI — Documentation Intelligence Platform",
+    title: "Wright AI — Documentation that Never Lies",
     description:
       "Documentation that never lies. Generate docs automatically, detect drift continuously, and give Claude Code, Cursor, and Copilot a source of truth they can trust. Free to start.",
     images: [

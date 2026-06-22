@@ -20,7 +20,7 @@ const BASE = "https://wrightai.live";
 
 
 // Update LAST_UPDATED when you make meaningful content changes to the home or docs pages
-const LAST_UPDATED = new Date("2025-05-25");
+const LAST_UPDATED = new Date("2026-06-22");
 
 /**
  * Generates and returns the complete XML sitemap configuration for the application, covering all primary routes and language-specific pages.
