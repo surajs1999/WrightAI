@@ -117,4 +117,4 @@ Python · JavaScript · TypeScript · Java · Go · Rust
 
 This extension is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0-or-later). See the bundled [LICENSE](LICENSE) file for the full text.
 
-For commercial/enterprise use without AGPL obligations, contact surajsahoo19991012@gmail.com.
+For commercial/enterprise use without AGPL obligations, contact hello@wrightai.live.

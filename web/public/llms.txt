@@ -1,19 +1,43 @@
 # Wright AI
 
-> The Documentation Intelligence Platform — the AI code documentation tool that never lies.
+> Documentation that never lies.
 
-Wright AI is built around three pillars: Generate (auto-generate docstrings for Python, TypeScript, JavaScript, Go, and Rust), Verify (detect drift so documentation never lies), and Understand (expose your codebase to AI assistants via MCP so Claude Code, Cursor, and Copilot always have a reliable source of truth). Available as a VS Code extension, CLI tool, GitHub Action, and MCP server.
+Wright AI is the **Documentation Intelligence Platform** — the only tool that generates, verifies, and maintains documentation as software evolves. Most documentation tools create docs once. Wright AI ensures documentation remains accurate, trusted, and useful over time through continuous drift detection.
+
+## Core Positioning
+
+- **Category:** Documentation Intelligence Platform
+- **Tagline:** Documentation that never lies.
+- **Primary differentiator:** Documentation drift detection — automatically flagging when code changes make documentation stale before it misleads developers or AI tools.
+
+## Three Pillars
+
+### Generate
+Auto-generate idiomatic, call-graph-aware docstrings across an entire codebase in seconds. Zero config required.
+- Batch generation for Python, TypeScript, JavaScript, Go, Rust
+- Multiple styles: Google, NumPy, Sphinx, epytext, JSDoc, godoc, rustdoc
+- Call-graph context — reads callers and callees for accurate intent, not just syntax
+- VS Code real-time generation on save
+
+### Verify
+Continuously detect when documentation drifts from reality. Two categories:
+- **Structural drift** — parameter renamed, return type changed, new parameter added
+- **Semantic drift** — function logic changed but docstring no longer reflects it
+Drift is surfaced in VS Code gutter icons (⚡), via `wright drift .` CLI, and as CI failures in GitHub Actions.
+
+### Understand
+Ask natural language questions about your codebase and get sourced answers with exact file:line citations. The MCP server exposes live, verified documentation to Claude Code, Cursor, and Copilot — so every AI response is grounded in current, accurate knowledge.
 
 ## Key Pages
 
-- [Home](https://www.wrightai.live): Product overview, install instructions, and feature highlights
-- [Documentation](https://www.wrightai.live/docs): Full reference for the CLI, VS Code extension, GitHub Action, and MCP server
-- [Pricing](https://www.wrightai.live/pricing): Free and paid plan details
-- [Python Docstring Generator](https://www.wrightai.live/python): Auto-generate Python docstrings in Google, NumPy, or epytext style
-- [TypeScript JSDoc Generator](https://www.wrightai.live/typescript): Auto-generate JSDoc comments for TypeScript functions and classes
-- [JavaScript Documentation Generator](https://www.wrightai.live/javascript): Auto-generate JSDoc for JavaScript projects
-- [Go Documentation Generator](https://www.wrightai.live/go): Auto-generate godoc-style line comments for Go functions
-- [Rust Documentation Generator](https://www.wrightai.live/rust): Auto-generate rustdoc /// comments for Rust functions
+- [Home](https://www.wrightai.live): Documentation Intelligence Platform overview — the trust problem, three pillars, drift detection, comparison, get started
+- [Documentation](https://www.wrightai.live/docs): Full reference for CLI, VS Code extension, GitHub Action, and MCP server
+- [Pricing](https://www.wrightai.live/pricing): Free and Pro plans — no credit card for free tier
+- [Python Docstring Generator](https://www.wrightai.live/python): Auto-generate Google, NumPy, Sphinx, epytext docstrings
+- [TypeScript JSDoc Generator](https://www.wrightai.live/typescript): Auto-generate JSDoc for TypeScript
+- [JavaScript Documentation Generator](https://www.wrightai.live/javascript): Auto-generate JSDoc for JavaScript
+- [Go Documentation Generator](https://www.wrightai.live/go): Auto-generate godoc comments for Go
+- [Rust Documentation Generator](https://www.wrightai.live/rust): Auto-generate rustdoc /// comments for Rust
 
 ## Legal
 
@@ -23,20 +47,33 @@ Wright AI is built around three pillars: Generate (auto-generate docstrings for 
 
 ## Product
 
-- Name: Wright AI
-- License: AGPL-3.0 (free); commercial license available
-- Pricing: Free to start — VS Code extension, CLI, and MCP server are fully free
-- Install (CLI): pip install wright
-- Install (VS Code): https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai
-- Source: https://github.com/surajs1999/WrightAI
-- Package: https://pypi.org/project/wright/
+- **Name:** Wright AI
+- **Category:** Documentation Intelligence Platform
+- **License:** AGPL-3.0 (free); commercial license available
+- **Pricing:** Free to start — VS Code extension, CLI, and MCP server are fully free. Pro plan at $14/mo (annual).
+- **Install (CLI):** `pip install wright`
+- **Install (VS Code):** https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai
+- **Source:** https://github.com/surajs1999/WrightAI
+- **Package:** https://pypi.org/project/wright/
+- **Contact:** hello@wrightai.live
 
-## Features
+## Integrations
 
-- Auto-generate docstrings for Python, TypeScript, JavaScript, Go, and Rust
-- Documentation drift detection — flags stale docstrings when function signatures change
-- VS Code CodeLens, gutter icons, and diff preview
-- GitHub Action for CI coverage enforcement
-- MCP server for Claude Code, Cursor, and Copilot integration
-- llms.txt generation for your own codebase
-- Codebase chat with file:line citations
+- **VS Code Extension** — CodeLens, gutter icons (● documented ○ undocumented ⚡ drifted), coverage panel, drift detection on every save
+- **CLI** — `wright generate`, `wright coverage`, `wright drift`, `wright drift --fix`, `wright chat`, `wright llms-txt`
+- **GitHub Action** — enforce coverage thresholds, block PRs with drift, auto-PR for drift fixes, coverage summary comments
+- **MCP Server** — `search_docs`, `get_function_doc`, `list_undocumented` tools for any MCP-compatible AI assistant
+
+## Languages
+
+Python · TypeScript · JavaScript · Go · Rust
+
+## Exclusive Capabilities (not in Copilot, Cursor, Mintlify, or Swimm)
+
+- Continuous documentation drift detection (structural + semantic)
+- Batch docstring generation across entire repositories in one command
+- Per-file documentation coverage tracking with CI enforcement
+- MCP server exposing live verified docs to AI assistants
+- Documentation health dashboard — coverage %, drift rate, freshness score
+- Auto-PR for drift fixes
+- Block PRs that ship without documentation or with stale docs

@@ -4,7 +4,7 @@
 
 Do **not** open a public GitHub issue for security vulnerabilities.
 
-Email **surajsahoo19991012@gmail.com** with:
+Email **hello@wrightai.live** with:
 - A description of the vulnerability
 - Steps to reproduce
 - Potential impact

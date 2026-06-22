@@ -147,17 +147,43 @@ Helpers: `_resolve_workspace` (walks up the tree for `.wright.json`), `_build_ga
 
 Repo identity for dashboard sync is resolved from the `origin` (or first available) git remote URL — matching the server's `repo_slug` derivation — not the local folder name (`getRepoName()` in `coverage.ts`), so renamed checkouts still sync correctly.
 
-### 3.3 Web Dashboard (`web/`)
-Next.js (App Router), deployed to Cloud Run as `wrightai-web`.
+### 3.3 Web App (`web/`)
+Next.js (App Router), deployed to Cloud Run as `wrightai-web`. Serves both the Documentation Intelligence Platform marketing site and the authenticated user dashboard.
 
-- **Public**: `/`, `/pricing`, `/docs`, `/login`, `/terms-of-service`, `/privacy-policy`, `/refund-policy`
-- **Dashboard** (`/dashboard/*`, gated by `proxy.ts` middleware on the `wright_token` cookie): `dashboard` (home — connect repos, coverage/drift summary), `generate`, `coverage`, `drift`, `chat`, `keys`, `usage`, `settings`, `llms-txt`, `mcp`, `help`
+**Public routes**
+- `/` — Documentation Intelligence Platform homepage ("Documentation that never lies.") — replaces the v1 landing page
+- `/[language]` — Language-specific landing pages: `/python`, `/typescript`, `/javascript`, `/go`, `/rust`
+- `/pricing` — Plans and Paddle checkout
+- `/docs` — Product documentation
+- `/login` — GitHub / Google OAuth sign-in via WorkOS
+- `/terms-of-service`, `/privacy-policy`, `/refund-policy` — Legal pages
+- `/new` — Redirects to `/` (legacy route kept for inbound links)
+
+**Dashboard** (`/dashboard/*`, gated by `proxy.ts` middleware on the `wright_token` cookie)
+`dashboard` (home — connect repos, coverage/drift summary), `generate`, `coverage`, `drift`, `chat`, `keys`, `usage`, `settings`, `llms-txt`, `mcp`, `help`
+
+**Component architecture**
+- `components/landing-v2/` — Current homepage and shared components: `NavbarV2`, `HeroV2`, `TrustStrip`, `ProblemV2`, `ThreePillars`, `DriftSection`, `GetStarted`, `CommandCenter`, `AIContextSection`, `CompareV2`, `WhyNow`, `FeedbackV2`, `FinalCTAV2`, `FooterV2`, `ScrollRuler`
+- `components/landing-v1/` — Archived v1 landing components (not served; kept for reference)
+- `components/dashboard/` — Authenticated dashboard UI: `Sidebar`, `Topbar`, `DashboardShell`, `MetricCard`, `CoverageBar`, `Spinner`, `SkeletonBlock`
+
+**Other**
 - **Billing**: `/billing/checkout` (Paddle checkout fallback/retry page)
 - **Auth routes** (`app/api/auth/*`): `login`, `github`, `key`, `logout`, `callback` — exchange WorkOS/GitHub OAuth codes for a `wright_token` cookie
 - **API proxy** (`app/api/proxy/[...path]/route.ts`): forwards every dashboard request to the FastAPI backend, converting the `wright_token` cookie into an `X-Wright-API-Key` header; passes through `text/event-stream` responses for chat
-- Key components: `Sidebar` / `Topbar` / `DashboardShell`, `MetricCard`, `CoverageBar`, `Spinner` / `SkeletonBlock`; landing sections (`Hero`, `FeatureScroll`, `InstallGrid`, `Footer`, etc.)
 - `lib/supabase.ts` (support tickets), `lib/user.ts` (cookie-based session helpers), `lib/api.ts` (`API_URL`/`APP_URL` constants)
 - `types/paddle.d.ts` — typings for the `Paddle` global (`Checkout.open`, `Environment.set`, event payloads)
+
+**Analytics**
+- GA4 (`G-934CQXQ86Z`) injected globally via `app/layout.tsx` using the standard `gtag.js` script tag + `gtag('config', ...)` initialisation. Measurement ID is a compile-time constant (not an env var). All public pages and the dashboard are tracked.
+
+**Security headers + performance (`next.config.ts`)**
+- `output: "standalone"` — minimal Docker image (no `node_modules` bundled)
+- `compress: true` — gzip/Brotli compression at the Next.js layer
+- `images.formats: ["image/avif", "image/webp"]` — automatic modern image format negotiation
+- `images.minimumCacheTTL: 31536000` — 1-year immutable cache for optimised images
+- HTTP security headers applied to all routes: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`
+- 1-year immutable `Cache-Control` for all static assets (`svg|png|jpg|jpeg|webp|avif|woff2`)
 
 ### 3.4 GitHub Action (`github-action/`)
 Wraps the CLI for CI in `coverage` / `generate` / `drift` modes, with a configurable coverage threshold and optional auto-PR for drift fixes. See [github-action/README.md](github-action/README.md).
@@ -209,6 +235,7 @@ Three accepted credentials:
 | `/usage` | `GET /` | usage.py | Monthly usage stats |
 | `/webhooks` | `POST /github` | webhooks.py | GitHub push webhook (HMAC-SHA256 verified via `X-Hub-Signature-256`) → triggers repo re-sync |
 | `/internal` | `POST /cron/onboarding-drip` | internal.py | Cloud Scheduler daily trigger for onboarding nudge emails (auth via `X-Cron-Secret`) |
+| `/internal` | `POST /cron/ops-alert` | internal.py | Hourly Cloud Scheduler trigger: checks LLM anomalies in the last 24 h (fallback rate, retry rate, latency, zero-traffic) and emails `hello@wrightai.live` if thresholds are breached (auth via `X-Cron-Secret`) |
 | — | `GET /health` | main.py | Liveness check |
 
 ### 4.3 Quota & Plans (`api/quota.py`)
@@ -222,12 +249,49 @@ Tracks `docs_generated`, `chat_message`, `drift_checks_run`, and `repo_connect` 
 - `embedder.py` — process-level singletons for `VoyageEmbedder` and `LLMGateway` (reused across requests)
 - `chroma_cache.py` — manages the local ChromaDB cache directory
 
-### 4.5 Email tasks (`api/tasks/email_tasks.py`)
-All transactional email is sent synchronously via Brevo, with a 1-retry inline backoff. Callers wrap calls in try/except so a Brevo outage never breaks the triggering request (fail-open).
+### 4.5 HTTP Rate Limiting (`api/rate_limit.py`)
+Per-request throttling via `slowapi` (SlowAPI middleware registered in `api/main.py`).
+
+Bucketing strategy (`_rate_limit_key`):
+- Requests with a `wai_` API key → **keyed by API key** (each user gets an independent limit regardless of shared IPs, office NATs, or VPNs)
+- Anonymous / CLI requests without a `wai_` key → **keyed by remote IP**
+
+Rate limits are applied per-endpoint via `@limiter.limit("N/period")` decorators. Exceeding a limit returns `429 Too Many Requests` via `_rate_limit_exceeded_handler`.
+
+Note: this is separate from the quota system (`api/quota.py`). Quota tracks monthly usage against plan limits; rate limiting throttles per-second/per-minute request bursts regardless of plan.
+
+### 4.6 Observability (`api/observability.py`)
+`setup_observability(app)` is called once after `FastAPI()` is created in `api/main.py`. Two components:
+
+**Structured JSON logging** (`configure_logging`)
+- Replaces the default plaintext formatter with `pythonjsonlogger.JsonFormatter`
+- Fields: `timestamp`, `severity` (renamed from `levelname`), `name`, `message`
+- Format is parsed natively by Google Cloud Logging, enabling log-based metrics and alerts
+- Falls back to `basicConfig` if `pythonjsonlogger` is not installed
+
+**Sentry error tracking** (`_setup_sentry`)
+- Enabled only when `SENTRY_DSN` env var is set; silently no-ops otherwise
+- Integrations: `FastApiIntegration` (captures unhandled exceptions per-request) + `LoggingIntegration` (captures `ERROR`-level log events as Sentry issues)
+- `traces_sample_rate=0.0` — error tracking only, no performance tracing
+- `environment` set from `ENVIRONMENT` env var (default `"production"`)
+- `release` set from `K_REVISION` (Cloud Run injects the revision name automatically)
+
+### 4.7 Email tasks (`api/tasks/`)
+
+**`email_tasks.py`** — transactional email via Brevo, 1-retry inline backoff; fail-open so a Brevo outage never breaks the triggering request:
 - `send_email` — base send function
-- `send_welcome` — sent from `user_store.get_or_create_user` on first sign-up
-- `send_quota_alert` — 80%/100% usage emails, deduplicated per month, called from `quota.check_quota`
+- `send_welcome` — sent on first sign-up from `user_store.get_or_create_user`
+- `send_quota_alert` — 80%/100% usage warning emails, deduplicated per calendar month, called from `quota.check_quota`
 - `run_onboarding_drip` — day-7/day-14 nudge emails for active free users; triggered daily by Cloud Scheduler via `POST /internal/cron/onboarding-drip`
+
+**`ops_alerts.py`** — LLM health monitoring, triggered hourly by Cloud Scheduler via `POST /internal/cron/ops-alert`:
+- Queries the last 24 h of `usage_events` for anomalies
+- Fires an alert email to `hello@wrightai.live` if any threshold is breached; fail-open
+- Configurable thresholds (all via env vars):
+  - `OPS_FALLBACK_RATE_THRESHOLD` — max fraction of LLM calls falling back to Gemini (default 20%)
+  - `OPS_HIGH_RETRY_THRESHOLD` — max fraction needing >2 retries (default 10%)
+  - `OPS_LATENCY_MS_THRESHOLD` — max average LLM latency in ms (default 30 000)
+  - `OPS_MIN_CALLS_THRESHOLD` — min expected LLM calls per 24 h; fewer fires a zero-traffic alert (default 10; set to 0 to disable)
 
 ---
 

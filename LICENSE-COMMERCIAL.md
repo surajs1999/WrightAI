@@ -37,7 +37,7 @@ Visit **wrightai.dev/pricing** for current plans and volume licensing.
 
 To purchase a commercial license or discuss enterprise requirements:
 
-**Email:** surajsahoo19991012@gmail.com
+**Email:** hello@wrightai.live
 **GitHub:** https://github.com/surajs1999/WrightAI
 
 We typically respond within 1 business day.

@@ -45,7 +45,7 @@ This CLA is necessary to allow the project to be dual-licensed. If you cannot ag
 
 ## Reporting Security Issues
 
-Do **not** open a public GitHub issue for security vulnerabilities. Email **surajsahoo19991012@gmail.com** directly with details. We will respond within 48 hours.
+Do **not** open a public GitHub issue for security vulnerabilities. Email **hello@wrightai.live** directly with details. We will respond within 48 hours.
 
 ## Questions
 

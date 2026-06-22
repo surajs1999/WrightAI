@@ -26,10 +26,12 @@ from api.observability import setup_observability  # noqa: E402
 from api.rate_limit import limiter  # noqa: E402
 from slowapi import _rate_limit_exceeded_handler  # noqa: E402
 from slowapi.errors import RateLimitExceeded  # noqa: E402
+from slowapi.middleware import SlowAPIMiddleware  # noqa: E402
 
 setup_observability(app)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 _ALLOWED_ORIGINS = [
     o.strip()

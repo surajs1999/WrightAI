@@ -1,6 +1,6 @@
-# WrightAI — AI-Powered Code Documentation
+# WrightAI — Documentation Intelligence Platform
 
-> "Your codebase, written."
+> "Documentation that never lies."
 
 [![PyPI version](https://img.shields.io/pypi/v/wright.svg?color=7F77DD)](https://pypi.org/project/wright/)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/WrightAI.wrightai?label=VS%20Code&color=00D4FF)](https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai)
@@ -8,7 +8,16 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 [![CI](https://github.com/surajs1999/WrightAI/actions/workflows/ci.yml/badge.svg)](https://github.com/surajs1999/WrightAI/actions)
 
-WrightAI automatically generates, maintains, and serves code documentation using Claude AI. It supports Python, JavaScript, TypeScript, Java, Go, and Rust across four surfaces: a CLI tool, a VS Code extension, a GitHub Action, and an MCP server.
+WrightAI is the **Documentation Intelligence Platform** — the only tool that generates, verifies, and maintains documentation as your codebase evolves.
+
+Most tools generate documentation once. WrightAI ensures documentation **remains accurate over time** through continuous drift detection. When code changes make documentation stale, WrightAI catches it before it misleads developers or AI tools.
+
+**Three pillars:**
+- **Generate** — Auto-generate idiomatic docstrings for Python, TypeScript, JavaScript, Go, and Rust across your entire repo in one command
+- **Verify** — Detect documentation drift automatically (structural and semantic) on every save, commit, and PR
+- **Understand** — Expose live, verified documentation to Claude Code, Cursor, and Copilot via MCP so AI tools always have a reliable source of truth
+
+Available as a VS Code extension, CLI tool, GitHub Action, and MCP server.
 
 ---
 
@@ -172,11 +181,26 @@ No local Python installation or server needed — the backend is fully hosted.
 
 ## Web Dashboard
 
-The hosted dashboard at [wrightai.live](https://www.wrightai.live) is the sign-in portal, billing/account hub, and control panel for the hosted service. Built with Next.js (App Router) and deployed to Cloud Run — see [web/README.md](web/README.md) for local dev setup.
+The hosted app at [wrightai.live](https://www.wrightai.live) is the Documentation Intelligence Platform homepage, sign-in portal, and control panel for the hosted service. Built with Next.js (App Router) and deployed to Cloud Run — see [web/README.md](web/README.md) for local dev setup.
+
+**Marketing pages**
 
 | Route | Description |
 |-------|-------------|
-| `/` | Landing page |
+| `/` | Documentation Intelligence Platform homepage — "Documentation that never lies." |
+| `/python` | Python docstring generator — Google, NumPy, Sphinx, epytext |
+| `/typescript` | TypeScript JSDoc generator |
+| `/javascript` | JavaScript JSDoc generator |
+| `/go` | Go godoc comment generator |
+| `/rust` | Rust rustdoc comment generator |
+| `/pricing` | Plans and Paddle checkout |
+| `/docs` | Product documentation |
+| `/terms-of-service`, `/privacy-policy`, `/refund-policy` | Legal pages |
+
+**Dashboard (authenticated)**
+
+| Route | Description |
+|-------|-------------|
 | `/login` | GitHub / Google OAuth sign-in via WorkOS |
 | `/dashboard` | Overview — coverage %, drift count, recent activity |
 | `/dashboard/generate` | Trigger doc generation for a connected repo |
@@ -188,9 +212,7 @@ The hosted dashboard at [wrightai.live](https://www.wrightai.live) is the sign-i
 | `/dashboard/settings` | Account settings |
 | `/dashboard/llms-txt` | View / regenerate `llms.txt` |
 | `/dashboard/mcp` | MCP server setup instructions |
-| `/pricing` | Plans and Paddle checkout |
 | `/billing/checkout` | Paddle checkout fallback/retry page |
-| `/terms-of-service`, `/privacy-policy`, `/refund-policy` | Legal pages, linked from the footer |
 
 ### Billing (Paddle)
 
@@ -488,4 +510,4 @@ This program is free software: you can redistribute it and/or modify it under th
 
 See the [LICENSE](LICENSE) file for the full license text.
 
-For commercial/enterprise use without AGPL obligations, see [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md) or contact surajsahoo19991012@gmail.com.
+For commercial/enterprise use without AGPL obligations, see [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md) or contact hello@wrightai.live.

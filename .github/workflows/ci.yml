@@ -42,5 +42,5 @@ jobs:
         run: pip install --upgrade pip && pip install -e ".[dev]" pip-audit
 
       - name: Audit dependencies for CVEs
-        # PYSEC-2025-183 (pyjwt), PYSEC-2025-185 (python-jose), CVE-2026-45829 (chromadb) — no fix versions yet
-        run: pip-audit --skip-editable --ignore-vuln PYSEC-2025-183 --ignore-vuln PYSEC-2025-185 --ignore-vuln CVE-2026-45829
+        # PYSEC-2025-185 (python-jose) and CVE-2026-45829 (chromadb) — no fix versions yet
+        run: pip-audit --skip-editable --ignore-vuln PYSEC-2025-185 --ignore-vuln CVE-2026-45829

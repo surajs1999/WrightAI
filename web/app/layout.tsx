@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, DM_Mono, Poppins } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
+
+const GA_ID = "G-934CQXQ86Z";
 
 const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
@@ -31,18 +34,23 @@ export const metadata: Metadata = {
     canonical: SITE_URL,
   },
   title: {
-    default: "Wright AI — AI Code Documentation Tool for VS Code, CLI & CI",
+    default: "Wright AI — Documentation Intelligence Platform | Documentation that Never Lies",
     template: "%s | Wright AI",
   },
   description:
-    "The AI code documentation tool that never lies. Auto-generate docstrings, detect drift, and give Claude Code & Cursor a source of truth via MCP. Free.",
+    "Wright AI is the Documentation Intelligence Platform. Generate documentation automatically, detect drift continuously, and give developers and AI tools a source of truth they can trust. Free to start.",
   keywords: [
+    "documentation intelligence platform",
+    "documentation drift detection",
     "ai code documentation tools",
     "ai code documentation tool",
     "ai docstring generator",
     "auto generate docstrings",
     "code documentation generator",
-    "documentation drift detection",
+    "documentation reliability",
+    "keep documentation accurate",
+    "stale documentation detection",
+    "documentation accuracy",
     "mcp server documentation",
     "docstring generator vscode extension",
     "document codebase with ai",
@@ -50,32 +58,36 @@ export const metadata: Metadata = {
     "typescript docstring generator",
     "javascript documentation generator",
     "go documentation generator",
+    "rust docstring generator",
     "llms.txt generator",
     "wright ai",
-    "ai code documentation",
+    "documentation that never lies",
+    "ai documentation generator",
+    "github action documentation",
+    "documentation coverage tracking",
   ],
   openGraph: {
     type: "website",
     locale: "en_US",
     url: SITE_URL,
     siteName: "Wright AI",
-    title: "Wright AI — AI Code Documentation Tool for VS Code, CLI & CI",
+    title: "Wright AI — Documentation Intelligence Platform",
     description:
-      "The AI code documentation tool that never lies. Auto-generate docstrings, detect drift, and give Claude Code, Cursor, and Copilot a reliable source of truth via MCP.",
+      "Documentation that never lies. Generate docs automatically, detect drift continuously, and give Claude Code, Cursor, and Copilot a source of truth they can trust. Free to start.",
     images: [
       {
         url: "/opengraph-image",
         width: 1000,
         height: 420,
-        alt: "Wright AI — AI-Powered Code Documentation",
+        alt: "Wright AI — Documentation Intelligence Platform | Documentation that Never Lies",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Wright AI — AI Code Documentation Tool",
+    title: "Wright AI — Documentation that Never Lies",
     description:
-      "Auto-generate docstrings, catch documentation drift, and give Claude Code & Cursor live access to your codebase via MCP. Free.",
+      "Generate docs automatically. Detect drift continuously. Give Claude Code & Cursor a source of truth they can trust. Free.",
     images: ["/opengraph-image"],
   },
   robots: {
@@ -138,7 +150,7 @@ const organizationSchema = {
   ],
   contactPoint: {
     "@type": "ContactPoint",
-    email: "surajsahoo19991012@gmail.com",
+    email: "hello@wrightai.live",
     contactType: "customer support",
   },
 };
@@ -168,7 +180,23 @@ const homepageFaqSchema = {
       name: "What is Wright AI?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Wright AI is the Documentation Intelligence Platform — an AI code documentation tool built around three pillars: Generate (auto-generate docstrings for Python, TypeScript, JavaScript, Go, and Rust), Verify (detect drift when code changes so documentation never lies), and Understand (expose your codebase to Claude Code, Cursor, and Copilot via MCP so AI tools always have a reliable source of truth).",
+        text: "Wright AI is the Documentation Intelligence Platform — a tool built around the insight that documentation accuracy over time is the most important and most underserved problem in software engineering. It works across three pillars: Generate (auto-generate docstrings for Python, TypeScript, JavaScript, Go, and Rust), Verify (detect drift continuously so documentation never lies), and Understand (expose your codebase to Claude Code, Cursor, and Copilot via MCP so AI tools always have a reliable source of truth). Available as a VS Code extension, CLI, GitHub Action, and MCP server.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "What is a Documentation Intelligence Platform?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "A Documentation Intelligence Platform generates, verifies, and maintains documentation as software evolves. Unlike documentation generators that only create docs once, Wright AI continuously monitors your codebase for documentation drift — when code changes make existing documentation stale, inaccurate, or misleading. Wright AI is the category creator of Documentation Intelligence.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "How is Wright AI different from GitHub Copilot, Cursor, or Mintlify?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "GitHub Copilot and Cursor help you write code — they are AI coding assistants with no capability to generate or verify documentation at scale. Mintlify formats documentation sites from existing content. Wright AI does something none of them do: it continuously detects when your documentation has drifted from your code, and it generates documentation across your entire codebase in batch. Wright AI is the only tool with documentation drift detection, coverage tracking, CI enforcement, and MCP integration all in one platform.",
       },
     },
     {
@@ -263,7 +291,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{ __html: JSON.stringify(homepageFaqSchema) }}
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
+          strategy="afterInteractive"
+        />
+        <Script id="ga4-init" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${GA_ID}');
+          `}
+        </Script>
+      </body>
     </html>
   );
 }
