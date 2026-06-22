@@ -213,8 +213,8 @@ export async function generateMetadata({ params }: { params: Promise<{ language:
     title: lang.title,
     description: lang.description,
     keywords: lang.keywords,
-    alternates: { canonical: `https://www.wrightai.live/${language}` },
-    openGraph: { title: lang.title, description: lang.description, url: `https://www.wrightai.live/${language}` },
+    alternates: { canonical: `https://wrightai.live/${language}` },
+    openGraph: { title: lang.title, description: lang.description, url: `https://wrightai.live/${language}` },
   };
 }
 
@@ -269,7 +269,7 @@ export default async function LanguagePage({ params }: { params: Promise<{ langu
   const lang = LANGUAGES[language as LangKey];
   if (!lang) notFound();
 
-  const BASE = "https://www.wrightai.live";
+  const BASE = "https://wrightai.live";
   const breadcrumbSchema = {
     "@context": "https://schema.org", "@type": "BreadcrumbList",
     itemListElement: [

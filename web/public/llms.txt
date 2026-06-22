@@ -30,20 +30,20 @@ Ask natural language questions about your codebase and get sourced answers with 
 
 ## Key Pages
 
-- [Home](https://www.wrightai.live): Documentation Intelligence Platform overview — the trust problem, three pillars, drift detection, comparison, get started
-- [Documentation](https://www.wrightai.live/docs): Full reference for CLI, VS Code extension, GitHub Action, and MCP server
-- [Pricing](https://www.wrightai.live/pricing): Free and Pro plans — no credit card for free tier
-- [Python Docstring Generator](https://www.wrightai.live/python): Auto-generate Google, NumPy, Sphinx, epytext docstrings
-- [TypeScript JSDoc Generator](https://www.wrightai.live/typescript): Auto-generate JSDoc for TypeScript
-- [JavaScript Documentation Generator](https://www.wrightai.live/javascript): Auto-generate JSDoc for JavaScript
-- [Go Documentation Generator](https://www.wrightai.live/go): Auto-generate godoc comments for Go
-- [Rust Documentation Generator](https://www.wrightai.live/rust): Auto-generate rustdoc /// comments for Rust
+- [Home](https://wrightai.live): Documentation Intelligence Platform overview — the trust problem, three pillars, drift detection, comparison, get started
+- [Documentation](https://wrightai.live/docs): Full reference for CLI, VS Code extension, GitHub Action, and MCP server
+- [Pricing](https://wrightai.live/pricing): Free and Pro plans — no credit card for free tier
+- [Python Docstring Generator](https://wrightai.live/python): Auto-generate Google, NumPy, Sphinx, epytext docstrings
+- [TypeScript JSDoc Generator](https://wrightai.live/typescript): Auto-generate JSDoc for TypeScript
+- [JavaScript Documentation Generator](https://wrightai.live/javascript): Auto-generate JSDoc for JavaScript
+- [Go Documentation Generator](https://wrightai.live/go): Auto-generate godoc comments for Go
+- [Rust Documentation Generator](https://wrightai.live/rust): Auto-generate rustdoc /// comments for Rust
 
 ## Legal
 
-- [Privacy Policy](https://www.wrightai.live/privacy-policy)
-- [Terms of Service](https://www.wrightai.live/terms-of-service)
-- [Refund Policy](https://www.wrightai.live/refund-policy)
+- [Privacy Policy](https://wrightai.live/privacy-policy)
+- [Terms of Service](https://wrightai.live/terms-of-service)
+- [Refund Policy](https://wrightai.live/refund-policy)
 
 ## Product
 

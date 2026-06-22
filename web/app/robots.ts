@@ -9,7 +9,7 @@ import { MetadataRoute } from "next";
  * // In Next.js app/robots.ts
  * const robotsConfig = robots();
  * // robotsConfig.rules.disallow => ["/dashboard/", "/auth/", "/api/"]
- * // robotsConfig.sitemap => "https://www.wrightai.live/sitemap.xml"
+ * // robotsConfig.sitemap => "https://wrightai.live/sitemap.xml"
  */
 
 
@@ -22,6 +22,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/dashboard/", "/auth/", "/api/"],
     },
-    sitemap: "https://www.wrightai.live/sitemap.xml",
+    sitemap: "https://wrightai.live/sitemap.xml",
   };
 }

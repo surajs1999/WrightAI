@@ -1,6 +1,6 @@
 import { MetadataRoute } from "next";
 
-const BASE = "https://www.wrightai.live";
+const BASE = "https://wrightai.live";
 
 /**
  * Generates a structured sitemap for the application, covering the home page, docs, language-specific pages, and the login page.

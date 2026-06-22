@@ -26,7 +26,7 @@ const poppins = Poppins({
   display: "swap",
 });
 
-const SITE_URL = "https://www.wrightai.live";
+const SITE_URL = "https://wrightai.live";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
