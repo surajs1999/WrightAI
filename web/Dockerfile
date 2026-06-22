@@ -10,7 +10,7 @@ COPY . .
 
 # NEXT_PUBLIC_* vars are baked into the bundle at build time — pass via --build-arg
 ARG NEXT_PUBLIC_API_URL=https://api.wrightai.live
-ARG NEXT_PUBLIC_APP_URL=https://www.wrightai.live
+ARG NEXT_PUBLIC_APP_URL=https://wrightai.live
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG NEXT_PUBLIC_PADDLE_CLIENT_TOKEN

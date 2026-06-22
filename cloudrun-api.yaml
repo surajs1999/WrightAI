@@ -96,7 +96,7 @@ spec:
         - name: BREVO_FROM_EMAIL
           value: hello@wrightai.live
         - name: FRONTEND_URL
-          value: https://www.wrightai.live
+          value: https://wrightai.live
         volumeMounts:
         - name: data
           mountPath: /data
