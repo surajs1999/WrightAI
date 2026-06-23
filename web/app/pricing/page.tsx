@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import NavbarV2 from "@/components/landing-v2/NavbarV2";
 import FooterV2 from "@/components/landing-v2/FooterV2";
+import { ga } from "@/lib/ga";
 
 
 type Interval = "monthly" | "annual";
@@ -219,6 +220,18 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 export function PricingContent({ embedded = false }: { embedded?: boolean }) {
   const [interval, setInterval] = useState<Interval>("annual");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+
+  // Exit intent — user moves mouse toward top of page without starting checkout
+  useEffect(() => {
+    if (embedded) return;
+    const onMouseLeave = (e: MouseEvent) => {
+      if (e.clientY < 10 && !checkoutCompletedRef.current) {
+        ga.pricingExitIntent();
+      }
+    };
+    document.addEventListener("mouseleave", onMouseLeave);
+    return () => document.removeEventListener("mouseleave", onMouseLeave);
+  }, [embedded]);
   const [checkoutNotice, setCheckoutNotice] = useState<CheckoutNotice | null>(null);
   const [tableOpen, setTableOpen] = useState(false);
   const [userInfo, setUserInfo] = useState<{ email?: string; api_key?: string } | null>(null);
@@ -249,6 +262,9 @@ export function PricingContent({ embedded = false }: { embedded?: boolean }) {
             checkoutCompletedRef.current = true;
             setCheckoutNotice({ type: "success", text: "Payment successful — redirecting to your dashboard…" });
             const transactionId = ev.data?.transaction_id as string | undefined;
+            const _plan = sessionStorage.getItem("wright_checkout_plan") ?? "pro";
+            const _iv = sessionStorage.getItem("wright_checkout_interval") ?? "annual";
+            ga.purchase(_plan, _iv, _iv === "annual" ? 14 : 18, transactionId);
             const sync = transactionId
               ? fetch("/api/proxy/billing/sync-transaction", {
                   method: "POST",
@@ -303,6 +319,8 @@ export function PricingContent({ embedded = false }: { embedded?: boolean }) {
     sessionStorage.setItem("wright_checkout_plan", planId);
     sessionStorage.setItem("wright_checkout_interval", interval);
     sessionStorage.removeItem("wright_checkout_attempts");
+
+    ga.beginCheckout(planId, interval, interval === "annual" ? 14 : 18);
 
     window.Paddle.Checkout.open({
       items: [{ priceId, quantity: 1 }],
@@ -363,7 +381,7 @@ export function PricingContent({ embedded = false }: { embedded?: boolean }) {
           {(["monthly", "annual"] as Interval[]).map(iv => (
             <button
               key={iv}
-              onClick={() => setInterval(iv)}
+              onClick={() => { setInterval(iv); ga.pricingToggle(iv); }}
               style={{
                 padding: "9px 22px", borderRadius: 7, border: "none", cursor: "pointer",
                 fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 13.5,
@@ -410,6 +428,7 @@ export function PricingContent({ embedded = false }: { embedded?: boolean }) {
           return (
             <div
               key={plan.id}
+              onMouseEnter={() => ga.pricingPlanHover(plan.id)}
               style={{
                 position: "relative",
                 background: plan.highlighted
@@ -476,6 +495,7 @@ export function PricingContent({ embedded = false }: { embedded?: boolean }) {
               {plan.comingSoon ? (
                 <a
                   href={plan.ctaHref}
+                  onClick={() => ga.pricingPlanCta(plan.id, interval)}
                   style={{
                     display: "block", textAlign: "center",
                     padding: "13px 0", borderRadius: 10,
@@ -490,6 +510,7 @@ export function PricingContent({ embedded = false }: { embedded?: boolean }) {
                 <>
                   <a
                     href={plan.ctaHref}
+                    onClick={() => ga.pricingPlanCta("free", interval)}
                     {...(plan.ctaExternal ? { target: "_blank", rel: "noopener noreferrer" } : {})}
                     style={{
                       display: "block", textAlign: "center",

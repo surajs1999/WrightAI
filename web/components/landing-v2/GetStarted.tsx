@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { ga } from "@/lib/ga";
 
 function CopyBtn({ text }: { text: string }) {
   const [ok, setOk] = useState(false);
   return (
     <button
-      onClick={() => { navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 2000); }}
+      onClick={() => { navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 2000); ga.copyCommand(text); }}
       style={{
         background: ok ? "rgba(29,158,117,0.12)" : "rgba(255,255,255,0.05)",
         border: `1px solid ${ok ? "rgba(29,158,117,0.3)" : "rgba(175,169,236,0.12)"}`,
@@ -251,6 +252,7 @@ export default function GetStarted() {
                   href={card.cta.href}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={() => ga.installClick("vscode")}
                   style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 18, padding: "10px 18px", background: card.accentBg, border: `1px solid ${card.accentBorder}`, borderRadius: 8, fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 13.5, color: card.accent, textDecoration: "none", transition: "all 0.2s" }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "0.8"; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}

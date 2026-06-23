@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@supabase/supabase-js";
+import { ga } from "@/lib/ga";
 
 export default function FeedbackV2() {
   const [input, setInput] = useState("");
@@ -22,6 +23,7 @@ export default function FeedbackV2() {
     }
     setInput(""); setEmail("");
     setSent(true); setLoading(false);
+    ga.feedbackSubmitted();
     setTimeout(() => setSent(false), 4000);
   };
 

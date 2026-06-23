@@ -1,5 +1,6 @@
 "use client";
 
+import { ga } from "@/lib/ga";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useConnectedRepos } from "@/hooks/useConnectedRepos";
@@ -48,6 +49,8 @@ export default function DriftPage() {
   const { repos, loadingRepos, selectedRepoId, setSelectedRepoId, selectedRepo } = useConnectedRepos();
 
   useEffect(() => {
+    ga.dashboardPageVisit("drift");
+    
     if (selectedRepo) run();
   }, [selectedRepo?.id]);
   const [data, setData] = useState<DriftResult | null>(null);

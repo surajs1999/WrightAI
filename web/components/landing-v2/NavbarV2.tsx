@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { ga } from "@/lib/ga";
 
 export default function NavbarV2() {
   const [scrolled, setScrolled] = useState(false);
@@ -112,6 +113,7 @@ export default function NavbarV2() {
           <Link
             href="/dashboard"
             className="btn-cyan"
+            onClick={() => ga.ctaClick("navbar")}
             style={{
               display: "inline-flex",
               alignItems: "center",

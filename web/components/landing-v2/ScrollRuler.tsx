@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ga } from "@/lib/ga";
 
 const SECTIONS = [
   { id: "section-hero",       label: "Hero",            color: "#7F77DD" },
@@ -22,6 +23,7 @@ export default function ScrollRuler() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [hovered, setHovered] = useState<number | null>(null);
   const [isScrolling, setIsScrolling] = useState(false);
+  const prevIndexRef = useRef(-1);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -41,7 +43,15 @@ export default function ScrollRuler() {
       const el = document.getElementById(section.id);
       if (!el) return;
       const obs = new IntersectionObserver(
-        ([entry]) => { if (entry.isIntersecting) setActiveIndex(i); },
+        ([entry]) => {
+          if (entry.isIntersecting) {
+            setActiveIndex(i);
+            if (prevIndexRef.current !== i) {
+              prevIndexRef.current = i;
+              ga.sectionView(SECTIONS[i].label);
+            }
+          }
+        },
         { rootMargin: "-35% 0px -35% 0px", threshold: 0 }
       );
       obs.observe(el);

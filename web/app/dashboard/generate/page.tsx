@@ -1,5 +1,6 @@
 "use client";
 
+import { ga } from "@/lib/ga";
 import { useEffect, useState } from "react";
 import { useConnectedRepos } from "@/hooks/useConnectedRepos";
 
@@ -84,6 +85,8 @@ export default function GeneratePage() {
 
   // Restore hint from drift page
   useEffect(() => {
+    ga.dashboardPageVisit("generate");
+    
     const hint = sessionStorage.getItem("wright_fix_hint");
     if (hint) {
       try {

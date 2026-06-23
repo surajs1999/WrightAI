@@ -1,5 +1,6 @@
 "use client";
 
+import { ga } from "@/lib/ga";
 import { useEffect, useState } from "react";
 import CoverageBar from "@/components/dashboard/CoverageBar";
 import { useConnectedRepos } from "@/hooks/useConnectedRepos";
@@ -28,6 +29,8 @@ export default function CoveragePage() {
   const threshold = 80;
 
   useEffect(() => {
+    ga.dashboardPageVisit("coverage");
+    
     if (selectedRepo) run();
   }, [selectedRepo?.id]);
 

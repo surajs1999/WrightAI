@@ -1,4 +1,5 @@
 import ScrollRuler from "@/components/landing-v2/ScrollRuler";
+import HomepageAnalytics from "@/components/landing-v2/HomepageAnalytics";
 import NavbarV2 from "@/components/landing-v2/NavbarV2";
 import HeroV2 from "@/components/landing-v2/HeroV2";
 import TrustStrip from "@/components/landing-v2/TrustStrip";
@@ -17,6 +18,7 @@ import FooterV2 from "@/components/landing-v2/FooterV2";
 export default function LandingPage() {
   return (
     <main>
+      <HomepageAnalytics />
       <ScrollRuler />
       <NavbarV2 />
       <HeroV2 />

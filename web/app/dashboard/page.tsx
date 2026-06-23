@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ga } from "@/lib/ga";
 import MetricCard from "@/components/dashboard/MetricCard";
 import CoverageBar from "@/components/dashboard/CoverageBar";
 import { Spinner, SkeletonBlock, SpinnerArc } from "@/components/dashboard/Spinner";
@@ -44,6 +45,20 @@ export default function DashboardHome() {
   const [selectedGithubRepo, setSelectedGithubRepo] = useState("");
 
   useEffect(() => {
+    // Fire sign_up on first post-auth dashboard load
+    const method = sessionStorage.getItem("wright_sign_up_method") as "github" | "google" | null;
+    if (method) {
+      ga.signUp(method);
+      sessionStorage.removeItem("wright_sign_up_method");
+    }
+
+    // First visit ever to dashboard
+    const visitedKey = "wright_dashboard_visited";
+    if (!localStorage.getItem(visitedKey)) {
+      ga.dashboardFirstVisit();
+      localStorage.setItem(visitedKey, "1");
+    }
+
     fetch("/api/proxy/auth/github/status")
       .then(r => r.json())
       .then((d: { connected: boolean }) => {
@@ -175,9 +190,12 @@ export default function DashboardHome() {
         setSelectedRepo(repo.id);
         setConnectUrl("");
         localStorage.setItem("wright_last_repo_path", repo.local_path);
+        ga.repoConnected(repo.name ?? repo.id);
       } else {
         const err = await res.json().catch(() => ({}));
-        setConnectError(err.detail ?? `Error ${res.status}: could not connect repo`);
+        const errMsg = err.detail ?? `Error ${res.status}: could not connect repo`;
+        setConnectError(errMsg);
+        ga.connectRepoError(err.detail ? (res.status === 429 ? "quota_exceeded" : res.status === 403 ? "plan_limit" : "api_error") : "network_error");
       }
     } catch {
       setConnectError("Network error — could not reach the API.");

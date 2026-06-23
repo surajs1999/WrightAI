@@ -1,5 +1,6 @@
 "use client";
 
+import { ga } from "@/lib/ga";
 import { useEffect, useRef, useState } from "react";
 import { useConnectedRepos } from "@/hooks/useConnectedRepos";
 import { Spinner, SpinnerArc } from "@/components/dashboard/Spinner";
@@ -120,6 +121,8 @@ export default function ChatPage() {
 
   // Check index status whenever the selected repo changes
   useEffect(() => {
+    ga.dashboardPageVisit("chat");
+    
     if (!selectedRepo) return;
 
     const repoName = selectedRepo.id.split("/").pop()!;

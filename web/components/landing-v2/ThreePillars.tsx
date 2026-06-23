@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { ga } from "@/lib/ga";
 
 const PILLARS = [
   {
@@ -152,7 +153,7 @@ export default function ThreePillars() {
           {PILLARS.map((p, i) => (
             <button
               key={p.id}
-              onClick={() => setActive(i)}
+              onClick={() => { setActive(i); ga.pillarTabClick(p.label); }}
               style={{
                 display: "flex", alignItems: "center", gap: 8,
                 padding: "10px 20px",

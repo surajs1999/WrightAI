@@ -1,5 +1,6 @@
 "use client";
 
+import { ga } from "@/lib/ga";
 import { useEffect, useState } from "react";
 import { useConnectedRepos } from "@/hooks/useConnectedRepos";
 
@@ -128,6 +129,9 @@ export default function McpPage() {
   };
 
   useEffect(() => {
+    ga.dashboardPageVisit("mcp");
+    ga.mcpSetupViewed();
+    
     fetchKey();
     window.addEventListener("focus", fetchKey);
     return () => window.removeEventListener("focus", fetchKey);

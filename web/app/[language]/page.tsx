@@ -4,6 +4,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import NavbarV2 from "@/components/landing-v2/NavbarV2";
 import FooterV2 from "@/components/landing-v2/FooterV2";
+import LanguagePageEvents from "@/components/landing-v2/LanguagePageEvents";
 
 /* ── language data ────────────────────────────────────────────────────── */
 const LANGUAGES = {
@@ -292,6 +293,7 @@ export default async function LanguagePage({ params }: { params: Promise<{ langu
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
 
+      <LanguagePageEvents language={language} />
       <NavbarV2 />
 
       {/* ── Hero ────────────────────────────────────────────────────────── */}

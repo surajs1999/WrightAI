@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
+import { ga } from "@/lib/ga";
 
 /**
  * Renders an SVG icon component displaying the GitHub logo.
@@ -71,6 +72,9 @@ function LoginContent() {
   const error = params.get("error");
 
   const loginWith = (provider: string) => {
+    const method = provider === "GitHubOAuth" ? "github" : "google";
+    ga.signUpInitiated(method);
+    sessionStorage.setItem("wright_sign_up_method", method);
     window.location.href = `/api/auth/login?provider=${provider}&next=${encodeURIComponent(next)}`;
   };
 

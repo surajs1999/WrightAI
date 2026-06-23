@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"; // useState used by DriftTerminal
 import Link from "next/link";
+import { ga } from "@/lib/ga";
 
 type DriftLine = {
   text: string;
@@ -210,6 +211,7 @@ export default function HeroV2() {
               <Link
                 href="/dashboard"
                 className="btn-cyan"
+                onClick={() => ga.ctaClick("hero")}
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 8,
                   padding: "14px 32px", color: "#050310",
@@ -241,6 +243,7 @@ export default function HeroV2() {
 
               <a
                 href="#install"
+                onClick={() => ga.ctaClick("hero_get_started")}
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 9,
                   padding: "13px 24px",

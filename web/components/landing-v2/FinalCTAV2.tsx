@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { ga } from "@/lib/ga";
 
 const BELIEFS = [
   "Generate documentation automatically from source code",
@@ -151,6 +152,7 @@ export default function FinalCTAV2() {
           <Link
             href="/dashboard"
             className="btn-cyan"
+            onClick={() => ga.ctaClick("final_cta")}
             style={{
               display: "inline-flex", alignItems: "center", gap: 8,
               padding: "16px 40px",
