@@ -132,6 +132,7 @@ export default function FeedbackV2() {
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(); }}
+                  onBlur={() => { if (input.trim().length > 0 && !sent) ga.feedbackAbandoned(input.trim().length); }}
                   placeholder="Feature request, pain point, missing integration, workflow improvement..."
                   rows={4}
                   style={{ width: "100%", background: "transparent", border: "none", outline: "none", fontFamily: "var(--font-body)", fontSize: 14.5, color: "var(--text)", resize: "none", lineHeight: 1.6, boxSizing: "border-box" }}

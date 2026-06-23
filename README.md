@@ -41,7 +41,7 @@ pip install -e ".[dev]"
 
 ### VS Code (no setup required)
 1. Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai)
-2. Sign in at [www.wrightai.live](https://www.wrightai.live) with GitHub or Google
+2. Sign in at [www.wrightai.live](https://www.wrightai.live?utm_source=github&utm_medium=readme&utm_campaign=repo_readme&utm_content=vs_code_signin) with GitHub or Google
 3. Copy your personal API key (starts with `wai_`)
 4. Open VS Code Settings → search **WrightAI** → paste the key into **Wright: Api Key**
 5. Click **Generate Docs** above any function — done
@@ -147,7 +147,7 @@ wright llms-txt .
 ## VS Code Extension
 
 1. Install `WrightAI` from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai)
-2. Sign in at [www.wrightai.live](https://www.wrightai.live) with GitHub or Google
+2. Sign in at [www.wrightai.live](https://www.wrightai.live?utm_source=github&utm_medium=readme&utm_campaign=repo_readme&utm_content=vs_code_setup) with GitHub or Google
 3. Copy your personal API key (starts with `wai_`)
 4. Open VS Code Settings (`Cmd+,`) → search `WrightAI` → paste into **Wright: Api Key**
 5. Open any supported file — a **Generate Docs** CodeLens button appears above each function
@@ -181,7 +181,7 @@ No local Python installation or server needed — the backend is fully hosted.
 
 ## Web Dashboard
 
-The hosted app at [wrightai.live](https://www.wrightai.live) is the Documentation Intelligence Platform homepage, sign-in portal, and control panel for the hosted service. Built with Next.js (App Router) and deployed to Cloud Run — see [web/README.md](web/README.md) for local dev setup.
+The hosted app at [wrightai.live](https://www.wrightai.live?utm_source=github&utm_medium=readme&utm_campaign=repo_readme&utm_content=web_dashboard_section) is the Documentation Intelligence Platform homepage, sign-in portal, and control panel for the hosted service. Built with Next.js (App Router) and deployed to Cloud Run — see [web/README.md](web/README.md) for local dev setup.
 
 **Marketing pages**
 

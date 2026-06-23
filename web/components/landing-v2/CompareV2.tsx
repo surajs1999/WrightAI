@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { ga } from "@/lib/ga";
 
 type Verdict = "yes" | "no" | "partial";
 
@@ -91,6 +92,7 @@ function VerdictIcon({ v }: { v: Verdict }) {
 export default function CompareV2() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [canScroll, setCanScroll] = useState(false);
+  const hoverStart = useRef<Record<string, number>>({});
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -175,6 +177,15 @@ export default function CompareV2() {
                     <th
                       key={col.key}
                       className={col.highlight ? "compare-sticky-2" : undefined}
+                      onMouseEnter={!col.highlight ? () => { hoverStart.current[col.key] = Date.now(); } : undefined}
+                      onMouseLeave={!col.highlight ? () => {
+                        const start = hoverStart.current[col.key];
+                        if (start) {
+                          const seconds = Math.round((Date.now() - start) / 1000);
+                          delete hoverStart.current[col.key];
+                          if (seconds >= 2) ga.compareCompetitorHover(col.label, seconds);
+                        }
+                      } : undefined}
                       style={{
                         padding: "16px 10px", textAlign: "center", left: col.highlight ? CAP_W : undefined,
                         borderBottom: "1px solid rgba(175,169,236,0.08)",

@@ -100,7 +100,7 @@ def _wrap(body: str) -> str:
         <tr><td style="background:#f9f8fd;padding:18px 32px;border-top:1px solid #ebe9f8;">
           <p style="margin:0;font-size:11px;color:#9590b0;line-height:1.6;">
             You're receiving this because you have a Wright AI account.<br>
-            <a href="https://www.wrightai.live/dashboard/settings" style="color:#534AB7;text-decoration:none;">Manage email preferences</a>
+            <a href="https://www.wrightai.live/dashboard/settings?utm_source=email&utm_medium=transactional&utm_campaign=footer&utm_content=manage_prefs" style="color:#534AB7;text-decoration:none;">Manage email preferences</a>
             &nbsp;·&nbsp;
             <a href="https://www.wrightai.live" style="color:#534AB7;text-decoration:none;">wrightai.live</a>
           </p>
@@ -165,7 +165,7 @@ def send_welcome(to: str, first_name: str = "") -> None:
           </td></tr>
         </table>
         """
-        + f'<p style="margin:0 0 24px;">{_btn("Go to Dashboard →", "https://www.wrightai.live/dashboard")}</p>'
+        + f'<p style="margin:0 0 24px;">{_btn("Go to Dashboard →", "https://www.wrightai.live/dashboard?utm_source=email&utm_medium=transactional&utm_campaign=welcome&utm_content=dashboard_cta")}</p>'
         + _p(
             "You're on the <strong>Free plan</strong> — 100 doc generations per month, no credit card needed. The CLI and MCP server are always free with your own Anthropic key.",
             mb=0,
@@ -284,9 +284,9 @@ def send_day14_nudge(to: str, docs_count: int) -> None:
           </p>
         </div>
         """
-        + f'<p style="margin:0 0 20px;">{_btn("Start Pro — cancel any time →", "https://www.wrightai.live/pricing")}</p>'
+        + f'<p style="margin:0 0 20px;">{_btn("Start Pro — cancel any time →", "https://www.wrightai.live/pricing?utm_source=email&utm_medium=drip&utm_campaign=onboarding_day14&utm_content=upgrade_cta")}</p>'
         + _p(
-            'Still not sure? <a href="mailto:surajsahoo19991012@gmail.com" style="color:#534AB7;">Reply to this email</a> — I read every one.',
+            'Still not sure? <a href="mailto:hello@wrightai.live" style="color:#534AB7;">Reply to this email</a> — I read every one.',
             mb=0,
         )
     )

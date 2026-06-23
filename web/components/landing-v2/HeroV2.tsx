@@ -44,7 +44,7 @@ function DriftTerminal() {
     const timers = DRIFT_LINES.map((line, i) =>
       setTimeout(() => {
         setVisible(prev => [...prev, i]);
-        if (i === DRIFT_LINES.length - 1) setTimeout(() => setDone(true), 500);
+        if (i === DRIFT_LINES.length - 1) setTimeout(() => { setDone(true); ga.heroTerminalCompleted(); }, 500);
       }, line.delay)
     );
     return () => timers.forEach(clearTimeout);

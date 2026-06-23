@@ -9,7 +9,7 @@ No local server or Python installation required — the backend is fully hosted.
 ## Getting Started
 
 1. Install this extension from the VS Code Marketplace
-2. Sign in at the [WrightAI dashboard](https://wrightai-web-jroejkhf4q-as.a.run.app) with GitHub or Google
+2. Sign in at the [WrightAI dashboard](https://www.wrightai.live?utm_source=vscode_marketplace&utm_medium=extension_overview&utm_campaign=extension_onboarding&utm_content=signin) with GitHub or Google
 3. Copy your personal API key (starts with `wai_`)
 4. Open VS Code Settings (`Cmd+,` / `Ctrl+,`), search for `WrightAI`, and paste the key into **Wright: Api Key**
 5. Open any supported file — a **Generate Docs** button will appear above each function
@@ -61,7 +61,7 @@ Run **Wright: Chat with codebase** from the Command Palette to open an interacti
 
 | Setting | Default | Description |
 |---|---|---|
-| `wright.apiUrl` | `https://wrightai-api-jroejkhf4q-as.a.run.app` | WrightAI backend URL |
+| `wright.apiUrl` | `https://api.wrightai.live` | WrightAI backend URL |
 | `wright.apiKey` | _(empty)_ | Your personal `wai_` API key |
 | `wright.style` | `google` | Default docstring style |
 | `wright.style.python` | `google` | Python style: `google`, `numpy`, `epytext` |

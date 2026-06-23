@@ -188,7 +188,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
   return (
     <div
       style={{ borderBottom: "1px solid rgba(175,169,236,0.07)", cursor: "pointer" }}
-      onClick={() => setOpen(o => !o)}
+      onClick={() => { const opening = !open; setOpen(opening); if (opening) ga.faqOpened(q); }}
     >
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",

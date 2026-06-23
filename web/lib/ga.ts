@@ -58,6 +58,22 @@ export const ga = {
   languagePageView: (language: string) =>
     send("language_page_view", { language }),
 
+  // ── Behavioral signals ───────────────────────────────────────────────
+  heroTerminalCompleted: () =>
+    send("hero_terminal_completed"),
+
+  timeOnSection: (section: string, seconds: number) =>
+    send("time_on_section", { section, seconds }),
+
+  compareCompetitorHover: (competitor: string, seconds: number) =>
+    send("compare_competitor_hover", { competitor, seconds }),
+
+  faqOpened: (question: string) =>
+    send("faq_opened", { question }),
+
+  feedbackAbandoned: (charsTyped: number) =>
+    send("feedback_abandoned", { chars_typed: charsTyped }),
+
   // ── Scroll depth ─────────────────────────────────────────────────────
   scrollDepth: (pct: 25 | 50 | 75 | 90) =>
     send("scroll_depth", { percent: pct }),
