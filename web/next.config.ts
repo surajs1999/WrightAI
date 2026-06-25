@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   compress: true,
+  // TypeScript is checked in a dedicated CI step — skip during build
+  // to avoid duplicate runs and prevent type warnings from blocking deploys.
+  typescript: { ignoreBuildErrors: true },
   images: {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 31536000,
