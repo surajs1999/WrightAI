@@ -28,34 +28,21 @@ class ChatRequest(BaseModel):
 
 @router.post("")
 @limiter.limit("40/minute")
-async def chat(request: ChatRequest, http_request: Request) -> StreamingResponse:
+async def chat(body: ChatRequest, request: Request) -> StreamingResponse:
     """
     Handles an incoming chat POST request by retrieving relevant code context via hybrid retrieval and streaming AI-generated responses back to the client as server-sent events.
-
-    This async endpoint initializes the LLM gateway (using Anthropic), a VoyageEmbedder, a ChromaStore vector store, and a HybridRetriever to fetch up to 5 semantically and dependency-relevant code contexts for the user's question. Conversation history is trimmed to the last 20 messages to stay within context limits. The response is streamed as server-sent events, emitting 'token' events for incremental text, 'citations' events for referenced source files, 'followups' events for suggested follow-up questions, and a terminal '[DONE]' sentinel. If embeddings or the vector store are unavailable (e.g., missing API keys or unindexed repository), retrieval is skipped gracefully and the LLM answers from the question alone.
-
-    Args:
-        request (ChatRequest): The chat request object containing the user's question, the repository root path used to locate the Chroma vector store, and the prior conversation history as a list of role/content message pairs.
-
-    Returns:
-        StreamingResponse: A Starlette StreamingResponse with media type 'text/event-stream' that emits JSON-encoded server-sent events of types 'token' (incremental LLM text), 'citations' (referenced source files), and 'followups' (suggested follow-up questions), terminated by a '[DONE]' message.
-
-    Example:
-        ```
-        response = await chat(ChatRequest(question='How does authentication work?', repo_root='/path/to/repo', conversation_history=[]))
-        ```
     """
     from api.embedder import get_gateway
     from api.routes.repos import ensure_repo_local
     from api.usage_store import record_event
 
-    api_key = http_request.headers.get("X-Wright-API-Key", "")
+    api_key = request.headers.get("X-Wright-API-Key", "")
 
     # Gate: chat_messages_per_month == 0 on free → 403; >0 enforces monthly cap
     quota = check_quota(api_key, "chat_message", raise_on_blocked=True)
-    await ensure_repo_local(request.repo_root)
+    await ensure_repo_local(body.repo_root)
     gateway = get_gateway()
-    history = [{"role": m.role, "content": m.content} for m in request.conversation_history]
+    history = [{"role": m.role, "content": m.content} for m in body.conversation_history]
 
     # Retrieval is best-effort — if embeddings are unavailable (no Voyage/OpenAI
     # key, or repo not yet indexed) we fall back to empty context and Claude
@@ -69,11 +56,11 @@ async def chat(request: ChatRequest, http_request: Request) -> StreamingResponse
         from core.retrieval.hybrid_retriever import HybridRetriever
 
         embedder = get_embedder()
-        chroma_path = os.getenv("CHROMA_PATH", os.path.join(request.repo_root, ".wright", "chroma"))
-        chroma = get_vector_store(request.repo_root, get_chroma(chroma_path, request.repo_root))
+        chroma_path = os.getenv("CHROMA_PATH", os.path.join(body.repo_root, ".wright", "chroma"))
+        chroma = get_vector_store(body.repo_root, get_chroma(chroma_path, body.repo_root))
         dep_graph = DependencyGraph()
         retriever = HybridRetriever(chroma, dep_graph, embedder)
-        contexts = retriever.retrieve_for_query(request.question, n=5)
+        contexts = retriever.retrieve_for_query(body.question, n=5)
     except Exception:
         pass  # no embeddings available — Claude answers without code context
 
@@ -89,7 +76,7 @@ async def chat(request: ChatRequest, http_request: Request) -> StreamingResponse
         try:
             if quota.warning:
                 yield f"data: {json.dumps({'type': 'quota_warning', 'used': quota.used, 'limit': quota.limit, 'pct': quota.pct, 'upgrade_url': quota.upgrade_url})}\n\n"
-            async for kind, payload in gateway.chat_stream(request.question, contexts, history):
+            async for kind, payload in gateway.chat_stream(body.question, contexts, history):
                 if kind == "token":
                     yield f"data: {json.dumps({'type': 'token', 'content': payload})}\n\n"
                 elif kind == "citations":
@@ -109,7 +96,7 @@ async def chat(request: ChatRequest, http_request: Request) -> StreamingResponse
                     api_key,
                     "chat_message",
                     tokens=tokens_used,
-                    repo_name=os.path.basename(request.repo_root),
+                    repo_name=os.path.basename(body.repo_root),
                     model=model_used,
                     is_fallback=(model_used != _LLMGateway.PRIMARY_MODEL),
                     conversation_turns=len(history),

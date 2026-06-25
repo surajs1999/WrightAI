@@ -132,9 +132,7 @@ _LANG_SUFFIX: dict[str, str] = {
 
 @router.post("/file", response_model=DriftCheckFileResponse)
 @limiter.limit("30/minute")
-async def check_drift_file(
-    request: DriftCheckFileRequest, http_request: Request
-) -> DriftCheckFileResponse:
+async def check_drift_file(body: DriftCheckFileRequest, request: Request) -> DriftCheckFileResponse:
     """Check drift for a single file given its raw content.
 
     Accepts the file's text content directly from the editor — no local path
@@ -143,7 +141,7 @@ async def check_drift_file(
     ANTHROPIC_API_KEY, then returns per-function results.
     """
     check_quota(
-        http_request.headers.get("X-Wright-API-Key", ""), "drift_checks_run", raise_on_blocked=True
+        request.headers.get("X-Wright-API-Key", ""), "drift_checks_run", raise_on_blocked=True
     )
 
     import asyncio as _asyncio
@@ -152,10 +150,10 @@ async def check_drift_file(
     from core.llm.gateway import LLMGateway
     from core.parser.tree_sitter_parser import CodeParser
 
-    suffix = _LANG_SUFFIX.get(request.language, ".py")
+    suffix = _LANG_SUFFIX.get(body.language, ".py")
 
     tmp = tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False, encoding="utf-8")
-    tmp.write(request.file_content)
+    tmp.write(body.file_content)
     tmp.close()
     tmp_path = tmp.name
 
@@ -191,7 +189,7 @@ async def check_drift_file(
             if func.existing_docstring is None:
                 return DriftResultItem(
                     function_name=func_name,
-                    file_path=request.file_path,
+                    file_path=body.file_path,
                     status="undocumented",
                     reason=None,
                     old_signature=None,
@@ -200,7 +198,7 @@ async def check_drift_file(
                 )
             # Check LLM result cache — avoids re-calling Haiku when source+docstring unchanged
             cached = _drift_cache.get_function_result(
-                request.file_path,
+                body.file_path,
                 func_name,
                 func.source,
                 func.existing_docstring,
@@ -210,7 +208,7 @@ async def check_drift_file(
                 status, reason = cached
                 return DriftResultItem(
                     function_name=func_name,
-                    file_path=request.file_path,
+                    file_path=body.file_path,
                     status=status,
                     reason=reason,
                     old_signature=None,
@@ -228,7 +226,7 @@ async def check_drift_file(
             duration_ms_list.append(llm_result.duration_ms)
             status = "drifted" if is_drifted else "up_to_date"
             _drift_cache.set_function_result(
-                request.file_path,
+                body.file_path,
                 func_name,
                 func.source,
                 func.existing_docstring,
@@ -240,7 +238,7 @@ async def check_drift_file(
             # treated as up_to_date (which would hide real drift)
             return DriftResultItem(
                 function_name=func_name,
-                file_path=request.file_path,
+                file_path=body.file_path,
                 status=status,
                 reason=reason if is_drifted else None,
                 old_signature=None,
@@ -264,7 +262,7 @@ async def check_drift_file(
     from api.usage_store import record_event
 
     record_event(
-        http_request.headers.get("X-Wright-API-Key", ""),
+        request.headers.get("X-Wright-API-Key", ""),
         "drift_checks_run",
         tokens=sum(token_totals),
         model=models_used[0] if models_used else None,
@@ -279,7 +277,7 @@ async def check_drift_file(
 
 @router.post("", response_model=DriftCheckResponse)
 @limiter.limit("10/minute")
-async def check_drift(request: DriftCheckRequest, http_request: Request) -> DriftCheckResponse:
+async def check_drift(body: DriftCheckRequest, request: Request) -> DriftCheckResponse:
     """
     Analyzes a Python codebase for documentation drift by comparing function signatures against their docstrings and returns a structured summary of drifted, undocumented, and up-to-date functions.
 
@@ -306,7 +304,7 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
 
     Complexity: O(n) time where n is the number of Python functions in the scanned files, O(n) space for storing per-function drift result items
     """
-    _api_key = http_request.headers.get("X-Wright-API-Key", "")
+    _api_key = request.headers.get("X-Wright-API-Key", "")
     check_quota(_api_key, "drift_checks_run", raise_on_blocked=True)
 
     import asyncio as _asyncio
@@ -314,10 +312,10 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
     from core.drift.drift_detector import DriftDetector
     from core.parser.cache import ASTCache
 
-    await ensure_repo_local(request.repo_root)
+    await ensure_repo_local(body.repo_root)
 
     cache_path = os.getenv(
-        "SQLITE_CACHE_PATH", os.path.join(request.repo_root, ".wright", "ast_cache.db")
+        "SQLITE_CACHE_PATH", os.path.join(body.repo_root, ".wright", "ast_cache.db")
     )
     cache = ASTCache(cache_path)
     detector = DriftDetector()
@@ -328,7 +326,7 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
     from api.usage_store import _resolve_user_id
 
     user_id = _resolve_user_id(_api_key)
-    repo_name = os.path.basename(request.repo_root)
+    repo_name = os.path.basename(body.repo_root)
     remote_baselines = prefetch_baselines(user_id, repo_name) if user_id else {}
     baseline_pending: list[dict] = []
 
@@ -347,41 +345,41 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
             gemini_key=gemini_key,
         )
         sem = _asyncio.Semaphore(5)
-        if request.file_path and os.path.exists(request.file_path):
+        if body.file_path and os.path.exists(body.file_path):
             raw_results = await detector.check_file_async(
-                request.file_path,
+                body.file_path,
                 cache,
                 gateway,
                 sem,
                 remote_baselines=remote_baselines,
                 baseline_pending=baseline_pending,
-                repo_root=request.repo_root,
+                repo_root=body.repo_root,
             )
         else:
             raw_results = await detector.check_directory_async(
-                request.repo_root,
+                body.repo_root,
                 cache,
                 gateway,
                 remote_baselines=remote_baselines,
                 baseline_pending=baseline_pending,
-                repo_root=request.repo_root,
+                repo_root=body.repo_root,
             )
     else:
-        if request.file_path and os.path.exists(request.file_path):
+        if body.file_path and os.path.exists(body.file_path):
             raw_results = detector.check_file(
-                request.file_path,
+                body.file_path,
                 cache,
                 remote_baselines=remote_baselines,
                 baseline_pending=baseline_pending,
-                repo_root=request.repo_root,
+                repo_root=body.repo_root,
             )
         else:
             raw_results = detector.check_directory(
-                request.repo_root,
+                body.repo_root,
                 cache,
                 remote_baselines=remote_baselines,
                 baseline_pending=baseline_pending,
-                repo_root=request.repo_root,
+                repo_root=body.repo_root,
             )
 
     # Persist any advanced baselines to Supabase so the next cold-started
@@ -418,7 +416,7 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
     _tokens_sum = sum(r.tokens for r in raw_results)
     _llm_active = bool(anthropic_key or gemini_key)
     record_event(
-        http_request.headers.get("X-Wright-API-Key", ""),
+        request.headers.get("X-Wright-API-Key", ""),
         "drift_checks_run",
         tokens=_tokens_sum,
         repo_name=repo_name,
@@ -436,7 +434,7 @@ async def check_drift(request: DriftCheckRequest, http_request: Request) -> Drif
             repo_name,
             [
                 {
-                    "file_path": _os.path.relpath(r.file_path, request.repo_root),
+                    "file_path": _os.path.relpath(r.file_path, body.repo_root),
                     "func_name": r.function_name,
                     "status": r.status,
                     "reason": r.reason,

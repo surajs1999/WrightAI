@@ -35,7 +35,7 @@ class GenerateResponse(BaseModel):
 @router.post("", response_model=GenerateResponse)
 @limiter.limit("20/minute")
 async def generate_docstring(
-    request: GenerateRequest, http_request: Request, response: Response
+    body: GenerateRequest, request: Request, response: Response
 ) -> GenerateResponse:
     """
     Generates an AI-powered docstring for a specified Python function by parsing the source file, building a dependency graph, retrieving hybrid context, and injecting the result via an LLM gateway.
@@ -70,7 +70,7 @@ async def generate_docstring(
         )
         ```
     """
-    api_key = http_request.headers.get("X-Wright-API-Key", "")
+    api_key = request.headers.get("X-Wright-API-Key", "")
     quota = check_quota(api_key, "docs_generated", raise_on_blocked=True)
     if quota.warning:
         response.headers["X-Wright-Quota-Warning"] = "true"
@@ -87,17 +87,17 @@ async def generate_docstring(
     from core.parser.tree_sitter_parser import CodeParser
     from core.retrieval.hybrid_retriever import HybridRetriever
 
-    await ensure_repo_local(request.repo_root)
-    load_config(request.repo_root)
+    await ensure_repo_local(body.repo_root)
+    load_config(body.repo_root)
     parser = CodeParser()
 
     # If raw code was sent, write it to a temp file so the parser can read it
     _tmp_path: str | None = None
-    file_path = request.file_path
-    if request.snippet:
-        suffix = os.path.splitext(request.file_path)[1] or ".py"
+    file_path = body.file_path
+    if body.snippet:
+        suffix = os.path.splitext(body.file_path)[1] or ".py"
         _tmp = tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False)
-        _tmp.write(request.snippet)
+        _tmp.write(body.snippet)
         _tmp.close()
         _tmp_path = _tmp.name
         file_path = _tmp_path
@@ -122,16 +122,16 @@ async def generate_docstring(
         all_funcs.extend(cls.methods)
 
     func = None
-    if request.function_name:
+    if body.function_name:
         for f in all_funcs:
-            if f.name == request.function_name:
+            if f.name == body.function_name:
                 func = f
                 break
         if func is None:
             if _tmp_path:
                 os.unlink(_tmp_path)
             raise HTTPException(
-                status_code=404, detail=f"Function '{request.function_name}' not found"
+                status_code=404, detail=f"Function '{body.function_name}' not found"
             )
     elif all_funcs:
         func = all_funcs[0]
@@ -142,19 +142,19 @@ async def generate_docstring(
 
     gateway = get_gateway()
     embedder = get_embedder()
-    chroma_path = os.getenv("CHROMA_PATH", os.path.join(request.repo_root, ".wright", "chroma"))
-    chroma = get_vector_store(request.repo_root, get_chroma(chroma_path, request.repo_root))
+    chroma_path = os.getenv("CHROMA_PATH", os.path.join(body.repo_root, ".wright", "chroma"))
+    chroma = get_vector_store(body.repo_root, get_chroma(chroma_path, body.repo_root))
     dep_graph = DependencyGraph()
     dep_graph.build([parsed_file])
     retriever = HybridRetriever(chroma, dep_graph, embedder)
     injector = DocstringInjector()
 
-    doc_style = DocStyle(request.style)
+    doc_style = DocStyle(body.style)
     context = retriever.retrieve_for_function(func)
     doc, llm_result = await gateway.generate_docstring(
-        func, context, doc_style, verbosity=request.verbosity
+        func, context, doc_style, verbosity=body.verbosity
     )
-    result = injector.inject(func.file_path, func, doc, doc_style, dry_run=request.dry_run)
+    result = injector.inject(func.file_path, func, doc, doc_style, dry_run=body.dry_run)
 
     if _tmp_path:
         os.unlink(_tmp_path)
@@ -163,10 +163,10 @@ async def generate_docstring(
         from api.usage_store import record_event
 
         record_event(
-            http_request.headers.get("X-Wright-API-Key", ""),
+            request.headers.get("X-Wright-API-Key", ""),
             "docs_generated",
             tokens=llm_result.tokens,
-            repo_name=os.path.basename(request.repo_root),
+            repo_name=os.path.basename(body.repo_root),
             language=func.language if hasattr(func, "language") else None,
             model=llm_result.model,
             is_fallback=llm_result.is_fallback,
@@ -174,7 +174,7 @@ async def generate_docstring(
             duration_ms=llm_result.duration_ms,
             cache_read_tokens=llm_result.cache_read_tokens,
             context_chunks=len(context),
-            doc_style=request.style,
+            doc_style=body.style,
         )
 
     token_usage = (
