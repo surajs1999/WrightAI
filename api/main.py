@@ -52,6 +52,28 @@ app.add_middleware(
 
 _logger = logging.getLogger("wright.api")
 
+_PROBE_SUBSTRINGS = (
+    "wp-includes",
+    "wp-admin",
+    "wp-content",
+    "wp-login",
+    "wlwmanifest",
+    "xmlrpc.php",
+    "phpinfo",
+    "/.env",
+    "config.php",
+)
+
+
+@app.middleware("http")
+async def block_probes(request: Request, call_next):
+    path = request.url.path.lower()
+    if any(probe in path for probe in _PROBE_SUBSTRINGS):
+        from fastapi.responses import Response
+
+        return Response(status_code=403)
+    return await call_next(request)
+
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):

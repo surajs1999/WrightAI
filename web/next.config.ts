@@ -93,6 +93,45 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
         ],
       },
+      // Public marketing / docs pages — CDN caches for 1 h, serves stale for 24 h
+      {
+        source: "/",
+        headers: [
+          { key: "Cache-Control", value: "public, s-maxage=3600, stale-while-revalidate=86400" },
+        ],
+      },
+      {
+        source: "/(docs|pricing|login|python|typescript|javascript|go|rust|privacy-policy|terms-of-service|refund-policy)",
+        headers: [
+          { key: "Cache-Control", value: "public, s-maxage=3600, stale-while-revalidate=86400" },
+        ],
+      },
+      // Crawler / bot files — infrequently changing, cache aggressively
+      {
+        source: "/sitemap.xml",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=86400, s-maxage=86400" },
+        ],
+      },
+      {
+        source: "/robots.txt",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=604800, s-maxage=604800" },
+        ],
+      },
+      {
+        source: "/llms.txt",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=86400, s-maxage=86400" },
+        ],
+      },
+      // .well-known discovery files — stable, cache for 1 h
+      {
+        source: "/.well-known/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=3600, s-maxage=3600" },
+        ],
+      },
     ];
   },
 };

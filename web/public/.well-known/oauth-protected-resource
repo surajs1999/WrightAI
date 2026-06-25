@@ -1,5 +1,5 @@
 {
-  "resource": "https://api.wrightai.live",
+  "resource": "https://wrightai.live",
   "authorization_servers": ["https://wrightai.live"],
   "scopes_supported": ["openid", "profile", "email"],
   "bearer_methods_supported": ["header"],

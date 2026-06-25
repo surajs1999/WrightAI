@@ -23,7 +23,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const initials = user?.first_name?.slice(0, 1) ?? user?.email?.slice(0, 1) ?? "U";
 
   return (
-    <DashboardShell userInitials={initials}>
+    <DashboardShell userInitials={initials} userId={user?.id}>
       {children}
     </DashboardShell>
   );

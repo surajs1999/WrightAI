@@ -36,7 +36,7 @@
       "type": "oauth",
       "description": "OAuth Protected Resource Metadata (RFC 9728) describing the Wright AI API resource and its authorization server.",
       "url": "https://wrightai.live/.well-known/oauth-protected-resource",
-      "sha256": "1cb62f46bfbd76d15653d890b62f6daefa7bcd9fbae0b0182ccbccd77df6b5f1"
+      "sha256": "9826974ded531e73734a786a84eefc82c077e144d52d6b8565a09f5d04c13e58"
     },
     {
       "name": "auth-md",

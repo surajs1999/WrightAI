@@ -1,4 +1,4 @@
-# Auth — Wright AI
+# Auth.md
 
 Wright AI uses [WorkOS](https://workos.com) for identity and authentication.
 

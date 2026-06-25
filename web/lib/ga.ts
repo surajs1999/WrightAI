@@ -13,6 +13,11 @@ function send(name: string, params?: Record<string, unknown>) {
   window.gtag("event", name, params);
 }
 
+export function setUserId(id: string) {
+  if (typeof window === "undefined" || typeof window.gtag !== "function") return;
+  window.gtag("set", "user_id", id);
+}
+
 export const ga = {
   // ── Marketing CTAs ──────────────────────────────────────────────────
   ctaClick: (location: string) =>

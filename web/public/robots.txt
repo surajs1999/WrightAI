@@ -4,6 +4,22 @@ Disallow: /dashboard/
 Disallow: /auth/
 Disallow: /api/
 
+# Throttle AhrefsBot — it accounts for a disproportionate share of crawl traffic
+User-agent: AhrefsBot
+Crawl-delay: 10
+
+# Semrush crawler — same reason
+User-agent: SemrushBot
+Crawl-delay: 10
+
+# MJ12bot is aggressive and provides no SEO value
+User-agent: MJ12bot
+Disallow: /
+
+# DotBot hits wp-includes probes
+User-agent: DotBot
+Disallow: /
+
 Sitemap: https://wrightai.live/sitemap.xml
 
 # Content Signals — AI usage preferences (https://contentsignals.org/)

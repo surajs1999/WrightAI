@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { setUserId } from "@/lib/ga";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 
@@ -24,11 +25,17 @@ import Topbar from "./Topbar";
 export default function DashboardShell({
   children,
   userInitials,
+  userId,
 }: {
   children: React.ReactNode;
   userInitials: string;
+  userId?: string;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    if (userId) setUserId(userId);
+  }, [userId]);
 
   return (
     <div className="dash-layout">
