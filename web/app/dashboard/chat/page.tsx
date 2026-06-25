@@ -198,6 +198,7 @@ export default function ChatPage() {
     if (!question.trim() || streaming) return;
     const q = question.trim();
     setInput("");
+    if (messages.length === 0) ga.chatInitiated();
 
     const userMsg: Message = { role: "user", content: q };
     const assistantMsg: Message = { role: "assistant", content: "", citations: [] };

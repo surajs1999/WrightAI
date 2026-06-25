@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import NavbarV2 from "@/components/landing-v2/NavbarV2";
 import FooterV2 from "@/components/landing-v2/FooterV2";
 import LanguagePageEvents from "@/components/landing-v2/LanguagePageEvents";
+import LanguageCTA from "@/components/landing-v2/LanguageCTA";
 
 /* ── language data ────────────────────────────────────────────────────── */
 const LANGUAGES = {
@@ -335,10 +336,7 @@ export default async function LanguagePage({ params }: { params: Promise<{ langu
 
           {/* CTAs */}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 56 }}>
-            <Link href="/dashboard" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px", borderRadius: 10, background: "linear-gradient(135deg, #00B8E0 0%, #00D4FF 100%)", fontFamily: "var(--font-body)", fontWeight: 700, fontSize: 15, color: "#050310", boxShadow: "0 0 28px rgba(0,212,255,0.3)" }}>
-              Start Free
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </Link>
+            <LanguageCTA language={language} />
             <a href="https://marketplace.visualstudio.com/items?itemName=WrightAI.wrightai" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 9, padding: "13px 22px", borderRadius: 10, border: "1px solid rgba(175,169,236,0.25)", fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--text-code)", background: "rgba(13,11,31,0.8)" }}>
               {lang.installLabel}
             </a>
@@ -507,10 +505,7 @@ export default async function LanguagePage({ params }: { params: Promise<{ langu
           </p>
 
           <div style={{ display: "flex", justifyContent: "center", gap: 14, flexWrap: "wrap" }}>
-            <Link href="/dashboard" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8, padding: "15px 38px", borderRadius: 10, background: "linear-gradient(135deg, #00B8E0 0%, #00D4FF 100%)", fontFamily: "var(--font-body)", fontWeight: 700, fontSize: 16, color: "#050310", boxShadow: "0 0 36px rgba(0,212,255,0.35)" }}>
-              Start Free
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </Link>
+            <LanguageCTA language={language} />
             <Link href="/docs" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 9, padding: "15px 28px", borderRadius: 10, border: "1px solid rgba(175,169,236,0.25)", fontFamily: "var(--font-body)", fontSize: 15, color: "var(--text-muted)" }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
               Read the Docs

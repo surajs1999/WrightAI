@@ -210,6 +210,12 @@ export default function GeneratePage() {
         setError((data.detail as string) ?? (data.error as string) ?? `API error ${res.status}`);
       } else if (data.preview) {
         setOutput(data.preview as string);
+        ga.docsGenerated(style, 1);
+        const firstKey = "wright_docs_generated_first_time";
+        if (!localStorage.getItem(firstKey)) {
+          ga.docsGeneratedFirstTime();
+          localStorage.setItem(firstKey, "1");
+        }
       } else if (data.error) {
         setError(data.error as string);
       } else {

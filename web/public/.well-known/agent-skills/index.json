@@ -1,0 +1,56 @@
+{
+  "$schema": "https://agentskills.io/schema/v0.2.0/index.json",
+  "name": "Wright AI",
+  "url": "https://wrightai.live",
+  "skills": [
+    {
+      "name": "mcp-server-card",
+      "type": "mcp",
+      "description": "MCP Server Card (SEP-1649) for the Wright AI Documentation Intelligence Platform. Exposes search_docs, get_function_doc, and list_undocumented tools.",
+      "url": "https://wrightai.live/.well-known/mcp/server-card.json",
+      "sha256": "1137c9a931fc33a1e95d5b23b40933c02f23a3a17e325e439a2b95f80607ab75"
+    },
+    {
+      "name": "llms-txt",
+      "type": "llms-txt",
+      "description": "llms.txt navigation file describing Wright AI's key pages, product, integrations, languages, and exclusive capabilities for AI crawlers.",
+      "url": "https://wrightai.live/llms.txt",
+      "sha256": "eb67734aa3caa5917489664ad06b6422a8ea84aa463e552fa2300eaeae390d77"
+    },
+    {
+      "name": "api-catalog",
+      "type": "api-catalog",
+      "description": "RFC 9727 API catalog linking to the Wright AI REST API OpenAPI spec, documentation, and health endpoint.",
+      "url": "https://wrightai.live/.well-known/api-catalog",
+      "sha256": "275875dac935d26b549bdb1ff5cddee28b79536f531ef4051788350648f0fc00"
+    },
+    {
+      "name": "oauth-discovery",
+      "type": "oauth",
+      "description": "OAuth 2.0 authorization server metadata (RFC 8414) with agent_auth block for agent registration and API key issuance.",
+      "url": "https://wrightai.live/.well-known/oauth-authorization-server",
+      "sha256": "a576649e2ac428b3555717a3687b851ac7ae559bd851cb072a0b748cc1efd5c7"
+    },
+    {
+      "name": "oauth-protected-resource",
+      "type": "oauth",
+      "description": "OAuth Protected Resource Metadata (RFC 9728) describing the Wright AI API resource and its authorization server.",
+      "url": "https://wrightai.live/.well-known/oauth-protected-resource",
+      "sha256": "1cb62f46bfbd76d15653d890b62f6daefa7bcd9fbae0b0182ccbccd77df6b5f1"
+    },
+    {
+      "name": "auth-md",
+      "type": "auth",
+      "description": "Auth.md agent registration guide — how to obtain a wai_ API key and authenticate with the Wright AI API.",
+      "url": "https://wrightai.live/auth.md",
+      "sha256": "47c6d63305fc4d14e11c4fcc3f8e08ac6cdf749c5aa9e665528efbeb9c80ef07"
+    },
+    {
+      "name": "content-signals",
+      "type": "content-signals",
+      "description": "Content Signals in robots.txt declaring ai-train=no, search=yes, ai-input=yes.",
+      "url": "https://wrightai.live/robots.txt",
+      "sha256": "6d06f1593c6ddd2f9ada64127b4d666f8ed92a3e54dca3dc17e1818365cc6f79"
+    }
+  ]
+}

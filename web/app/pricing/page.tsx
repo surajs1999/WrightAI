@@ -428,6 +428,13 @@ export function PricingContent({ embedded = false }: { embedded?: boolean }) {
           return (
             <div
               key={plan.id}
+              ref={el => {
+                if (!el) return;
+                const obs = new IntersectionObserver(([entry]) => {
+                  if (entry.isIntersecting) { ga.viewItem(plan.id, interval); obs.disconnect(); }
+                }, { threshold: 0.5 });
+                obs.observe(el);
+              }}
               onMouseEnter={() => ga.pricingPlanHover(plan.id)}
               style={{
                 position: "relative",

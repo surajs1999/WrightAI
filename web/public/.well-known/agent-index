@@ -1,0 +1,16 @@
+{
+  "name": "Wright AI",
+  "description": "The Documentation Intelligence Platform — the AI code documentation tool that never lies.",
+  "url": "https://wrightai.live",
+  "llms_txt": "https://wrightai.live/llms.txt",
+  "docs": "https://wrightai.live/docs",
+  "sitemap": "https://wrightai.live/sitemap.xml",
+  "capabilities": [
+    "docstring-generation",
+    "documentation-drift-detection",
+    "mcp-server",
+    "codebase-chat"
+  ],
+  "languages": ["python", "typescript", "javascript", "go", "rust"],
+  "contact": "hello@wrightai.live"
+}

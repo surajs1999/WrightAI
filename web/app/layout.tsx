@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, DM_Mono, Poppins } from "next/font/google";
 import Script from "next/script";
+import WebMCPProvider from "@/components/WebMCPProvider";
 import "./globals.css";
 
 const GA_ID = "G-934CQXQ86Z";
@@ -292,6 +293,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
+        <WebMCPProvider />
         {children}
         <Script
           src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}

@@ -169,6 +169,7 @@ export default function GetStarted() {
               key={i}
               initial={{ opacity: 0, y: 28 }}
               whileInView={{ opacity: 1, y: 0 }}
+              onViewportEnter={() => ga.installCardView(card.label)}
               viewport={{ once: true }}
               transition={{ duration: 0.4, delay: i * 0.08, ease: "easeOut" }}
               style={{

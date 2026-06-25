@@ -123,13 +123,15 @@ export default function DriftPage() {
           status: r.status,
           reason: r.reason,
         }));
+        const driftedCount = items.filter(i => i.status === "drifted").length;
         setData({
           total_checked: items.length,
-          drifted: items.filter(i => i.status === "drifted").length,
+          drifted: driftedCount,
           undocumented: items.filter(i => i.status === "undocumented").length,
           up_to_date: items.filter(i => i.status === "up_to_date").length,
           results: items,
         });
+        ga.driftDetected(driftedCount);
         return;
       }
 
@@ -140,7 +142,9 @@ export default function DriftPage() {
         body: JSON.stringify({ repo_root: selectedRepo.local_path }),
       });
       if (!res.ok) throw new Error(`${res.status}`);
-      setData(await res.json());
+      const liveData = await res.json();
+      setData(liveData);
+      ga.driftDetected(liveData.drifted ?? 0);
     } catch (e: any) {
       setError(e.message);
     } finally {

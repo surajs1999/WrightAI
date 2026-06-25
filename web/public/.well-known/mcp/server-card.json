@@ -1,0 +1,77 @@
+{
+  "schema_version": "1.0",
+  "serverInfo": {
+    "name": "Wright AI",
+    "version": "0.1.0",
+    "description": "The Documentation Intelligence Platform. Exposes live, verified codebase documentation to AI assistants via MCP — search docs, retrieve function documentation, and list undocumented functions.",
+    "homepage": "https://wrightai.live",
+    "documentation": "https://wrightai.live/docs#mcp-reference",
+    "license": "AGPL-3.0"
+  },
+  "transport": [
+    {
+      "type": "stdio",
+      "description": "Local stdio transport — runs inside your project directory",
+      "command": "python",
+      "args": ["-m", "mcp_server.server"],
+      "install": "pip install wright",
+      "env": {
+        "ANTHROPIC_API_KEY": {
+          "description": "Anthropic API key for doc generation",
+          "required": true
+        },
+        "CHROMA_PATH": {
+          "description": "ChromaDB storage path",
+          "required": false,
+          "default": ".wright/chroma"
+        }
+      }
+    }
+  ],
+  "capabilities": {
+    "tools": [
+      {
+        "name": "search_docs",
+        "description": "Semantic search across all documented functions in the codebase. Returns ranked results with file:line citations.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": { "type": "string", "description": "Natural language search query" },
+            "top_k": { "type": "integer", "description": "Number of results to return", "default": 5 }
+          },
+          "required": ["query"]
+        }
+      },
+      {
+        "name": "get_function_doc",
+        "description": "Retrieve complete documentation for a specific function by name or file:line reference.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "function_name": { "type": "string", "description": "Function name or file:line reference" }
+          },
+          "required": ["function_name"]
+        }
+      },
+      {
+        "name": "list_undocumented",
+        "description": "List all undocumented functions in the codebase with their file:line locations.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": { "type": "string", "description": "Directory or file path to scan", "default": "." }
+          }
+        }
+      }
+    ]
+  },
+  "authentication": {
+    "type": "api_key",
+    "header": "X-Wright-API-Key",
+    "obtain": "https://wrightai.live/dashboard/keys"
+  },
+  "contact": {
+    "email": "hello@wrightai.live",
+    "github": "https://github.com/surajs1999/WrightAI"
+  }
+}

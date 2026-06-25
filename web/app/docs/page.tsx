@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import NavbarV2 from "@/components/landing-v2/NavbarV2";
 import FooterV2 from "@/components/landing-v2/FooterV2";
+import { ga } from "@/lib/ga";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -492,16 +493,26 @@ export default function DocsPage() {
   const [activeId, setActiveId] = useState("what-is-wright");
   const contentRef = useRef<HTMLDivElement>(null);
 
-  // Track active section via IntersectionObserver
+  // Track active section + fire docs_section_read via IntersectionObserver
   useEffect(() => {
     const allIds = NAV.flatMap(n => n.children ? n.children.map(c => c.id) : [n.id]);
+    const fired = new Set<string>();
     const observers: IntersectionObserver[] = [];
 
     allIds.forEach(id => {
       const el = document.getElementById(id);
       if (!el) return;
       const obs = new IntersectionObserver(
-        ([entry]) => { if (entry.isIntersecting) setActiveId(id); },
+        ([entry]) => {
+          if (entry.isIntersecting) {
+            setActiveId(id);
+            if (!fired.has(id)) {
+              fired.add(id);
+              const label = NAV.flatMap(n => n.children ? n.children : [n]).find(n => n.id === id)?.label ?? id;
+              ga.docsSectionRead(label);
+            }
+          }
+        },
         { rootMargin: "-20% 0px -70% 0px" }
       );
       obs.observe(el);

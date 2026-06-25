@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard/
+Disallow: /auth/
+Disallow: /api/
+
+Sitemap: https://wrightai.live/sitemap.xml
+
+# Content Signals — AI usage preferences (https://contentsignals.org/)
+Content-Signal: ai-train=no, search=yes, ai-input=yes
