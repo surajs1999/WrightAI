@@ -81,7 +81,7 @@ export const ga = {
 
   // ── Scroll depth ─────────────────────────────────────────────────────
   scrollDepth: (pct: 25 | 50 | 75 | 90) =>
-    send("scroll_depth", { percent: pct }),
+    send("scroll_depth", { scroll_percent: pct }),
 
   // ── Pricing drop-off signals ─────────────────────────────────────────
   pricingPlanHover: (plan: string) =>
@@ -105,7 +105,7 @@ export const ga = {
     send("dashboard_first_visit"),
 
   dashboardPageVisit: (page: string) =>
-    send("dashboard_page_visit", { page }),
+    send("dashboard_page_visit", { page_dashboard: page }),
 
   repoConnected: (repoName?: string) =>
     send("repo_connected", { repo_name: repoName }),

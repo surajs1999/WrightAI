@@ -5,3 +5,18 @@ repos:
       - id: ruff
         args: [--fix]
       - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: web-typecheck
+        name: Web TypeScript check
+        language: system
+        entry: bash -c 'cd web && npx tsc --noEmit'
+        pass_filenames: false
+        files: ^web/.*\.(ts|tsx)$
+      - id: web-eslint
+        name: Web ESLint
+        language: system
+        entry: bash -c 'cd web && npx eslint .'
+        pass_filenames: false
+        files: ^web/.*\.(ts|tsx|js|jsx)$

@@ -29,7 +29,10 @@ const nextConfig: NextConfig = {
             key: "Link",
             value: [
               '</llms.txt>; rel="describedby"; type="text/plain"',
+              '</auth.md>; rel="auth-md"; type="text/markdown"',
               '</.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"',
+              '</.well-known/oauth-authorization-server>; rel="oauth-authorization-server"; type="application/json"',
+              '</.well-known/oauth-protected-resource>; rel="oauth-protected-resource"; type="application/json"',
               '</.well-known/mcp/server-card.json>; rel="mcp-server-card"; type="application/json"',
               '</.well-known/agent-skills/index.json>; rel="agent-skills"; type="application/json"',
               '</docs>; rel="service-doc"',

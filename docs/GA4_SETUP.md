@@ -65,7 +65,7 @@ Go to **GA4 → Explore → Funnel exploration** to build each funnel below.
 | Step | Event name | Condition |
 |------|-----------|-----------|
 | 1 | `session_start` | — |
-| 2 | `scroll_depth` | `percent` = 50 |
+| 2 | `scroll_depth` | `scroll_percent` = 50 |
 | 3 | `cta_click` | any location |
 | 4 | `sign_up_initiated` | — |
 | 5 | `sign_up` | — |
@@ -174,9 +174,9 @@ Go to **GA4 → Configure → Custom definitions → Create custom dimension**:
 | Language | Event | `language` |
 | Plan name | Event | `plan` |
 | Billing interval | Event | `interval` |
-| Dashboard page | Event | `page` |
+| Dashboard page | Event | `page_dashboard` |
 | Error type | Event | `error_type` |
-| Scroll percent | Event | `percent` |
+| Scroll percent | Event | `scroll_percent` |
 
 ---
 

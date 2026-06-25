@@ -2,6 +2,7 @@
 
 import { ga } from "@/lib/ga";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useConnectedRepos } from "@/hooks/useConnectedRepos";
 import { Spinner, SkeletonBlock, SpinnerArc } from "@/components/dashboard/Spinner";
@@ -99,12 +100,12 @@ export default function DriftPage() {
       } else {
         setPrModal(s => ({ ...s, running: false, result: json }));
       }
-    } catch (e: any) {
-      setPrModal(s => ({ ...s, running: false, error: e?.message ?? "Network error" }));
+    } catch (e) {
+      setPrModal(s => ({ ...s, running: false, error: e instanceof Error ? e.message : "Network error" }));
     }
   };
 
-  const run = async () => {
+  async function run() {
     if (!selectedRepo) return;
     setLoading(true);
     setError(null);
@@ -145,8 +146,8 @@ export default function DriftPage() {
       const liveData = await res.json();
       setData(liveData);
       ga.driftDetected(liveData.drifted ?? 0);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
@@ -277,9 +278,9 @@ export default function DriftPage() {
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(175,169,236,0.6)" }}>
               Upgrade to Pro for bulk auto-PR fixes, GitHub Action PR comments, and enhanced dashboard analytics.
             </span>
-            <a href="/dashboard/pricing" style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#AFA9EC", textDecoration: "none", whiteSpace: "nowrap" }}>
+            <Link href="/dashboard/pricing" style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#AFA9EC", textDecoration: "none", whiteSpace: "nowrap" }}>
               See Pro plans →
-            </a>
+            </Link>
           </div>
 
           {drifted.length > 0 && (
@@ -319,9 +320,9 @@ export default function DriftPage() {
                     onMouseLeave={e => (e.currentTarget.style.background = "var(--purple)")}
                   >Fix all → Open PR</button>
                 ) : (
-                  <a href="/dashboard/pricing" style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", background: "rgba(83,74,183,0.08)", border: "1px solid rgba(83,74,183,0.2)", borderRadius: 8, fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--purple-light)", textDecoration: "none" }}>
+                  <Link href="/dashboard/pricing" style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", background: "rgba(83,74,183,0.08)", border: "1px solid rgba(83,74,183,0.2)", borderRadius: 8, fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--purple-light)", textDecoration: "none" }}>
                     <span>⚡</span> Fix all → Open PR · Pro
-                  </a>
+                  </Link>
                 )}
               </div>
             </div>

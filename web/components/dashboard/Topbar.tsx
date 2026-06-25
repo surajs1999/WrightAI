@@ -135,6 +135,7 @@ export default function Topbar({
                 {item.label}
               </Link>
             ))}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a
               href="/api/auth/logout"
               style={{

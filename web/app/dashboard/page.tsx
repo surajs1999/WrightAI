@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ga } from "@/lib/ga";
 import MetricCard from "@/components/dashboard/MetricCard";
@@ -44,6 +45,18 @@ export default function DashboardHome() {
   const [driftLoading, setDriftLoading] = useState(false);
   const [selectedGithubRepo, setSelectedGithubRepo] = useState("");
 
+  const loadGithubRepos = () => {
+    fetch("/api/proxy/auth/github/repos")
+      .then(r => r.json())
+      .then((d: { repos: { full_name: string; private: boolean; clone_url: string }[] }) => {
+        if (d.repos?.length) {
+          setGithubRepos(d.repos);
+          setSelectedGithubRepo(d.repos[0].clone_url);
+        }
+      })
+      .catch(() => {});
+  };
+
   useEffect(() => {
     // Fire sign_up on first post-auth dashboard load
     const method = sessionStorage.getItem("wright_sign_up_method") as "github" | "google" | null;
@@ -66,29 +79,19 @@ export default function DashboardHome() {
         if (d.connected) loadGithubRepos();
       })
       .catch(() => {});
-  }, []);
-
-  const loadGithubRepos = () => {
-    fetch("/api/proxy/auth/github/repos")
-      .then(r => r.json())
-      .then((d: { repos: { full_name: string; private: boolean; clone_url: string }[] }) => {
-        if (d.repos?.length) {
-          setGithubRepos(d.repos);
-          setSelectedGithubRepo(d.repos[0].clone_url);
-        }
-      })
-      .catch(() => {});
-  };
+  }, []);  
 
   useEffect(() => {
     if (searchParams.get("github") === "connected") {
+       
       setGithubConnected(true);
       loadGithubRepos();
     }
-  }, [searchParams]);
+  }, [searchParams]);  
 
   useEffect(() => {
     if (searchParams.get("upgraded") === "true") {
+       
       setShowUpgraded(true);
       router.replace("/dashboard");
     }
@@ -125,7 +128,9 @@ export default function DashboardHome() {
     const repo = repos.find(r => r.id === selectedRepo);
     if (!repo) return;
     let cancelled = false;
+     
     setDriftCount(null);
+     
     setDriftLoading(true);
     (async () => {
       try {
@@ -365,6 +370,7 @@ export default function DashboardHome() {
               {connecting ? "Connecting…" : "Connect"}
             </button>
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" }}>or</span>
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a
               href="/api/auth/github"
               style={{
@@ -481,14 +487,14 @@ export default function DashboardHome() {
         <span style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "rgba(175,169,236,0.65)" }}>
           Pro gives you 3× more generations, drift detections & chat, auto-PR, GitHub Action comments, and enhanced dashboard analytics.
         </span>
-        <a href="/dashboard/pricing" style={{
+        <Link href="/dashboard/pricing" style={{
           fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 12.5,
           color: "#AFA9EC", textDecoration: "none", whiteSpace: "nowrap",
           padding: "6px 14px", borderRadius: 7,
           background: "rgba(83,74,183,0.15)", border: "1px solid rgba(127,119,221,0.25)",
         }}>
           See plans →
-        </a>
+        </Link>
       </div>
 
       {/* Activity feed */}

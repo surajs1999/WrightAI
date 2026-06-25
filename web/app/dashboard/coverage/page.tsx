@@ -34,7 +34,7 @@ export default function CoveragePage() {
     if (selectedRepo) run();
   }, [selectedRepo?.id]);
 
-  const run = async () => {
+  async function run() {
     if (!selectedRepo) return;
     setLoading(true);
     setError(null);
@@ -42,12 +42,12 @@ export default function CoveragePage() {
       const res = await fetch(`/api/proxy/coverage?repo_root=${encodeURIComponent(selectedRepo.local_path)}`);
       if (!res.ok) throw new Error(`${res.status}`);
       setData(await res.json());
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const exportJson = () => {
     if (!data) return;

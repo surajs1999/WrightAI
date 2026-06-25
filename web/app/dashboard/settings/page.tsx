@@ -28,6 +28,7 @@ export default function SettingsPage() {
       const raw = document.cookie.split("; ").find(c => c.startsWith("wright_user="));
       if (raw) {
         const user = JSON.parse(decodeURIComponent(raw.split("=").slice(1).join("=")));
+         
         setEmail(user.email ?? null);
       }
     } catch {}

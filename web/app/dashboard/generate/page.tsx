@@ -2,6 +2,7 @@
 
 import { ga } from "@/lib/ga";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useConnectedRepos } from "@/hooks/useConnectedRepos";
 
 const LANGUAGES = ["Python", "TypeScript", "JavaScript", "Java", "Go", "Rust"];
@@ -416,7 +417,7 @@ export default function GeneratePage() {
           </button>
           <p style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "rgba(175,169,236,0.35)", marginTop: 8, textAlign: "center" }}>
             Free: 500 generations/month ·{" "}
-            <a href="/dashboard/pricing" style={{ color: "rgba(175,169,236,0.55)", textDecoration: "none" }}>Upgrade for 1,500 →</a>
+            <Link href="/dashboard/pricing" style={{ color: "rgba(175,169,236,0.55)", textDecoration: "none" }}>Upgrade for 1,500 →</Link>
           </p>
         </div>
 

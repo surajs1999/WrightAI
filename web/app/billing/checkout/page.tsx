@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 const PRICE_IDS: Record<string, Record<string, string>> = {
@@ -44,6 +45,7 @@ function CheckoutLoader() {
   // Load and initialize Paddle.js so it's ready before the user clicks.
   useEffect(() => {
     const token = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN;
+     
     if (!token) { setNotice({ type: "error", text: "Checkout is not configured." }); return; }
 
     const init = () => {
@@ -162,9 +164,9 @@ function CheckoutLoader() {
         </button>
 
         <p style={{ margin: 0 }}>
-          <a href="/pricing" style={{ color: "#AFA9EC", fontSize: 13.5, textDecoration: "none" }}>
+          <Link href="/pricing" style={{ color: "#AFA9EC", fontSize: 13.5, textDecoration: "none" }}>
             ← Back to pricing
-          </a>
+          </Link>
         </p>
         <p style={{ marginTop: 20, color: "rgba(175,169,236,0.3)", fontSize: 13 }}>
           Still having trouble?{" "}

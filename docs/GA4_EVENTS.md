@@ -160,9 +160,9 @@ Go to **GA4 → Configure → Custom definitions → Create custom dimension**:
 | Language | Event | `language` |
 | Plan | Event | `plan` |
 | Billing interval | Event | `interval` |
-| Dashboard page | Event | `page` |
+| Dashboard page | Event | `page_dashboard` |
 | Error type | Event | `error_type` |
-| Scroll percent | Event | `percent` |
+| Scroll percent | Event | `scroll_percent` |
 | Competitor | Event | `competitor` |
 | Time on section (seconds) | Event | `seconds` |
 | Chars typed | Event | `chars_typed` |

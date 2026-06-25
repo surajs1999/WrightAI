@@ -2,6 +2,7 @@
 
 import { ga } from "@/lib/ga";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useConnectedRepos } from "@/hooks/useConnectedRepos";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://api.wrightai.live";
@@ -321,7 +322,7 @@ export default function McpPage() {
         {!apiKey && (
           <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--amber)", marginTop: 12 }}>
             ⚠ Log in to auto-fill your API key, or get it from the{" "}
-            <a href="/dashboard/keys" style={{ color: "var(--purple-light)", textDecoration: "none" }}>API Keys</a> page.
+            <Link href="/dashboard/keys" style={{ color: "var(--purple-light)", textDecoration: "none" }}>API Keys</Link> page.
           </p>
         )}
       </div>
