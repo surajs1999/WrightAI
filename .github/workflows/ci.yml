@@ -52,7 +52,7 @@ jobs:
         working-directory: web
 
       - name: Build
-        run: npm run build
+        run: npm run build 2>&1 | tee /tmp/next-build.log; exit ${PIPESTATUS[0]}
         working-directory: web
         env:
           NEXT_PUBLIC_API_URL: https://api.wrightai.live
@@ -60,6 +60,10 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_PADDLE_CLIENT_TOKEN: ${{ secrets.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN }}
+
+      - name: Show build error (on failure)
+        if: failure()
+        run: grep -E "Error|error|Failed|failed|warn|WARN" /tmp/next-build.log | tail -50
 
   security:
     name: Dependency Audit
