@@ -18,18 +18,14 @@ const PROBE_SUBSTRINGS = [
   "cgi-bin",
 ];
 
-// Headless/automated browsers and raw HTTP clients that provide no legitimate
-// user value on a marketing/app frontend. Legitimate AI crawlers (GPTBot,
-// ClaudeBot, Googlebot) identify themselves honestly and don't use these UAs.
+// Clearly malicious or abandoned headless clients with no legitimate scanner use.
+// HeadlessChrome and Go-http-client are intentionally excluded — they are used
+// by legitimate scanners (Lighthouse, PageSpeed, isitagentready.com, Cloudflare).
 const BLOCKED_UA_SUBSTRINGS = [
-  "HeadlessChrome",
-  "headlesschrome",
   "PhantomJS",
   "SlimerJS",
-  "Go-http-client",
   "python-requests",
   "python-httpx",
-  "curl/",
 ];
 
 export function proxy(request: NextRequest) {
