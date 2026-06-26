@@ -1,33 +1,36 @@
-import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
-/**
- * Handles authentication middleware logic by redirecting unauthenticated users to login and authenticated users away from the login page.
- *
- * This proxy middleware function checks for the presence of a 'wright_token' cookie to determine authentication status. It protects dashboard routes by redirecting unauthenticated requests to the login page with a 'next' query parameter. It also prevents authenticated users from accessing the login page by redirecting them to the dashboard.
- *
- * @param {NextRequest} request - The incoming Next.js request object containing URL information and cookies.
- * @returns {NextResponse} A NextResponse object that either redirects to login, redirects to dashboard, or allows the request to continue.
- * @example
- * const response = proxy(request);
- */
+// Substrings found in WordPress/CMS scanner probes — never valid on this site
+const PROBE_SUBSTRINGS = [
+  "wp-includes",
+  "wp-admin",
+  "wp-content",
+  "wp-login",
+  "wlwmanifest",
+  "xmlrpc.php",
+  "phpinfo",
+  ".env",
+  "config.php",
+  "setup.php",
+  "install.php",
+  "php-fpm",
+  "cgi-bin",
+];
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const token = request.cookies.get("wright_token");
+  const lower = pathname.toLowerCase();
 
-  if (pathname.startsWith("/dashboard") && !token) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  if (pathname === "/login" && token) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+  for (const probe of PROBE_SUBSTRINGS) {
+    if (lower.includes(probe)) {
+      return new NextResponse(null, { status: 403 });
+    }
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login"],
+  matcher: "/:path*",
 };
