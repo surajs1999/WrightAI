@@ -54,6 +54,8 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:png|jpg|jpeg|gif|webp|avif|svg|woff2?|ttf|eot|ico)$).*)",
+    // Exclude static assets, well-known discovery files, and agent-readable files
+    // so legitimate AI crawlers and checkers can always reach them
+    "/((?!_next/static|_next/image|favicon\\.ico|\\.well-known/|llms\\.txt|robots\\.txt|auth\\.md|sitemap\\.xml|.*\\.(?:png|jpg|jpeg|gif|webp|avif|svg|woff2?|ttf|eot|ico)$).*)",
   ],
 };
