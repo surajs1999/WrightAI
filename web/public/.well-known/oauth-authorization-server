@@ -15,11 +15,20 @@
   "x-api-key-header": "X-Wright-API-Key",
   "x-api-key-docs": "https://wrightai.live/docs#api-keys",
   "agent_auth": {
+    "skill": "auth_md",
     "register_uri": "https://wrightai.live/dashboard/keys",
     "auth_md": "https://wrightai.live/auth.md",
-    "supported_identity_types": ["github", "google"],
-    "credential_types": ["api_key"],
-    "claim_uri": "https://wrightai.live/api/auth/key",
-    "revocation_uri": "https://wrightai.live/dashboard/keys"
+    "identity_types_supported": ["identity_assertion", "anonymous"],
+    "identity_assertion": {
+      "assertion_types_supported": ["verified_email"],
+      "credential_types_supported": ["api_key"],
+      "claim_uri": "https://wrightai.live/api/auth/key"
+    },
+    "anonymous": {
+      "credential_types_supported": ["api_key"],
+      "claim_uri": "https://wrightai.live/api/auth/key"
+    },
+    "revocation_uri": "https://wrightai.live/dashboard/keys",
+    "events_supported": ["credential_revoked"]
   }
 }
