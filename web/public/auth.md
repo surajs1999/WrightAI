@@ -1,3 +1,16 @@
+---
+agent_auth:
+  register_uri: https://wrightai.live/dashboard/keys
+  supported_identity_types:
+    - github
+    - google
+  credential_types:
+    - api_key
+  claim_uri: https://wrightai.live/api/auth/key
+  revocation_uri: https://wrightai.live/dashboard/keys
+  auth_server: https://wrightai.live/.well-known/oauth-authorization-server
+---
+
 # Auth.md
 
 Wright AI uses [WorkOS](https://workos.com) for identity and authentication.
