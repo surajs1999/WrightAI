@@ -8,6 +8,12 @@ repos:
 
   - repo: local
     hooks:
+      - id: no-middleware-ts
+        name: Block middleware.ts (deprecated in Next.js 16, use proxy.ts)
+        language: system
+        entry: bash -c 'git diff --cached --name-only | grep -q "^web/middleware\.ts$" && echo "ERROR - web/middleware.ts is deprecated in Next.js 16, use web/proxy.ts" && exit 1 || exit 0'
+        pass_filenames: false
+        always_run: true
       - id: web-typecheck
         name: Web TypeScript check
         language: system
