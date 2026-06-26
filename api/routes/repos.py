@@ -438,9 +438,10 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
             except subprocess.TimeoutExpired:
                 raise HTTPException(status_code=400, detail="git fetch timed out — try again.")
             except subprocess.CalledProcessError as e2:
-                raise HTTPException(
-                    status_code=400, detail=f"Could not sync repo: {e2.stderr.decode()}"
-                )
+                import logging as _log
+
+                _log.getLogger("wright.api").error("git fetch failed: %s", e2.stderr.decode())
+                raise HTTPException(status_code=400, detail="Could not sync repo")
     else:
         # Clone without --branch so git uses the remote HEAD (works for main/master/any default)
         try:
@@ -466,7 +467,12 @@ async def connect_repo(body: ConnectRepoRequest, request: Request) -> RepoInfo:
                     status_code=400,
                     detail="Repository not found or is private. Connect GitHub first.",
                 )
-            raise HTTPException(status_code=400, detail=f"git clone failed: {stderr}")
+            import logging as _log
+
+            _log.getLogger("wright.api").error("git clone failed: %s", stderr)
+            raise HTTPException(
+                status_code=400, detail="git clone failed — check the URL and try again."
+            )
 
     # Detect the actual branch that was checked out
     branch_result = subprocess.run(
@@ -727,9 +733,10 @@ async def sync_repo(repo_name: str, request: Request) -> dict:
             env=git_env,
         )
         if result.returncode != 0:
-            raise HTTPException(
-                status_code=500, detail=f"git pull failed: {result.stderr.decode()}"
-            )
+            import logging as _log
+
+            _log.getLogger("wright.api").error("git pull failed: %s", result.stderr.decode())
+            raise HTTPException(status_code=500, detail="git pull failed")
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="git pull timed out")
 

@@ -126,7 +126,10 @@ async def callback(body: CallbackRequest, redirect_uri: str | None = None) -> di
             },
         }
     except Exception as e:
-        raise HTTPException(status_code=401, detail=str(e))
+        import logging as _log
+
+        _log.getLogger("wright.api").warning("auth callback failed: %s", e)
+        raise HTTPException(status_code=401, detail="Authentication failed")
 
 
 @router.get("/callback")

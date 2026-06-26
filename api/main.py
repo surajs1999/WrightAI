@@ -16,10 +16,18 @@ from fastapi.responses import JSONResponse
 
 load_dotenv()
 
+_is_prod = os.getenv("NODE_ENV") == "production" or os.getenv("WRIGHT_API_URL", "").startswith(
+    "https://api."
+)
+
 app = FastAPI(
     title="Wright API",
     version="1.0.0",
     description="AI-powered code documentation API",
+    # Disable interactive API docs in production — they expose full schema
+    docs_url=None if _is_prod else "/docs",
+    redoc_url=None if _is_prod else "/redoc",
+    openapi_url=None if _is_prod else "/openapi.json",
 )
 
 from api.observability import setup_observability  # noqa: E402
@@ -53,6 +61,7 @@ app.add_middleware(
 _logger = logging.getLogger("wright.api")
 
 _PROBE_SUBSTRINGS = (
+    # WordPress / CMS scanners
     "wp-includes",
     "wp-admin",
     "wp-content",
@@ -60,8 +69,21 @@ _PROBE_SUBSTRINGS = (
     "wlwmanifest",
     "xmlrpc.php",
     "phpinfo",
-    "/.env",
     "config.php",
+    # Credential / secret file hunters
+    "/.env",
+    "/credentials.json",
+    "/secrets.json",
+    "/service-account.json",
+    "/firebase-adminsdk",
+    "/firebase.json",
+    "/keyfile.json",
+    "/key.json",
+    "/appsettings.json",
+    # Framework internals exposed by misconfiguration
+    "/actuator/",
+    "/api/env",
+    "/api/config",
 )
 
 

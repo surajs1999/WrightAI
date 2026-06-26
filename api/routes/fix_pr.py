@@ -237,8 +237,8 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
             timeout=15,
             env=git_env,
         )
-    except subprocess.CalledProcessError as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create branch: {e.stderr.decode()}")
+    except subprocess.CalledProcessError:
+        raise HTTPException(status_code=500, detail="Failed to create branch")
 
     # Set up AI pipeline
     load_config(str(repo_path))
@@ -343,8 +343,8 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
             timeout=15,
             env=git_env,
         )
-    except subprocess.CalledProcessError as e:
-        raise HTTPException(status_code=500, detail=f"git commit failed: {e.stderr.decode()}")
+    except subprocess.CalledProcessError:
+        raise HTTPException(status_code=500, detail="git commit failed")
 
     # Push branch using the resolved token
     push_url = f"https://{github_token}@github.com/{owner}/{repo_name}.git"
@@ -356,8 +356,8 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
             timeout=60,
             env=git_env,
         )
-    except subprocess.CalledProcessError as e:
-        raise HTTPException(status_code=500, detail=f"git push failed: {e.stderr.decode()}")
+    except subprocess.CalledProcessError:
+        raise HTTPException(status_code=500, detail="git push failed")
 
     # Create pull request via GitHub API
     base_branch = _get_default_branch(repo_path, git_env)
@@ -384,7 +384,7 @@ async def fix_and_pr(body: FixAndPRRequest, request: Request) -> dict:
         )
 
     if resp.status_code not in (200, 201):
-        raise HTTPException(status_code=500, detail=f"PR creation failed: {resp.text}")
+        raise HTTPException(status_code=500, detail="PR creation failed")
 
     from api.usage_store import record_event
 

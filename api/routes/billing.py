@@ -56,9 +56,10 @@ async def _get_or_create_paddle_customer(api_key: str) -> str:
             timeout=10,
         )
     if not resp.is_success:
-        raise HTTPException(
-            status_code=502, detail=f"Failed to create Paddle customer: {resp.text}"
-        )
+        import logging as _log
+
+        _log.getLogger("wright.api").error("Paddle create customer failed: %s", resp.text)
+        raise HTTPException(status_code=502, detail="Failed to create billing customer")
 
     customer_id = resp.json()["data"]["id"]
     _db().table("users").update({"paddle_customer_id": customer_id}).eq(
@@ -129,7 +130,10 @@ async def create_checkout_session(body: CheckoutRequest, request: Request) -> di
             timeout=15,
         )
     if not resp.is_success:
-        raise HTTPException(status_code=502, detail=f"Paddle error: {resp.text}")
+        import logging as _log
+
+        _log.getLogger("wright.api").error("Paddle create transaction failed: %s", resp.text)
+        raise HTTPException(status_code=502, detail="Failed to create checkout session")
 
     data = resp.json()["data"]
     checkout_url = (data.get("checkout") or {}).get("url", "")
@@ -154,7 +158,10 @@ async def sync_transaction(body: SyncTransactionRequest, request: Request) -> di
             timeout=10,
         )
     if not resp.is_success:
-        raise HTTPException(status_code=502, detail=f"Paddle error: {resp.text}")
+        import logging as _log
+
+        _log.getLogger("wright.api").error("Paddle fetch transaction failed: %s", resp.text)
+        raise HTTPException(status_code=502, detail="Failed to fetch transaction")
 
     data = resp.json()["data"]
     custom_data = data.get("custom_data") or {}
