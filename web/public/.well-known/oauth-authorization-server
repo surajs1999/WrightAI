@@ -2,33 +2,37 @@
   "issuer": "https://wrightai.live",
   "authorization_endpoint": "https://wrightai.live/api/auth/login",
   "token_endpoint": "https://wrightai.live/api/auth/key",
+  "revocation_endpoint": "https://wrightai.live/api/auth/logout",
   "jwks_uri": "https://wrightai.live/.well-known/jwks.json",
   "scopes_supported": ["openid", "profile", "email"],
   "response_types_supported": ["code"],
-  "grant_types_supported": ["authorization_code"],
+  "grant_types_supported": [
+    "authorization_code",
+    "urn:ietf:params:oauth:grant-type:jwt-bearer",
+    "urn:workos:agent-auth:grant-type:claim"
+  ],
   "token_endpoint_auth_methods_supported": ["none"],
   "code_challenge_methods_supported": ["S256"],
   "service_documentation": "https://wrightai.live/docs",
-  "ui_locales_supported": ["en-US"],
   "op_policy_uri": "https://wrightai.live/privacy-policy",
   "op_tos_uri": "https://wrightai.live/terms-of-service",
-  "x-api-key-header": "X-Wright-API-Key",
-  "x-api-key-docs": "https://wrightai.live/docs#api-keys",
   "agent_auth": {
     "skill": "https://wrightai.live/auth.md",
-    "register_uri": "https://wrightai.live/dashboard/keys",
-    "auth_md": "https://wrightai.live/auth.md",
-    "identity_types_supported": ["identity_assertion", "anonymous"],
+    "identity_endpoint": "https://wrightai.live/api/auth/login",
+    "claim_endpoint": "https://wrightai.live/api/auth/key",
+    "identity_types_supported": ["anonymous", "identity_assertion"],
     "identity_assertion": {
-      "assertion_types_supported": ["verified_email"],
-      "credential_types_supported": ["api_key"],
-      "claim_uri": "https://wrightai.live/api/auth/key"
+      "assertion_types_supported": [
+        "urn:ietf:params:oauth:token-type:id-jag"
+      ]
     },
     "anonymous": {
       "credential_types_supported": ["api_key"],
       "claim_uri": "https://wrightai.live/api/auth/key"
     },
-    "revocation_uri": "https://wrightai.live/dashboard/keys",
-    "events_supported": ["credential_revoked"]
+    "revocation_uri": "https://wrightai.live/api/auth/logout",
+    "events_supported": [
+      "https://schemas.workos.com/events/agent/auth/identity/assertion/revoked"
+    ]
   }
 }
