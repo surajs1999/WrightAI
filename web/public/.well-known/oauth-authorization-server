@@ -15,7 +15,7 @@
   "x-api-key-header": "X-Wright-API-Key",
   "x-api-key-docs": "https://wrightai.live/docs#api-keys",
   "agent_auth": {
-    "skill": "auth_md",
+    "skill": "https://wrightai.live/auth.md",
     "register_uri": "https://wrightai.live/dashboard/keys",
     "auth_md": "https://wrightai.live/auth.md",
     "identity_types_supported": ["identity_assertion", "anonymous"],

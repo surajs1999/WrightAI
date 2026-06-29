@@ -1,14 +1,23 @@
 ---
 agent_auth:
+  skill: https://wrightai.live/auth.md
   register_uri: https://wrightai.live/dashboard/keys
-  supported_identity_types:
-    - github
-    - google
-  credential_types:
-    - api_key
-  claim_uri: https://wrightai.live/api/auth/key
+  identity_types_supported:
+    - identity_assertion
+    - anonymous
+  identity_assertion:
+    assertion_types_supported:
+      - verified_email
+    credential_types_supported:
+      - api_key
+    claim_uri: https://wrightai.live/api/auth/key
+  anonymous:
+    credential_types_supported:
+      - api_key
+    claim_uri: https://wrightai.live/api/auth/key
   revocation_uri: https://wrightai.live/dashboard/keys
-  auth_server: https://wrightai.live/.well-known/oauth-authorization-server
+  events_supported:
+    - credential_revoked
 ---
 
 # Auth.md
@@ -43,8 +52,8 @@ AI agents can obtain API credentials programmatically:
 
 ## Supported Identity Providers
 
-- GitHub (OAuth 2.0)
-- Google (OAuth 2.0 / OIDC)
+- GitHub (OAuth 2.0 via WorkOS)
+- Google (OAuth 2.0 / OIDC via WorkOS)
 
 ## API Documentation
 
