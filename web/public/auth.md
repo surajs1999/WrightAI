@@ -1,6 +1,7 @@
 ---
 agent_auth:
   skill: https://wrightai.live/auth.md
+  register_uri: https://wrightai.live/dashboard/keys
   identity_endpoint: https://wrightai.live/api/auth/login
   claim_endpoint: https://wrightai.live/api/auth/key
   identity_types_supported:
