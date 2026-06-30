@@ -10,6 +10,9 @@ agent_auth:
   identity_assertion:
     assertion_types_supported:
       - urn:ietf:params:oauth:token-type:id-jag
+    credential_types_supported:
+      - api_key
+    claim_uri: https://wrightai.live/api/auth/key
   anonymous:
     credential_types_supported:
       - api_key

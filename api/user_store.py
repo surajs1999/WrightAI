@@ -56,7 +56,7 @@ class User:
     created_at: str
 
 
-def get_or_create_user(workos_user_id: str, email: str) -> User:
+def get_or_create_user(workos_user_id: str, email: str, first_name: str = "") -> User:
     """
     Retrieves an existing user by WorkOS user ID from the database, or creates and returns a new user record with a generated API key if none exists.
 
@@ -102,7 +102,7 @@ def get_or_create_user(workos_user_id: str, email: str) -> User:
     try:
         from api.tasks.email_tasks import send_welcome
 
-        send_welcome(email)
+        send_welcome(email, first_name=first_name)
     except Exception:
         pass
 

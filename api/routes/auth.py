@@ -116,6 +116,7 @@ async def callback(body: CallbackRequest, redirect_uri: str | None = None) -> di
         user = get_or_create_user(
             workos_user_id=auth.user.id,
             email=auth.user.email,
+            first_name=auth.user.first_name or "",
         )
         return {
             "api_key": user.api_key,
