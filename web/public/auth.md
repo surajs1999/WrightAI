@@ -4,6 +4,7 @@ agent_auth:
   register_uri: https://wrightai.live/dashboard/keys
   identity_endpoint: https://wrightai.live/api/auth/login
   claim_endpoint: https://wrightai.live/api/auth/key
+  claim_uri: https://wrightai.live/api/auth/key
   identity_types_supported:
     - anonymous
     - identity_assertion
@@ -12,11 +13,9 @@ agent_auth:
       - urn:ietf:params:oauth:token-type:id-jag
     credential_types_supported:
       - api_key
-    claim_uri: https://wrightai.live/api/auth/key
   anonymous:
     credential_types_supported:
       - api_key
-    claim_uri: https://wrightai.live/api/auth/key
   revocation_uri: https://wrightai.live/api/auth/logout
   events_supported:
     - https://schemas.workos.com/events/agent/auth/identity/assertion/revoked
