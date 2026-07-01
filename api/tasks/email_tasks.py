@@ -189,6 +189,11 @@ def _wrap(body: str, preheader: str = "", hero_html: str = "") -> str:
     .body-cell  {{ padding:28px 20px !important; }}
     .hero-cell  {{ padding:32px 20px 28px !important; }}
     .hero-h1    {{ font-size:22px !important; line-height:1.3 !important; }}
+    .stack-col  {{ display:block !important; width:100% !important; max-width:100% !important; box-sizing:border-box !important; margin-bottom:10px !important; }}
+    .stack-gap  {{ display:none !important; line-height:0 !important; font-size:0 !important; max-height:0 !important; }}
+    .footer-cell {{ padding:24px 20px !important; }}
+    .footer-col  {{ display:block !important; width:100% !important; text-align:left !important; padding-right:0 !important; }}
+    .footer-col + .footer-col {{ padding-top:16px !important; text-align:left !important; }}
   }}
 </style>
 </head>
@@ -250,10 +255,10 @@ def _wrap(body: str, preheader: str = "", hero_html: str = "") -> str:
 
     <!-- Dark footer -->
     <tr>
-      <td colspan="3" bgcolor="{_DARK}" style="background:{_DARK};padding:24px 44px;">
+      <td colspan="3" class="footer-cell" bgcolor="{_DARK}" style="background:{_DARK};padding:24px 44px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
-          <td valign="top" style="padding-right:20px;">
+          <td class="footer-col" valign="top" style="padding-right:20px;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
             <tr>
               <td valign="middle" style="padding-right:8px;">
@@ -271,7 +276,7 @@ def _wrap(body: str, preheader: str = "", hero_html: str = "") -> str:
               Documentation that never lies.
             </p>
           </td>
-          <td valign="top" align="right">
+          <td class="footer-col" valign="top" align="right">
             <p style="margin:0 0 5px;">
               <a href="{_SITE_URL}/dashboard/settings?utm_source=email&utm_medium=transactional&utm_campaign=footer"
                  style="font-family:{_BF};font-size:11px;color:{_PLT};text-decoration:none;">
@@ -340,11 +345,15 @@ def _hero(title: str, subtitle: str = "", emoji: str = "") -> str:
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">'
         f'<tr><td class="hero-cell" align="center" '
         f'style="padding:44px 40px 40px;text-align:center;">'
-        f'<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">'
+        # width="100%" is essential here — without it, table-layout:fixed has
+        # no width to fix against and the table sizes to the H1's natural
+        # (unwrapped) text width, overflowing narrow viewports.
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" align="center">'
         f"{emoji_row}"
         f'<tr><td align="center">'
         f'<h1 class="hero-h1" style="margin:0;font-family:{_HF};font-size:26px;'
-        f'font-weight:800;color:{_TEXT};letter-spacing:-0.03em;line-height:1.25;">'
+        f"font-weight:800;color:{_TEXT};letter-spacing:-0.03em;line-height:1.25;"
+        f'word-wrap:break-word;overflow-wrap:break-word;">'
         f"{title}</h1></td></tr>"
         f"{sub_row}"
         f"</table></td></tr></table>"
@@ -494,7 +503,7 @@ def _founder_sig(ps: str = "") -> str:
         else ""
     )
     return (
-        f'<table role="presentation" cellpadding="0" cellspacing="0" border="0">'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">'
         f"<tr>"
         f'<td width="44" valign="top" style="width:44px;padding-right:14px;padding-top:2px;">'
         f'<table role="presentation" cellpadding="0" cellspacing="0" border="0">'
@@ -618,6 +627,17 @@ def send_welcome(to: str, first_name: str = "") -> None:
             "Open Your Dashboard →",
             f"{_SITE_URL}/dashboard?utm_source=email&utm_medium=transactional&utm_campaign=welcome&utm_content=dashboard_cta",
         )
+        + _divider("Your Free plan includes")
+        # Matches /pricing exactly — no credit card required.
+        + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:8px;">'
+        + _check_row("500 doc generations / month")
+        + _check_row("200 drift detections / month — structural &amp; semantic, both included")
+        + _check_row("300 codebase chat messages / month")
+        + _check_row("Unlimited automated coverage scans")
+        + _check_row("1 connected repository &middot; 1 API key")
+        + _check_row("VS Code extension, CLI &amp; MCP server (self-hosted, always free)")
+        + "</table>"
+        + f'<p style="margin:10px 0 28px;font-family:{_BF};font-size:12px;color:#9590b0;">No credit card required. Need more room? WrightAI Pro triples every limit.</p>'
         + _divider("What to explore next")
         + _feature_card(
             "📊", "Documentation Coverage", "See exactly how well documented your repo really is."
@@ -648,15 +668,14 @@ def send_welcome(to: str, first_name: str = "") -> None:
 def send_quota_warning(to: str, used: int, limit: int, pct: int, first_name: str = "") -> None:
     """Send the 80% quota warning email."""
     name = first_name.strip() or "there"
+    # Pro-exclusive features only — matches /pricing exactly, nothing invented or unconfirmed.
     features = [
-        ("Higher generation limits", False),
-        ("Semantic Documentation Drift Detection", False),
-        ("Documentation Health Dashboard", False),
-        ("Historical Coverage Trends", False),
-        ("AI Context Packs for Claude, Cursor &amp; MCP", False),
-        ("GitHub PR Documentation Reviews", False),
-        ("Auto-repair for outdated documentation", True),
-        ("Documentation Reliability Score", True),
+        ("3× the monthly limits — 1,500 docs · 1,000 drift checks · 1,000 chat messages", False),
+        ("Auto-PR for drift fixes", False),
+        ("GitHub Action PR comments", False),
+        ("5 connected repositories · 5 API keys", False),
+        ("Enhanced dashboard with drift history &amp; trends", False),
+        ("Prioritized support", False),
     ]
     feature_rows = "".join(_check_row(f, soon=soon) for f, soon in features)
     hero = _hero(f"You've used {pct}% of your quota ⚡", f"You're making great progress, {name}.")
@@ -667,8 +686,7 @@ def send_quota_warning(to: str, used: int, limit: int, pct: int, first_name: str
         + f'<p style="margin:4px 0 32px;font-family:{_BF};font-size:12px;color:#9590b0;text-align:right;">{used} of {limit} used</p>'
         + _divider("Unlock Pro")
         + _p("With WrightAI Pro you get:", mb=16)
-        + f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:8px;">{feature_rows}</table>'
-        + f'<p style="margin:10px 0 28px;font-family:{_BF};font-size:12px;color:#9590b0;font-style:italic;">Items in grey are coming soon</p>'
+        + f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;">{feature_rows}</table>'
         + _divider()
         + _p('Upgrade to WrightAI Pro for <strong style="color:#111020;">$18/month</strong>', mb=12)
         + _cta_block(
@@ -715,8 +733,8 @@ def send_quota_exceeded(to: str, first_name: str = "") -> None:
                 color:#111020;letter-spacing:-0.02em;">Upgrade to WrightAI Pro</p>
       <p style="margin:0 0 20px;font-family:{_BF};font-size:14px;color:#4a4868;
                 line-height:1.75;">
-        Continue generating documentation immediately with higher limits and full
-        Documentation Intelligence features.
+        Continue immediately with 3× the monthly limits, auto-PR for drift fixes,
+        GitHub Action PR comments, and 5 repositories instead of 1.
       </p>
       {_cta_block("Upgrade Now →", f"{_SITE_URL}/pricing?utm_source=email&utm_medium=transactional&utm_campaign=quota_exceeded&utm_content=upgrade_cta")}
     </td>
@@ -759,19 +777,21 @@ def send_quota_exceeded(to: str, first_name: str = "") -> None:
     )
 
 
-def send_day7_nudge(to: str, docs_count: int, first_name: str = "") -> None:
+def send_day7_nudge(to: str, first_name: str = "") -> None:
     """Day-7 onboarding nudge for active free users."""
     name = first_name.strip() or "there"
 
+    # Matches /pricing exactly — both plans share structural + semantic drift
+    # detection and chat; Pro's real differentiators are quotas, repos, and
+    # these binary features. Nothing invented or unconfirmed.
     cmp_rows = [
         ("AI Documentation Generation", True, True),
-        ("Documentation Coverage", True, True),
-        ("Structural Drift Detection", True, True),
-        ("Semantic Drift Detection", False, True),
-        ("Documentation Health Dashboard", False, True),
-        ("Historical Trends", False, True),
-        ("AI Context Packs", False, True),
-        ("GitHub PR Doc Reviews", False, True),
+        ("Structural + Semantic Drift Detection", True, True),
+        ("Codebase Chat", True, True),
+        ("Coverage Dashboard", True, True),
+        ("Auto-PR for Drift Fixes", False, True),
+        ("GitHub Action PR Comments", False, True),
+        ("Enhanced Dashboard (Drift History &amp; Trends)", False, True),
     ]
 
     def _cmp_check(val: bool, pro: bool = False) -> str:
@@ -791,156 +811,404 @@ def send_day7_nudge(to: str, docs_count: int, first_name: str = "") -> None:
     )
 
     hero = _hero(
-        f"You've documented {docs_count} functions 👏",
-        f"You're in the top 20% of WrightAI users in week one, {name}.",
+        f"You're in the top 20% of WrightAI users in week one, {name}. 👏",
+        "One week in — and you're already ahead of most.",
     )
     body = (
-        _stat_card(str(docs_count), "functions documented · week one", color=_PURPLE)
-        + _divider("The real challenge")
-        + _p("But here's something many developers miss:")
-        + f'<p style="margin:0 0 8px;font-family:{_HF};font-size:20px;font-weight:800;color:#111020;line-height:1.4;letter-spacing:-0.025em;">Generating documentation is only the beginning.</p>'
-        + _p("The bigger challenge is keeping it accurate.", mb=24)
-        + f"""
+        # ── Three pillar cards (31% each, 3.5% gaps = 100%) ─────────────────
+        f"""
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-       style="margin-bottom:24px;">
+       style="margin-bottom:32px;">
   <tr>
-    <td bgcolor="#F4F2FF" style="background:#F4F2FF;border-radius:12px;
-               border-left:4px solid {_PURPLE};padding:20px 22px;">
-      <p style="margin:0 0 12px;font-family:{_MF};font-size:10px;color:{_PURPLE};
-                letter-spacing:0.1em;text-transform:uppercase;">As your code evolves</p>
-      <table cellpadding="0" cellspacing="0">
-        <tr><td style="padding:5px 0;font-family:{_BF};font-size:14px;color:#4a4868;line-height:1.7;">
-          <span style="color:{_PURPLE};font-weight:700;margin-right:8px;">→</span>Parameters change</td></tr>
-        <tr><td style="padding:5px 0;font-family:{_BF};font-size:14px;color:#4a4868;line-height:1.7;">
-          <span style="color:{_PURPLE};font-weight:700;margin-right:8px;">→</span>Business logic shifts</td></tr>
-        <tr><td style="padding:5px 0;font-family:{_BF};font-size:14px;color:#4a4868;line-height:1.7;">
-          <span style="color:{_PURPLE};font-weight:700;margin-right:8px;">→</span>READMEs become outdated</td></tr>
-        <tr><td style="padding:5px 0;font-family:{_BF};font-size:14px;color:#4a4868;line-height:1.7;">
-          <span style="color:{_PURPLE};font-weight:700;margin-right:8px;">→</span>AI tools receive stale context</td></tr>
-      </table>
+    <td width="31%" class="stack-col" valign="top" bgcolor="#F4F2FF"
+        style="background:#F4F2FF;border-top:3px solid {_PURPLE};
+               padding:20px 16px;text-align:center;vertical-align:top;">
+      <p style="margin:0 0 10px;font-size:26px;line-height:1;font-family:Arial,sans-serif;">📝</p>
+      <p style="margin:0 0 6px;font-family:{_HF};font-size:14px;font-weight:700;color:#111020;line-height:1.3;">Generate</p>
+      <p style="margin:0;font-family:{_BF};font-size:13px;color:{_MUTED};line-height:1.55;">AI-powered docs in seconds</p>
+    </td>
+    <td width="3.5%" class="stack-gap" style="font-size:0;line-height:0;">&nbsp;</td>
+    <td width="31%" class="stack-col" valign="top" bgcolor="#F0FBF7"
+        style="background:#F0FBF7;border-top:3px solid {_GREEN};
+               padding:20px 16px;text-align:center;vertical-align:top;">
+      <p style="margin:0 0 10px;font-size:26px;line-height:1;font-family:Arial,sans-serif;">🔍</p>
+      <p style="margin:0 0 6px;font-family:{_HF};font-size:14px;font-weight:700;color:#111020;line-height:1.3;">Verify</p>
+      <p style="margin:0;font-family:{_BF};font-size:13px;color:{_MUTED};line-height:1.55;">Detect drift continuously</p>
+    </td>
+    <td width="3.5%" class="stack-gap" style="font-size:0;line-height:0;">&nbsp;</td>
+    <td width="31%" class="stack-col" valign="top" bgcolor="#F0F8FF"
+        style="background:#F0F8FF;border-top:3px solid {_CYAN};
+               padding:20px 16px;text-align:center;vertical-align:top;">
+      <p style="margin:0 0 10px;font-size:26px;line-height:1;font-family:Arial,sans-serif;">✅</p>
+      <p style="margin:0 0 6px;font-family:{_HF};font-size:14px;font-weight:700;color:#111020;line-height:1.3;">Trust</p>
+      <p style="margin:0;font-family:{_BF};font-size:13px;color:{_MUTED};line-height:1.55;">Docs that stay accurate</p>
     </td>
   </tr>
 </table>"""
-        + _p(
-            f'That\'s exactly why we built <strong style="color:#111020;font-family:{_HF};">Documentation Drift Detection</strong>.',
-            mb=20,
-        )
+        # ── The real insight (dark pull-quote) ───────────────────────────────
+        + _divider("The insight most developers miss")
         + f"""
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
        style="margin-bottom:32px;">
   <tr>
-    <td width="48%" bgcolor="#F8F7FE" style="background:#F8F7FE;border:1px solid #EDEBF8;
-               border-radius:10px;padding:16px 18px;vertical-align:top;">
-      <p style="margin:0 0 6px;font-family:{_MF};font-size:9px;color:#9590b0;
-                letter-spacing:0.1em;text-transform:uppercase;">Old question</p>
-      <p style="margin:0;font-family:{_BF};font-size:14px;color:#6b6890;
-                font-style:italic;line-height:1.6;">"Do I have documentation?"</p>
-    </td>
-    <td width="4%" style="font-size:0;">&nbsp;</td>
-    <td width="48%" bgcolor="#F4F2FF" style="background:#F4F2FF;border:2px solid {_PURPLE};
-               border-radius:10px;padding:16px 18px;vertical-align:top;">
-      <p style="margin:0 0 6px;font-family:{_MF};font-size:9px;color:{_PURPLE};
-                letter-spacing:0.1em;text-transform:uppercase;">With WrightAI</p>
-      <p style="margin:0;font-family:{_BF};font-size:14px;color:{_PURPLE};
-                font-style:italic;font-weight:600;line-height:1.6;">
-        "Can I still <em>trust</em> my documentation?"
+    <td bgcolor="{_DARK2}" style="background:{_DARK2};padding:28px 32px;">
+      <p style="margin:0 0 12px;font-family:{_MF};font-size:10px;color:{_MUTED};
+                letter-spacing:0.14em;text-transform:uppercase;">The real problem</p>
+      <p style="margin:0;font-family:{_HF};font-size:20px;font-weight:800;color:{_TEXT};
+                line-height:1.45;letter-spacing:-0.02em;">
+        It's not that documentation is missing.<br>
+        <span style="color:{_PLT};">It's that it can no longer be trusted.</span>
       </p>
     </td>
   </tr>
 </table>"""
+        # ── AI urgency card ──────────────────────────────────────────────────
+        + f"""
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="margin-bottom:32px;">
+  <tr>
+    <td bgcolor="#F4F2FF" style="background:#F4F2FF;border-left:4px solid {_PURPLE};padding:20px 24px;">
+      <p style="margin:0 0 16px;font-family:{_MF};font-size:10px;color:{_PURPLE};
+                letter-spacing:0.14em;text-transform:uppercase;">Why this matters more than ever</p>
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td width="36" valign="top"
+              style="padding:10px 14px 10px 0;font-size:20px;line-height:1;
+                     border-bottom:1px solid #E0DCF4;font-family:Arial,sans-serif;">🤖</td>
+          <td valign="top"
+              style="padding:10px 0;font-family:{_BF};font-size:14px;color:#111020;
+                     line-height:1.65;font-weight:600;border-bottom:1px solid #E0DCF4;">
+            AI agents now write code, open PRs, and refactor your codebase.
+          </td>
+        </tr>
+        <tr>
+          <td width="36" valign="top"
+              style="padding:10px 14px 10px 0;font-size:20px;line-height:1;
+                     border-bottom:1px solid #E0DCF4;font-family:Arial,sans-serif;">📖</td>
+          <td valign="top"
+              style="padding:10px 0;font-family:{_BF};font-size:14px;color:#4a4868;
+                     line-height:1.65;border-bottom:1px solid #E0DCF4;">
+            They read your documentation as context to make decisions.
+          </td>
+        </tr>
+        <tr>
+          <td width="36" valign="top"
+              style="padding:10px 14px 0 0;font-size:20px;line-height:1;font-family:Arial,sans-serif;">⚠️</td>
+          <td valign="top"
+              style="padding:10px 0 0;font-family:{_BF};font-size:14px;color:#4a4868;line-height:1.65;">
+            Stale docs don't just mislead humans —
+            <strong style="color:#111020;">they mislead the AI working alongside you.</strong>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>"""
+        # ── Generation ≠ Reliability (two comparison cards) ──────────────────
+        + _divider("Generation ≠ Reliability")
+        + f"""
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="margin-bottom:32px;">
+  <tr>
+    <td width="48%" class="stack-col" valign="top" bgcolor="#F8F7FE"
+        style="background:#F8F7FE;border:1px solid #DDDAF0;padding:20px 20px;vertical-align:top;">
+      <p style="margin:0 0 12px;font-size:24px;line-height:1;font-family:Arial,sans-serif;">⚡</p>
+      <p style="margin:0 0 6px;font-family:{_MF};font-size:10px;color:{_MUTED};
+                letter-spacing:0.12em;text-transform:uppercase;">Other tools</p>
+      <p style="margin:0 0 8px;font-family:{_HF};font-size:15px;font-weight:700;color:#6b6890;line-height:1.3;">
+        Generate once
+      </p>
+      <p style="margin:0;font-family:{_BF};font-size:13px;color:{_MUTED};line-height:1.65;">
+        Docs created once, then left to drift as code moves on.
+      </p>
+    </td>
+    <td width="4%" class="stack-gap" style="font-size:0;line-height:0;">&nbsp;</td>
+    <td width="48%" class="stack-col" valign="top" bgcolor="#F4F2FF"
+        style="background:#F4F2FF;border:2px solid {_PURPLE};padding:20px 20px;vertical-align:top;">
+      <p style="margin:0 0 12px;font-size:24px;line-height:1;font-family:Arial,sans-serif;">🔄</p>
+      <p style="margin:0 0 6px;font-family:{_MF};font-size:10px;color:{_PURPLE};
+                letter-spacing:0.12em;text-transform:uppercase;">WrightAI</p>
+      <p style="margin:0 0 8px;font-family:{_HF};font-size:15px;font-weight:700;color:#111020;line-height:1.3;">
+        Continuously verified
+      </p>
+      <p style="margin:0;font-family:{_BF};font-size:13px;color:#4a4868;line-height:1.65;">
+        Every doc monitored against live code, every single day.
+      </p>
+    </td>
+  </tr>
+</table>"""
+        # ── Drift reality (dark card, consistent borders on both cells) ───────
+        + f"""
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="margin-bottom:32px;">
+  <tr>
+    <td bgcolor="{_DARK2}" style="background:{_DARK2};padding:24px 28px;">
+      <p style="margin:0 0 18px;font-family:{_MF};font-size:10px;color:{_MUTED};
+                letter-spacing:0.14em;text-transform:uppercase;">What drift looks like</p>
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td width="36" valign="middle"
+              style="padding:12px 14px 12px 0;font-size:18px;line-height:1;
+                     border-bottom:1px solid #1E1B38;font-family:Arial,sans-serif;">📄</td>
+          <td valign="middle"
+              style="padding:12px 0;font-family:{_BF};font-size:14px;color:{_TEXT};
+                     line-height:1.6;border-bottom:1px solid #1E1B38;">
+            README says A. Code does B.
+          </td>
+        </tr>
+        <tr>
+          <td width="36" valign="middle"
+              style="padding:12px 14px 12px 0;font-size:18px;line-height:1;
+                     border-bottom:1px solid #1E1B38;font-family:Arial,sans-serif;">🔌</td>
+          <td valign="middle"
+              style="padding:12px 0;font-family:{_BF};font-size:14px;color:{_TEXT};
+                     line-height:1.6;border-bottom:1px solid #1E1B38;">
+            API docs say X. Endpoint returns Y.
+          </td>
+        </tr>
+        <tr>
+          <td width="36" valign="middle"
+              style="padding:12px 14px 12px 0;font-size:18px;line-height:1;
+                     border-bottom:1px solid #1E1B38;font-family:Arial,sans-serif;">🏗️</td>
+          <td valign="middle"
+              style="padding:12px 0;font-family:{_BF};font-size:14px;color:{_TEXT};
+                     line-height:1.6;border-bottom:1px solid #1E1B38;">
+            Architecture docs no longer reflect reality.
+          </td>
+        </tr>
+        <tr>
+          <td width="36" valign="middle"
+              style="padding:12px 14px 0 0;font-size:18px;line-height:1;font-family:Arial,sans-serif;">🤖</td>
+          <td valign="middle"
+              style="padding:12px 0 0;font-family:{_BF};font-size:14px;color:{_AMBER};
+                     font-weight:600;line-height:1.6;">
+            AI agents act on outdated context.
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>"""
+        # ── What WrightAI uniquely does ──────────────────────────────────────
+        + _dark_callout(
+            "What only WrightAI does",
+            "Continuously monitors your docs against live code — catching drift "
+            "structurally <em>and</em> semantically — before it misleads your team "
+            f'or the AI tools working alongside you. <strong style="color:{_PLT};">No other tool does this.</strong>',
+        )
+        # ── Free vs Pro comparison table ─────────────────────────────────────
         + _divider("Free vs Pro")
         + f"""
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-       style="border:1px solid #EDEBF8;border-radius:14px;overflow:hidden;margin-bottom:28px;">
+       style="border:1px solid #DDDAF0;margin-bottom:16px;">
   <tr bgcolor="#F8F7FE" style="background:#F8F7FE;">
-    <th style="padding:12px 14px;font-family:{_MF};font-size:9px;color:#9590b0;
-               text-align:left;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;">Feature</th>
-    <th style="padding:12px 14px;font-family:{_MF};font-size:9px;color:#9590b0;
-               text-align:center;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;width:58px;">Free</th>
-    <th style="padding:12px 14px;font-family:{_MF};font-size:9px;color:{_PURPLE};
-               text-align:center;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;width:58px;">Pro</th>
+    <th style="padding:12px 16px;font-family:{_MF};font-size:10px;color:{_MUTED};
+               text-align:left;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;
+               border-bottom:1px solid #DDDAF0;">Feature</th>
+    <th style="padding:12px 16px;font-family:{_MF};font-size:10px;color:{_MUTED};
+               text-align:center;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;
+               width:56px;border-bottom:1px solid #DDDAF0;">Free</th>
+    <th style="padding:12px 16px;font-family:{_MF};font-size:10px;color:{_PURPLE};
+               text-align:center;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;
+               width:56px;border-bottom:1px solid #DDDAF0;">Pro</th>
   </tr>
   {cmp_table}
 </table>"""
-        + _p(
-            "If you're actively documenting your codebase, Pro keeps those docs accurate as things change.",
-            mb=20,
-        )
+        + f'<p style="margin:0 0 28px;font-family:{_BF};font-size:13px;color:{_MUTED};line-height:1.65;">'
+        f"Pro triples every limit — 1,500 docs · 1,000 drift checks · 1,000 chat messages — "
+        f"and raises repos &amp; API keys from 1 to 5.</p>"
         + _cta_block(
             "Explore WrightAI Pro →",
             f"{_SITE_URL}/pricing?utm_source=email&utm_medium=drip&utm_campaign=onboarding_day7&utm_content=upgrade_cta",
+            note="No long-term commitment · Cancel any time",
         )
         + _founder_sig("What's one feature you'd love to see? Just reply — I read every response.")
     )
     send_email(
         to,
-        "You've documented more functions than 80% of users. Here's what most developers discover next.",
+        "You're in the top 20% of WrightAI users. Here's what most developers discover next.",
         _wrap(
             body,
-            preheader=f"Nice work — {docs_count} functions documented. Here's the challenge most developers miss.",
+            preheader=f"One week in and you're already ahead, {name}. Here's the challenge most developers miss.",
             hero_html=hero,
         ),
     )
 
 
-def send_day14_nudge(to: str, docs_count: int, first_name: str = "") -> None:
+def send_day14_nudge(to: str, first_name: str = "") -> None:
     """Day-14 onboarding nudge — personal founder note + direct upgrade pitch."""
     name = first_name.strip() or "there"
 
+    # Matches /pricing exactly — Pro-exclusive features only, nothing invented.
     pro_features = [
-        "Semantic Documentation Drift Detection",
-        "Documentation Health Dashboard",
-        "AI Context Packs for Claude, Cursor &amp; MCP",
-        "Historical Coverage &amp; Drift Trends",
-        "GitHub PR Documentation Reviews",
-        "Higher monthly limits",
+        "3× the monthly limits — 1,500 docs · 1,000 drift checks · 1,000 chat messages",
+        "Auto-PR for drift fixes",
+        "GitHub Action PR comments",
+        "5 connected repositories &amp; API keys (up from 1)",
+        "Enhanced dashboard with drift history &amp; trends",
+        "Prioritized support",
     ]
     feature_rows = "".join(_check_row(f) for f in pro_features)
 
     hero = _hero("Two weeks with WrightAI", f"A personal note from the founder, {name}.", "✉️")
     body = (
         _p(
-            "Two weeks ago you started using WrightAI. I wanted to personally share why I built it.",
+            "Two weeks ago you started using WrightAI. I wanted to write to you directly — "
+            "not about features or pricing, but about where I think software is going.",
             mb=28,
         )
-        + _divider("Why I built this")
-        + _p("Every AI coding tool can generate documentation today.")
-        + _p("The problem isn't generation anymore.", mb=12)
-        + f'<p style="margin:0 0 24px;font-family:{_HF};font-size:22px;font-weight:800;color:#111020;line-height:1.3;letter-spacing:-0.03em;">The problem is trust.</p>'
+        # ── The shift (dark statement card) ──────────────────────────────────
+        + _divider("The shift I'm watching")
         + f"""
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-       style="margin-bottom:28px;">
+       style="margin-bottom:32px;">
   <tr>
-    <td bgcolor="#F4F2FF" style="background:#F4F2FF;border-radius:12px;
-               border-left:4px solid {_PURPLE};padding:20px 22px;">
-      <table cellpadding="0" cellspacing="0">
-        <tr><td style="padding:5px 0;font-family:{_BF};font-size:14px;color:#4a4868;line-height:1.7;">
-          <span style="color:{_PURPLE};font-weight:700;margin-right:8px;">→</span>Documentation slowly drifts from reality.</td></tr>
-        <tr><td style="padding:5px 0;font-family:{_BF};font-size:14px;color:#4a4868;line-height:1.7;">
-          <span style="color:{_PURPLE};font-weight:700;margin-right:8px;">→</span>Developers stop reading it.</td></tr>
-        <tr><td style="padding:5px 0;font-family:{_BF};font-size:14px;color:#4a4868;line-height:1.7;">
-          <span style="color:{_PURPLE};font-weight:700;margin-right:8px;">→</span>AI agents receive outdated context.</td></tr>
-        <tr><td style="padding:5px 0;font-family:{_BF};font-size:14px;color:#4a4868;line-height:1.7;">
-          <span style="color:{_PURPLE};font-weight:700;margin-right:8px;">→</span>Knowledge becomes unreliable.</td></tr>
+    <td bgcolor="{_DARK2}" style="background:{_DARK2};padding:28px 32px;">
+      <p style="margin:0 0 12px;font-family:{_MF};font-size:10px;color:{_MUTED};
+                letter-spacing:0.14em;text-transform:uppercase;">The new reality</p>
+      <p style="margin:0 0 24px;font-family:{_HF};font-size:21px;font-weight:800;
+                color:{_TEXT};line-height:1.35;letter-spacing:-0.025em;">
+        Software is no longer written<br>only by humans.
+      </p>
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td width="48%" valign="top" style="padding-right:16px;border-right:1px solid #1E1B38;">
+            <p style="margin:0 0 6px;font-family:{_MF};font-size:10px;color:#6B6890;
+                      letter-spacing:0.12em;text-transform:uppercase;">Old bottleneck</p>
+            <p style="margin:0;font-family:{_BF};font-size:14px;color:{_MUTED};
+                      text-decoration:line-through;line-height:1.55;">Writing code</p>
+          </td>
+          <td width="4%" style="font-size:0;">&nbsp;</td>
+          <td width="48%" valign="top" style="padding-left:16px;">
+            <p style="margin:0 0 6px;font-family:{_MF};font-size:10px;color:{_PLT};
+                      letter-spacing:0.12em;text-transform:uppercase;">New bottleneck</p>
+            <p style="margin:0;font-family:{_BF};font-size:14px;font-weight:700;
+                      color:{_TEXT};line-height:1.55;">Maintaining trusted knowledge</p>
+          </td>
+        </tr>
       </table>
     </td>
   </tr>
 </table>"""
+        # ── Market evolution (clean 2-col table, no overflow) ─────────────────
+        + _divider("Where the industry is heading")
+        + _p("Every major infrastructure shift in software has followed the same arc:", mb=16)
+        + f"""
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="border:1px solid #DDDAF0;margin-bottom:32px;">
+  <tr bgcolor="#F8F7FE" style="background:#F8F7FE;">
+    <th style="padding:11px 16px;font-family:{_MF};font-size:10px;color:{_MUTED};
+               text-align:left;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;
+               border-bottom:1px solid #DDDAF0;">Era</th>
+    <th style="padding:11px 16px;font-family:{_MF};font-size:10px;color:{_MUTED};
+               text-align:left;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;
+               border-bottom:1px solid #DDDAF0;">The layer that defined it</th>
+  </tr>
+  <tr>
+    <td style="padding:13px 16px;font-family:{_BF};font-size:14px;color:{_MUTED};
+               border-bottom:1px solid #F0EEF8;">
+      <span style="font-family:Arial,sans-serif;">🗂️</span>&nbsp; Source Control
+    </td>
+    <td style="padding:13px 16px;font-family:{_BF};font-size:14px;color:#6b6890;
+               border-bottom:1px solid #F0EEF8;">Git</td>
+  </tr>
+  <tr bgcolor="#FAFAFE" style="background:#FAFAFE;">
+    <td style="padding:13px 16px;font-family:{_BF};font-size:14px;color:{_MUTED};
+               border-bottom:1px solid #F0EEF8;">
+      <span style="font-family:Arial,sans-serif;">🤝</span>&nbsp; Collaboration
+    </td>
+    <td style="padding:13px 16px;font-family:{_BF};font-size:14px;color:#6b6890;
+               border-bottom:1px solid #F0EEF8;">GitHub</td>
+  </tr>
+  <tr>
+    <td style="padding:13px 16px;font-family:{_BF};font-size:14px;color:{_MUTED};
+               border-bottom:1px solid #F0EEF8;">
+      <span style="font-family:Arial,sans-serif;">⚡</span>&nbsp; Code Generation
+    </td>
+    <td style="padding:13px 16px;font-family:{_BF};font-size:14px;color:#6b6890;
+               border-bottom:1px solid #F0EEF8;">Copilot · Cursor · Claude Code</td>
+  </tr>
+  <tr bgcolor="#F4F2FF" style="background:#F4F2FF;">
+    <td style="padding:14px 16px;font-family:{_BF};font-size:14px;font-weight:700;color:#111020;">
+      <span style="font-family:Arial,sans-serif;">🛡️</span>&nbsp; Knowledge Reliability
+    </td>
+    <td style="padding:14px 16px;font-family:{_HF};font-size:14px;font-weight:700;color:{_PURPLE};">
+      WrightAI
+    </td>
+  </tr>
+</table>"""
+        # ── Trust problem (dark callout) ──────────────────────────────────────
         + _dark_callout(
-            "My belief",
-            f"The next generation of developer tools won't just generate documentation — they'll <strong style=\"color:{_PLT};\">continuously verify it</strong>.<br><br>That's the future we're building.",
+            "The problem no one else is solving",
+            f"Cursor, Copilot, and Mintlify are great at <em>creating</em> documentation. "
+            f"But creation is a one-time event.<br><br>"
+            f"When AI agents depend on your docs for context every day — "
+            f'<strong style="color:{_PLT};">you need a layer that continuously verifies '
+            f"what's still true.</strong> That's WrightAI.",
         )
+        # ── Vision card ───────────────────────────────────────────────────────
+        + _divider("What we're building toward")
+        + f"""
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="margin-bottom:32px;">
+  <tr>
+    <td bgcolor="#F4F2FF" style="background:#F4F2FF;border-left:4px solid {_PURPLE};padding:24px 28px;">
+      <p style="margin:0 0 12px;font-family:{_MF};font-size:10px;color:{_PURPLE};
+                letter-spacing:0.14em;text-transform:uppercase;">The category we're creating</p>
+      <p style="margin:0 0 20px;font-family:{_HF};font-size:19px;font-weight:800;color:#111020;
+                line-height:1.4;letter-spacing:-0.02em;">
+        The system of record for engineering knowledge —
+        <span style="color:{_PURPLE};">trusted by humans and AI agents alike.</span>
+      </p>
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td width="32" valign="middle"
+              style="padding:10px 14px 10px 0;font-size:16px;line-height:1;
+                     border-bottom:1px solid #E0DCF4;font-family:Arial,sans-serif;">📁</td>
+          <td valign="middle"
+              style="padding:10px 0;font-family:{_BF};font-size:14px;color:#4a4868;
+                     line-height:1.6;border-bottom:1px solid #E0DCF4;">
+            Every repo. Every function. Every architectural decision.
+          </td>
+        </tr>
+        <tr>
+          <td width="32" valign="middle"
+              style="padding:10px 14px 10px 0;font-size:16px;line-height:1;
+                     border-bottom:1px solid #E0DCF4;font-family:Arial,sans-serif;">🔄</td>
+          <td valign="middle"
+              style="padding:10px 0;font-family:{_BF};font-size:14px;color:#4a4868;
+                     line-height:1.6;border-bottom:1px solid #E0DCF4;">
+            Continuously verified as your code evolves.
+          </td>
+        </tr>
+        <tr>
+          <td width="32" valign="middle"
+              style="padding:10px 14px 0 0;font-size:16px;line-height:1;font-family:Arial,sans-serif;">✅</td>
+          <td valign="middle"
+              style="padding:10px 0 0;font-family:{_BF};font-size:14px;font-weight:700;color:#111020;line-height:1.6;">
+            Always accurate. Always trustworthy.
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>"""
+        # ── Pro pitch ─────────────────────────────────────────────────────────
         + _divider("WrightAI Pro unlocks")
         + f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">{feature_rows}</table>'
-        + _p('Annual pricing starts at <strong style="color:#111020;">$14/month</strong>.', mb=16)
+        + _p('Annual pricing starts at <strong style="color:#111020;">$14/month</strong>.', mb=20)
         + _cta_block(
             "Upgrade to WrightAI Pro →",
             f"{_SITE_URL}/pricing?utm_source=email&utm_medium=drip&utm_campaign=onboarding_day14&utm_content=upgrade_cta",
             note="No long-term commitment · Cancel any time",
         )
-        + _p("Whether you upgrade or not, I'd genuinely love to hear how you're using WrightAI.")
+        + _p(
+            "Whether you upgrade or not — you're part of a small group of developers "
+            "who saw this problem early. That matters to me.",
+            mb=0,
+        )
         + _founder_sig(
-            "Just reply — every response comes directly to me. Thanks for being an early user."
+            "Just reply and tell me: what's the #1 thing that would make WrightAI indispensable for you?"
         )
     )
     send_email(
@@ -948,7 +1216,7 @@ def send_day14_nudge(to: str, docs_count: int, first_name: str = "") -> None:
         "Two weeks with WrightAI. A quick note from the founder.",
         _wrap(
             body,
-            preheader="The real documentation problem isn't generation — it's trust.",
+            preheader="A personal note on where software is going — and why knowledge reliability is the next big layer.",
             hero_html=hero,
         ),
     )
@@ -1044,7 +1312,7 @@ def run_onboarding_drip() -> dict:
             for u in result.data or []:
                 docs = _count_all_docs(db, u["api_key"])
                 if docs >= min_docs:
-                    send_fn(u["email"], docs, first_name=u.get("first_name") or "")
+                    send_fn(u["email"], first_name=u.get("first_name") or "")
                     db.table("users").update({col: True}).eq("api_key", u["api_key"]).execute()
                     if days == 7:
                         sent7 += 1
