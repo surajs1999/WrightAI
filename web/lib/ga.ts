@@ -8,6 +8,8 @@ declare global {
   }
 }
 
+const GA_ID = "G-934CQXQ86Z";
+
 function send(name: string, params?: Record<string, unknown>) {
   if (typeof window === "undefined" || typeof window.gtag !== "function") return;
   window.gtag("event", name, params);
@@ -15,7 +17,10 @@ function send(name: string, params?: Record<string, unknown>) {
 
 export function setUserId(id: string) {
   if (typeof window === "undefined" || typeof window.gtag !== "function") return;
+  // gtag('set') applies globally; gtag('config') is the documented way to associate
+  // user_id at the property level so GA4 can use it for funnel stitching.
   window.gtag("set", "user_id", id);
+  window.gtag("config", GA_ID, { user_id: id, send_page_view: false });
 }
 
 export const ga = {

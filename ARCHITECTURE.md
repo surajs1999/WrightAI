@@ -166,6 +166,7 @@ Next.js (App Router), deployed to Cloud Run as `wrightai-web`. Serves both the D
 - `components/landing-v2/` — Current homepage and shared components: `NavbarV2`, `HeroV2`, `TrustStrip`, `ProblemV2`, `ThreePillars`, `DriftSection`, `GetStarted`, `CommandCenter`, `AIContextSection`, `CompareV2`, `WhyNow`, `FeedbackV2`, `FinalCTAV2`, `FooterV2`, `ScrollRuler`
 - `components/landing-v1/` — Archived v1 landing components (not served; kept for reference)
 - `components/dashboard/` — Authenticated dashboard UI: `Sidebar`, `Topbar`, `DashboardShell`, `MetricCard`, `CoverageBar`, `Spinner`, `SkeletonBlock`
+- `components/WebMCPProvider.tsx` — mounted once in the root `app/layout.tsx`. If the browser exposes the experimental `navigator.modelContext` API ("Web MCP"), registers 6 tools (`generate_documentation`, `check_documentation_coverage`, `detect_documentation_drift`, `search_codebase_documentation`, `get_api_key`, `install_wright_ai`) that an in-browser AI agent can call; each tool's `execute` just navigates the page to the relevant dashboard/docs route. No-ops entirely on browsers without `modelContext`.
 
 **Other**
 - **Billing**: `/billing/checkout` (Paddle checkout fallback/retry page)
@@ -176,6 +177,11 @@ Next.js (App Router), deployed to Cloud Run as `wrightai-web`. Serves both the D
 
 **Analytics**
 - GA4 (`G-934CQXQ86Z`) injected globally via `app/layout.tsx` using the standard `gtag.js` script tag + `gtag('config', ...)` initialisation. Measurement ID is a compile-time constant (not an env var). All public pages and the dashboard are tracked.
+- `lib/ga.ts` re-declares the same measurement ID and calls `setUserId()` from `DashboardShell` once a logged-in `userId` is available, `gtag('set', 'user_id', ...)` plus a second `gtag('config', ...)` (with `send_page_view: false`) so GA4 associates the id at the property level. See [docs/GA4_EVENTS.md](docs/GA4_EVENTS.md) for the full event catalogue.
+
+**AI agent discovery surface**
+- `/auth.md` (`web/public/auth.md`) — machine-readable frontmatter describing the anonymous and identity-assertion (ID-JAG via WorkOS) flows an AI agent can use to self-register a `wai_` API key, plus the endpoints to claim/revoke it
+- `/llms.txt`, `/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource`, `/.well-known/jwks.json`, `/.well-known/mcp/server-card.json`, `/.well-known/agent-skills/*`, `/.well-known/api-catalog` — static discovery files served from `web/public/`, advertised site-wide via `Link` response headers configured in `next.config.ts`
 
 **Security headers + performance (`next.config.ts`)**
 - `output: "standalone"` — minimal Docker image (no `node_modules` bundled)
@@ -184,6 +190,7 @@ Next.js (App Router), deployed to Cloud Run as `wrightai-web`. Serves both the D
 - `images.minimumCacheTTL: 31536000` — 1-year immutable cache for optimised images
 - HTTP security headers applied to all routes: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`
 - 1-year immutable `Cache-Control` for all static assets (`svg|png|jpg|jpeg|webp|avif|woff2`)
+- `typescript.ignoreBuildErrors: true` — `next build` no longer fails on type errors; added as a build-unblocking measure, so `tsc --noEmit` (or CI) is the only thing that still catches type regressions
 
 ### 3.4 GitHub Action (`github-action/`)
 Wraps the CLI for CI in `coverage` / `generate` / `drift` modes, with a configurable coverage threshold and optional auto-PR for drift fixes. See [github-action/README.md](github-action/README.md).

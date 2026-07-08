@@ -2,7 +2,7 @@
 
 **Measurement ID:** `G-934CQXQ86Z`  
 **Utility module:** `web/lib/ga.ts`  
-**Last updated:** 2026-06-25
+**Last updated:** 2026-07-08
 
 All events are fired via the typed `ga` helper. The helper silently no-ops during SSR and when `window.gtag` is not yet loaded.
 
@@ -10,6 +10,23 @@ All events are fired via the typed `ga` helper. The helper silently no-ops durin
 import { ga } from "@/lib/ga";
 ga.eventName(params);
 ```
+
+---
+
+## User Identification
+
+`setUserId(id)` in `lib/ga.ts` associates the logged-in user with their GA4 hits so activity can be stitched across sessions/devices. It's called once from `DashboardShell`'s mount `useEffect` whenever a `userId` prop is present.
+
+It makes two calls:
+
+```ts
+window.gtag("set", "user_id", id);
+window.gtag("config", GA_ID, { user_id: id, send_page_view: false });
+```
+
+- `gtag('set', ...)` sets `user_id` globally for the page, but GA4 only picks it up for the property once it's passed via `gtag('config', ...)`.
+- `send_page_view: false` prevents this second `config` call from firing a duplicate `page_view` (the initial one is already sent by the `gtag.js` snippet in `app/layout.tsx`).
+- `GA_ID` is redeclared as a local constant in `lib/ga.ts` (same value as `app/layout.tsx`'s `GA_ID`) — see `web/README.md`'s GA4 note.
 
 ---
 

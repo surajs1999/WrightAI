@@ -2,7 +2,27 @@
 
 All notable changes to Wright will be documented here.
 
-## [Unreleased] — 2026-06-21
+## [Unreleased] — 2026-07-08
+
+### Fixed — Dashboard auth gating regression
+- `proxy.ts` no longer redirected unauthenticated visitors away from `/dashboard/*` (or authenticated users away from `/login`) — the `wright_token` cookie check was dropped when `middleware.ts` was renamed to `proxy.ts` for Next.js 16 and replaced with bot/probe-blocking logic only. Restored the redirect alongside the existing probe/UA blocking.
+
+### Added — AI agent authentication
+- `/auth.md` — machine-readable agent-auth discovery document (frontmatter + human-readable reference) describing the anonymous and identity-assertion (ID-JAG via WorkOS) flows an AI agent can use to self-register a `wai_` API key
+- `register_uri` and `claim_uri` added to the `agent_auth` frontmatter for API key registration/claiming discoverability
+- `identity_types_supported` (`anonymous`, `identity_assertion`) and `credential_types_supported` (`api_key`) documented per identity type
+- OAuth authorization server discovery (`/.well-known/oauth-authorization-server`) updated to advertise the `api_key` credential type and `claim_uri`
+
+### Changed — Middleware → Proxy (Next.js 16)
+- Renamed `middleware.ts` → `proxy.ts` (Next.js 16 deprecates/removes `middleware.ts`); dashboard auth gating and bot/probe blocking now live in `proxy.ts`
+- Blocked WordPress/CMS scanner probes and raw HTTP clients (curl, Go-http-client, etc.) while explicitly allowing legitimate headless browsers and AI crawlers
+
+### Changed — Transactional email
+- Rebuilt the day-7 and day-14 onboarding nudge emails (`api/tasks/email_tasks.py`) with three-pillar (Generate · Verify · Understand) messaging and competitor positioning
+- Welcome email now greets the user by first name; `get_or_create_user` accepts an optional `first_name`
+
+### Changed — Analytics
+- `setUserId()` (`web/lib/ga.ts`) now also calls `gtag('config', GA_ID, { user_id, send_page_view: false })` in addition to `gtag('set', 'user_id', ...)`, so GA4 associates `user_id` at the property level for funnel stitching. See [docs/GA4_EVENTS.md](docs/GA4_EVENTS.md).
 
 ### Changed — Platform repositioning
 - **WrightAI is now the Documentation Intelligence Platform** — repositioned from "AI code documentation tool" to a platform that generates, verifies, and maintains documentation continuously

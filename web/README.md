@@ -80,7 +80,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (client-side) |
 | `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN` | Paddle client-side token for `Paddle.Checkout.open()`; a `live_` prefix selects the production Paddle environment, anything else uses sandbox |
 
-> **GA4** — The measurement ID (`G-934CQXQ86Z`) is hardcoded in `app/layout.tsx` as the `GA_ID` constant (not an env var). `gtag.js` is injected globally so all pages — marketing and dashboard — are tracked.
+> **GA4** — The measurement ID (`G-934CQXQ86Z`) is hardcoded (not an env var) as a `GA_ID` constant in two places: `app/layout.tsx`, which injects `gtag.js` globally so all pages — marketing and dashboard — are tracked; and `lib/ga.ts`, which reuses it in `setUserId()`'s `gtag('config', ...)` call to associate `user_id` at the property level. See `docs/GA4_EVENTS.md` for event/user-identification details.
 
 ---
 
