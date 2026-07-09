@@ -47,7 +47,6 @@ Built with Next.js (App Router). TypeScript throughout.
 ### Component Architecture
 
 - `components/landing-v2/` — Current homepage components (NavbarV2, HeroV2, ThreePillars, DriftSection, CompareV2, etc.)
-- `components/landing-v1/` — Archived v1 homepage components (not served, kept for reference)
 - `components/dashboard/` — Dashboard UI components
 
 ---

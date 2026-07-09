@@ -164,7 +164,6 @@ Next.js (App Router), deployed to Cloud Run as `wrightai-web`. Serves both the D
 
 **Component architecture**
 - `components/landing-v2/` — Current homepage and shared components: `NavbarV2`, `HeroV2`, `TrustStrip`, `ProblemV2`, `ThreePillars`, `DriftSection`, `GetStarted`, `CommandCenter`, `AIContextSection`, `CompareV2`, `WhyNow`, `FeedbackV2`, `FinalCTAV2`, `FooterV2`, `ScrollRuler`
-- `components/landing-v1/` — Archived v1 landing components (not served; kept for reference)
 - `components/dashboard/` — Authenticated dashboard UI: `Sidebar`, `Topbar`, `DashboardShell`, `MetricCard`, `CoverageBar`, `Spinner`, `SkeletonBlock`
 - `components/WebMCPProvider.tsx` — mounted once in the root `app/layout.tsx`. If the browser exposes the experimental `navigator.modelContext` API ("Web MCP"), registers 6 tools (`generate_documentation`, `check_documentation_coverage`, `detect_documentation_drift`, `search_codebase_documentation`, `get_api_key`, `install_wright_ai`) that an in-browser AI agent can call; each tool's `execute` just navigates the page to the relevant dashboard/docs route. No-ops entirely on browsers without `modelContext`.
 
