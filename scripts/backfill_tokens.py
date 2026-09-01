@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """One-off backfill: copy .tokens.json files from the GCS repos backup into
-the new Supabase `tokens` table (see SUPABASE_MIGRATION_TOKENS.sql).
+the new Supabase `tokens` table (see SUPABASE_MIGRATION.sql, section 3).
 
 For each gs://<bucket>/repos/<user_id>/.tokens.json, every {key: token} entry
 (_github_oauth or a repo slug) is upserted via api.token_store.save_token.

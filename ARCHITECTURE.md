@@ -65,7 +65,7 @@ Converts functions/classes/files into `CodeChunk` objects for embedding.
 ### 2.3 Dependency Graph — `core/parser/dep_graph.py`
 A `networkx.DiGraph` of function/method call relationships, built via regex-based call-site detection. `nx.pagerank(alpha=0.85)` (with a uniform fallback if it fails to converge) ranks functions by importance. Used to:
 - Weight 40% of the hybrid retrieval score
-- Pick the "top functions" featured in `llms.txt`
+- Rank the "Key functions" section of `llms.txt` by PageRank centrality
 
 ### 2.4 Cache — `core/parser/cache.py` (`ASTCache`)
 SQLite table `ast_cache(file_path PK, mtime, parsed_json, updated_at, last_checked_json)`. Two roles:
@@ -99,13 +99,13 @@ Uses Anthropic prompt caching (`cache_control: {"type": "ephemeral"}`) on system
 
 ### 2.8 Prompts & Schema — `core/llm/prompts.py`, `core/llm/schema.py`
 - `DocStyle` enum: `JSDOC, GOOGLE, NUMPY, EPYTEXT, RUST, GO`
-- Prompt builders: docstring generation, README, module docs, OpenAPI spec, `llms.txt`, chat, and drift checks (7 drift categories — signature, return type, behavioral, exception, example, side-effect, async)
+- Prompt builders: docstring generation, README, module docs, OpenAPI spec, chat, and drift checks (7 drift categories — signature, return type, behavioral, exception, example, side-effect, async). `llms.txt` is generated deterministically (see 2.9) and has no prompt builder.
 - `DocstringSchema` (Pydantic): `summary`, `description`, `parameters`, `returns`, `raises`, `example`, `complexity`, `side_effects`, `notes`
 
 ### 2.9 Output Writers — `core/output/`
 - `injector.py` — byte-offset based injection. Reconciles LLM-proposed parameter names against the real signature, computes indentation from the function body, and replaces or inserts the docstring. Format is dictated by language regardless of `--style`: JS/TS/Java → JSDoc, Go → `//` comments, Rust → `///`; only Python honors the configured style (Google/NumPy/Epytext). Python output is syntax-validated before the file is written.
 - `markdown_writer.py` — per-file API reference, top-level README, language-grouped module index, optional Docusaurus `sidebar.json`
-- `llms_txt.py` — builds the dependency graph, selects the top-10 functions by PageRank, and prompts the LLM for an `llms.txt` summary
+- `llms_txt.py` — deterministic, no LLM call: builds a complete `llms.txt` index of every file/function/class (signatures, parameter types, return types, docstrings, line numbers) straight from the parsed AST, plus a PageRank-ranked "Key functions" section and a "Do not modify" section reflecting the exclude patterns actually applied during parsing
 
 ### 2.10 Drift Detector — `core/drift/drift_detector.py`
 - **Structural drift** (no LLM call) — flags a function as drifted if: a parameter was added/removed/renamed, a type annotation changed, the return type changed between two concrete types, sync↔async changed, or a "meaningful" decorator changed (`@staticmethod`, `@property`, `@classmethod`, `@abstractmethod`, `@cached_property`, `@override`, `@final`)

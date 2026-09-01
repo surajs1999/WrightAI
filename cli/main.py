@@ -26,6 +26,8 @@ load_dotenv()
 app = typer.Typer(name="wright", help="AI-powered code documentation", add_completion=False)
 console = Console()
 
+DEFAULT_API_URL = "https://api.wrightai.live"
+
 
 def _resolve_workspace(path: str) -> str:
     """
@@ -195,7 +197,7 @@ def _sync_baselines_to_api(cache: "ASTCache", results: list, repo_root: str) -> 
     api_key = os.getenv("WRIGHT_API_KEY", "")
     if not api_key:
         return
-    api_url = os.getenv("WRIGHT_API_URL", "https://api.wrightai.live").rstrip("/")
+    api_url = os.getenv("WRIGHT_API_URL", DEFAULT_API_URL).rstrip("/")
     repo_name = _git_repo_slug(repo_root)
 
     scanned_abs = list({r.file_path for r in results})
@@ -242,7 +244,7 @@ def _sync_results_to_api(results: list, repo_root: str) -> None:
     api_key = os.getenv("WRIGHT_API_KEY", "")
     if not api_key or not results:
         return
-    api_url = os.getenv("WRIGHT_API_URL", "https://api.wrightai.live").rstrip("/")
+    api_url = os.getenv("WRIGHT_API_URL", DEFAULT_API_URL).rstrip("/")
     repo_name = _git_repo_slug(repo_root)
     items = [
         {
@@ -1070,9 +1072,9 @@ def chat(path: str = typer.Argument(".", help="Repository root")) -> None:
 @app.command()
 def llms_txt(path: str = typer.Argument(".", help="Repository root")) -> None:
     """
-    Generates or updates an llms.txt file in the specified repository root by parsing the codebase and writing structured LLM-friendly content.
+    Generates or updates an llms.txt file in the specified repository root by parsing the codebase and writing a complete, deterministic index of every function and class.
 
-    This CLI command resolves the target repository path, parses all source files using a tree-sitter-based code parser, and asynchronously generates an llms.txt file via LLMSTxtWriter. Progress is displayed in the terminal using a spinner. The resulting file is written directly to the repository root directory.
+    This CLI command resolves the target repository path, parses all source files using a tree-sitter-based code parser, and generates an llms.txt file via LLMSTxtWriter — a deterministic extraction (no LLM call, no ANTHROPIC_API_KEY required) covering every parsed file, function, and class. Progress is displayed in the terminal using a spinner. The resulting file is written directly to the repository root directory.
 
     Args:
         path (str): Path to the repository root directory. Defaults to the current working directory ('.'). Resolved to an absolute path before processing.
@@ -1097,7 +1099,6 @@ def llms_txt(path: str = typer.Argument(".", help="Repository root")) -> None:
 
     path_abs = _resolve_workspace(os.path.abspath(path))
     parser = CodeParser()
-    gateway = _build_gateway()
 
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as progress:
         t = progress.add_task("Parsing repository...", total=None)
@@ -1106,12 +1107,9 @@ def llms_txt(path: str = typer.Argument(".", help="Repository root")) -> None:
         repo_name = os.path.basename(path_abs)
         writer = LLMSTxtWriter()
 
-        async def _run() -> None:
-            content = await writer.generate(path_abs, parsed_files, repo_name, gateway)
-            writer.write(content, path_abs)
-
         try:
-            asyncio.run(_run())
+            content = writer.generate(path_abs, parsed_files, repo_name)
+            writer.write(content, path_abs)
         except Exception as e:
             progress.update(t, completed=True)
             console.print(f"[red]Error generating llms.txt: {e}[/red]")

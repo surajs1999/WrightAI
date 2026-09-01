@@ -136,7 +136,7 @@ wright chat .
 Type `exit` to quit.
 
 ### `wright llms-txt [PATH]`
-Generate or update `llms.txt` at the repository root for LLM-friendly codebase summaries.
+Generate or update `llms.txt` at the repository root: a complete, deterministic index of every file, function, and class in the repo (signatures, parameter types, return types, docstrings, line numbers), built directly from the parsed AST — no LLM call, no `ANTHROPIC_API_KEY` required, and nothing is summarized or truncated. Includes a PageRank-ranked "Key functions" section and a "Do not modify" section reflecting the exclude patterns actually applied during parsing. Intended as ground-truth context for AI coding agents (fed via the MCP server) as well as human skimming.
 
 ```bash
 wright llms-txt .

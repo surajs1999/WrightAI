@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase";
 import { ga } from "@/lib/ga";
 
 export default function FeedbackV2() {
@@ -15,12 +15,8 @@ export default function FeedbackV2() {
     if (!input.trim()) return;
     setLoading(true);
     const text = input.trim();
-    const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supaKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (supaUrl && supaKey) {
-      try { await createClient(supaUrl, supaKey).from("feedback").insert({ message: text, email: email.trim() || null }); }
-      catch { console.log("Feedback:", { text, email }); }
-    }
+    try { await supabase.from("feedback").insert({ message: text, email: email.trim() || null }); }
+    catch { console.log("Feedback:", { text, email }); }
     setInput(""); setEmail("");
     setSent(true); setLoading(false);
     ga.feedbackSubmitted();

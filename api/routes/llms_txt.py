@@ -17,13 +17,15 @@ class LlmsTxtRequest(BaseModel):
 @router.post("")
 async def generate_llms_txt(body: LlmsTxtRequest, http_request: Request) -> dict:
     """
-    Generates an llms.txt for a repository using the same LLM-authored pipeline as `wright llms-txt`.
+    Generates a complete, deterministic llms.txt for a repository using the same pipeline as `wright llms-txt`.
 
-    Parses the repository with tree-sitter, builds a dependency graph to rank
-    functions by PageRank, and asks Claude to write the llms.txt content
-    (Overview / Architecture / Entry points / Key functions / Do not modify
-    sections) via `LLMSTxtWriter.generate`. This mirrors the CLI's `llms_txt`
-    command rather than mechanically dumping function signatures and docstrings.
+    Parses the repository with tree-sitter and builds an exhaustive, structured
+    index of every file, function, and class (signatures, parameter types,
+    return types, docstrings, line numbers) via `LLMSTxtWriter.generate`, plus a
+    PageRank-ranked "Key functions" section and a "Do not modify" section
+    reflecting the exclude patterns actually applied during parsing. No LLM
+    call is made — the content is extracted directly from the AST, so it is
+    exact rather than a paraphrase. This mirrors the CLI's `llms_txt` command.
 
     Args:
         body (LlmsTxtRequest): Request payload containing repo_root, the path to
@@ -40,7 +42,6 @@ async def generate_llms_txt(body: LlmsTxtRequest, http_request: Request) -> dict
     Raises:
         HTTPException: status_code=404 if body.repo_root does not exist on the server.
     """
-    from api.embedder import get_gateway
     from api.routes.repos import ensure_repo_local
     from core.output.llms_txt import LLMSTxtWriter
     from core.parser.tree_sitter_parser import CodeParser
@@ -55,8 +56,7 @@ async def generate_llms_txt(body: LlmsTxtRequest, http_request: Request) -> dict
     parser = CodeParser()
     parsed_files = parser.parse_directory(str(repo_path))
 
-    gateway = get_gateway()
-    content = await LLMSTxtWriter().generate(str(repo_path), parsed_files, repo_name, gateway)
+    content = LLMSTxtWriter().generate(str(repo_path), parsed_files, repo_name)
 
     total_fns = sum(
         len(pf.functions) + sum(len(c.methods) for c in pf.classes) for pf in parsed_files

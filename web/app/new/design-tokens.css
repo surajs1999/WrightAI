@@ -1,0 +1,98 @@
+/*
+ * Design tokens for the Wright AI "/new" website.
+ * Namespaced with the `new-` prefix so these Tailwind utilities
+ * (bg-new-bg, text-new-primary, rounded-new-card, ...) never collide
+ * with the existing dark-theme tokens in app/globals.css.
+ * Source: app/new/design-spec/03-design-philosophy.md (13.5-13.12)
+ */
+@theme {
+  /* Foundation colors */
+  --color-new-bg: #FCFCFC;
+  --color-new-surface: #FFFFFF;
+  --color-new-elevated: #F8FAFC;
+  --color-new-primary: #111827;
+  --color-new-secondary: #64748B;
+  --color-new-tertiary: #6B7684; /* darkened from #94A3B8 — original failed WCAG AA (2.5:1) against --color-new-bg */
+  --color-new-border: #E5E7EB;
+  --color-new-divider: #F1F5F9;
+
+  /* Semantic colors */
+  --color-new-blue: #2563EB;
+  --color-new-indigo: #4F46E5;
+  --color-new-emerald: #10B981;
+  --color-new-amber: #F59E0B;
+  --color-new-red: #DC2626;
+
+  /* Code block background (GitHub Dark) */
+  --color-new-code-bg: #0F172A;
+
+  /* Fonts (CSS variables populated by next/font in app/new/layout.tsx) */
+  --font-new-display: var(--new-font-display);
+  --font-new-body: var(--new-font-body);
+  --font-new-mono: var(--new-font-mono);
+
+  /* Border radius */
+  --radius-new-button: 12px;
+  --radius-new-card: 18px;
+  --radius-new-code: 16px;
+  --radius-new-input: 12px;
+  --radius-new-terminal: 18px;
+
+  /* Shadows */
+  --shadow-new-primary: 0 1px 2px rgba(0, 0, 0, .05);
+  --shadow-new-medium: 0 8px 24px rgba(0, 0, 0, .06);
+  --shadow-new-hover: 0 12px 36px rgba(0, 0, 0, .08);
+}
+
+/*
+ * The shared root layout paints a dark ambient glow + noise texture on
+ * `body::before` / `body::after` for the existing product theme. The /new
+ * experience is a fully independent light theme, so neutralize those
+ * decorative layers only when nested inside .new-root.
+ */
+body:has(.new-root)::before,
+body:has(.new-root)::after {
+  content: none;
+}
+
+/*
+ * globals.css applies an unlayered `main, nav, header, aside, footer { position:
+ * relative; z-index: 1 }` rule for the existing dark theme. Because Tailwind v4
+ * utilities live in a cascade layer, that unlayered rule beats `fixed`/`z-50`
+ * classes regardless of specificity, which silently broke the fixed nav and let
+ * <main> (same z-index, later in DOM) paint over the mobile drawer. Override it
+ * here with a more specific unlayered selector scoped to .new-root.
+ */
+.new-root header {
+  position: fixed;
+  z-index: 50;
+}
+
+.new-root main,
+.new-root footer {
+  position: static;
+  z-index: auto;
+}
+
+.new-root {
+  background: var(--color-new-bg);
+  color: var(--color-new-primary);
+  font-family: var(--font-new-body), system-ui, sans-serif;
+  min-height: 100%;
+}
+
+.new-root h1,
+.new-root h2,
+.new-root h3,
+.new-root h4,
+.new-root h5,
+.new-root h6 {
+  font-family: var(--font-new-display), system-ui, sans-serif;
+}
+
+.new-root code,
+.new-root pre,
+.new-root kbd,
+.new-root samp {
+  font-family: var(--font-new-mono), monospace;
+}

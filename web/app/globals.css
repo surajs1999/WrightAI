@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./new/design-tokens.css";
 
 @theme {
   --font-heading: var(--font-heading);
@@ -41,7 +42,14 @@
   --red: #E24B4A;
 }
 
-* {
+/*
+ * Excludes .new-root (the /new redesign) because this unlayered reset beats
+ * every Tailwind margin/padding utility regardless of specificity — Tailwind
+ * v4's utilities live inside a CSS cascade layer, and unlayered rules always
+ * win over layered ones. Within .new-root, Tailwind's own layered preflight
+ * handles the reset instead, so its utilities apply normally.
+ */
+*:not(.new-root, .new-root *) {
   box-sizing: border-box;
   margin: 0;
   padding: 0;

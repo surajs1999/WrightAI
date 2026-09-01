@@ -293,65 +293,6 @@ Return a JSON object with keys: summary, description, parameters (list), request
 """
 
 
-def build_llms_txt_prompt(
-    repo_name: str,
-    parsed_files: list[ParsedFile],
-    top_functions: list[tuple[str, float]],
-) -> str:
-    """
-    Builds a formatted prompt string instructing an LLM to generate a structured llms.txt documentation file for a given code repository.
-
-    Constructs a prompt that includes the repository name, up to 20 parsed files with their paths and detected languages, and up to 10 top-ranked functions by PageRank score. The resulting prompt directs the LLM to produce an llms.txt file with standardized sections: Overview, Architecture, Entry points, Key functions, and Do not modify.
-
-    Args:
-        repo_name (str): The name of the repository to be documented, used as the title in the generated llms.txt content.
-        parsed_files (list[ParsedFile]): List of parsed file objects each containing a path and language attribute; only the first 20 entries are included in the prompt.
-        top_functions (list[tuple[str, float]]): List of tuples pairing a function node ID (str) with its PageRank score (float); only the top 10 entries are included in the prompt.
-
-    Returns:
-        str: A formatted multi-line prompt string that instructs an LLM to generate an llms.txt file with sections for overview, architecture, entry points, key functions, and files to avoid modifying.
-
-    Example:
-        ```
-        prompt = build_llms_txt_prompt('my-project', parsed_files, [('main.process_data', 0.1234), ('utils.helper', 0.0987)])
-        ```
-
-    Complexity: O(n + m) time and space, where n is min(20, len(parsed_files)) and m is min(10, len(top_functions))
-    """
-    file_list = "\n".join(f"- {pf.path} ({pf.language})" for pf in parsed_files[:20])
-    top_funcs = "\n".join(
-        f"- {node_id} (score: {score:.4f})" for node_id, score in top_functions[:10]
-    )
-    return f"""Generate an llms.txt file for the repository "{repo_name}".
-
-Files in repo:
-{file_list}
-
-Top functions by PageRank:
-{top_funcs}
-
-Write the llms.txt content following this exact format:
-# {repo_name}
-
-## Overview
-(2-3 sentence summary)
-
-## Architecture
-(key modules and their roles, bullet list)
-
-## Entry points
-(main files/functions to start reading)
-
-## Key functions
-(top 10 with one-line descriptions)
-
-## Do not modify
-(list of generated/vendored directories)
-
-Return only the llms.txt content.
-"""
-
-
 def build_chat_prompt(question: str, retrieved_contexts: list[RetrievedContext]) -> str:
     """
     Constructs a formatted prompt string that combines a user's codebase question, retrieved code context snippets, and LLM response rules into a single string ready for submission to a language model.
